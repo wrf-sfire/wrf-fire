@@ -67,6 +67,9 @@ state    real     burnt_area_dt *i*j      fire        1         z    hr    "BURN
 state    real     flame_length  *i*j      fire        1         z    hr    "FLAME_LENGTH"     "fire flame length" "m"
 state    real     ros_front     *i*j      fire        1         z    hr    "ROS_FRONT"     "rate of spread at fire front" "m/s"
 
+# fuel moisture variables
+state    real     fmc_g     *i*j      fire        1         z   i102hr "FMC_G"     "ground fuel moisture contents" "1"
+
 # constant data arrays
 state    real     fxlong    *i*j      fire        1         z   ihr    "FXLONG"    "longitude of midpoints of fire cells" "degrees"
 state    real     fxlat     *i*j      fire        1         z   ihr    "FXLAT"     "latitude of midpoints of fire cells" "degrees"
@@ -161,6 +164,7 @@ rconfig   real    fire_wind_height       namelist,fire         max_domains      
 rconfig   integer fire_fuel_read         namelist,fire         max_domains           -1      -      "fire_fuel_read"   "fuel categories are set by: if 0, uniform; if 1, user-presc; if 2, read from file"   ""
 rconfig   integer fire_fuel_cat          namelist,fire         max_domains           1       -      "fire_fuel_cat"     "fuel category if ifuelread=0"              ""
 # sfire switches
+rconfig   integer fire_fmc_read          namelist,fire         max_domains           1       -      "fire_fmc_read"    "ground fuel moisture is set by: if 0, in wrfinput; if 1, user-presc; if 2, read from file"   ""
 rconfig   integer fire_print_msg         namelist,fire         max_domains           0       -      "fire_write_msg"    "write fire statistics, 0 no writes, 1+ for more"  ""
 rconfig   integer fire_print_file        namelist,fire         max_domains           0       -      "fire_write_file"   "write fire output text files, 0 no writes, 1+ for more" ""
 # method selection
