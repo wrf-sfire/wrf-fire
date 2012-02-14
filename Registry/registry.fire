@@ -67,6 +67,31 @@ state    real     burnt_area_dt *i*j      fire        1         z    hr    "BURN
 state    real     flame_length  *i*j      fire        1         z    hr    "FLAME_LENGTH"     "fire flame length" "m"
 state    real     ros_front     *i*j      fire        1         z    hr    "ROS_FRONT"     "rate of spread at fire front" "m/s"
 
+# fuel moisture model variables
+dimspec  num_fmc    -   namelist=nfmc              c      fuel_moisture_classes 
+rconfig  integer  nfmc  namelist,fire  1    5  -   "nfmc" "number of fuel moisture classes"
+state    real     fmc_gc  ij{num_fmc} fire      1           z    hr   "FMC_GC"  "fuel moisture contents by class" "1"
+state    real     rain_old  ij       fire        1         z     hr   "RAIN_OLD" "previous value of accumulated rain" "mm"
+state    real     t2_old    ij       fire        1         z     hr   "T2_OLD" "previous value of accumulated rain" "mm"
+state    real     q2_old    ij       fire        1         z     hr   "Q2_OLD" "previous value of accumulated rain" "mm"
+state    real     psfc_old  ij       fire        1         z     hr   "PSFC_OLD" "previous value of accumulated rain" "mm"
+rconfig  integer  fuel_moisture_steps  namelist,fire  max_domains 0    -      "fuel_moisture_steps" "0=moisture model off, >0 run moisture model every x timesteps"
+i1    real        ffmc_gc  *i*j      fire        1         -    
+
+# diagnostics
+# for the actual modeled fire
+state    real     ros       *i*j      fire        1         z    hr    "ROS" "rate of spread in the normal direction to the fireline" "m/s"
+state    real     flineint  *i*j      fire        1         z    hr    "FLINEINT" "fireline intensity" "W/m"
+state    real     flineint2 *i*j      fire        1         z    hr    "FLINEINT2" "alternative fireline intensity" "J/m/s^2"
+# for fire risk rating - independent on any actual fire going on
+state    real     f_ros0    *i*j      fire        1         z    hr    "F_ROS0" "base rate of spread in all directions" "m/s"
+state    real     f_rosx    *i*j      fire        1         z    hr    "F_ROSX" "X component of the spread vector driven by wind and slope" "m/s"
+state    real     f_rosy    *i*j      fire        1         z    hr    "F_ROSY" "Y component of the spread vector driven by wind and slope" "m/s"
+state    real     f_ros     *i*j      fire        1         z    hr    "F_ROS" "max spread rate in any direction" "m/s"
+state    real     f_int     *i*j      fire        1         z    hr    "F_INT" "fire reaction intensity for risk rating, without fire" "J/m^2/s"
+state    real     f_lineint *i*j      fire        1         z    hr    "F_LINEINT" "Byram fireline intensity for risk rating, without fire" "J/m/s"
+state    real     f_lineint2 *i*j     fire        1         z    hr    "F_LINEINT2" "alternative fireline intensity for risk rating, without fire" "J/m/s^2"
+
 # constant data arrays
 state    real     fxlong    *i*j      fire        1         z   ihr    "FXLONG"    "longitude of midpoints of fire cells" "degrees"
 state    real     fxlat     *i*j      fire        1         z   ihr    "FXLAT"     "latitude of midpoints of fire cells" "degrees"
