@@ -67,8 +67,19 @@ state    real     burnt_area_dt *i*j      fire        1         z    hr    "BURN
 state    real     flame_length  *i*j      fire        1         z    hr    "FLAME_LENGTH"     "fire flame length" "m"
 state    real     ros_front     *i*j      fire        1         z    hr    "ROS_FRONT"     "rate of spread at fire front" "m/s"
 
+
 # fuel moisture variables
 state    real     fmc_g     *i*j      fire        1         z   i102hr "FMC_G"     "ground fuel moisture contents" "1"
+# fuel moisture model variables
+dimspec  num_fmc    -   namelist=nfmc              c      fuel_moisture_classes 
+rconfig  integer  nfmc  namelist,fire  1    5  -   "nfmc" "number of fuel moisture classes"
+state    real     fmc_gc  ij{num_fmc} fire      1           z    hr   "FMC_GC"  "fuel moisture contents by class" "1"
+state    real     rain_old  ij       fire        1         z     hr   "RAIN_OLD" "previous value of accumulated rain" "mm"
+state    real     t2_old    ij       fire        1         z     hr   "T2_OLD" "previous value of accumulated rain" "mm"
+state    real     q2_old    ij       fire        1         z     hr   "Q2_OLD" "previous value of accumulated rain" "mm"
+state    real     psfc_old  ij       fire        1         z     hr   "PSFC_OLD" "previous value of accumulated rain" "mm"
+rconfig  integer  fuel_moisture_steps  namelist,fire  max_domains 0    -      "fuel_moisture_steps" "0=moisture model off, >0 run moisture model every x timesteps"
+i1    real        ffmc_gc  *i*j      fire        1         -    
 
 # constant data arrays
 state    real     fxlong    *i*j      fire        1         z   ihr    "FXLONG"    "longitude of midpoints of fire cells" "degrees"
