@@ -880,9 +880,11 @@
               ims,ime, jms,jme, kms,kme,                                                   &
               its,ite,jts,jte,kts,kte)
               if( chm_is_mozart ) then
-                 call mozcart_lbc_set( chem, num_chem, grid%id, &
+                  if(config_flags%mozcart_lbc_set_onoff > 0) then  ! jm
+                      call mozcart_lbc_set( chem, num_chem, grid%id, &
                                        ims, ime, jms, jme, kms, kme,    &                  
                                        its, ite, jts, jte, kts )                           
+                  end if
               end if
 
 #if (defined(CHEM_DBG_I) && defined(CHEM_DBG_J) && defined(CHEM_DBG_K))
@@ -1062,9 +1064,11 @@
                  its,ite,jts,jte,kts,kte)
                  
             if( chm_is_mozart ) then
-               call mozcart_lbc_set( chem, num_chem, grid%id, &
+                if(config_flags%mozcart_lbc_set_onoff > 0) then ! jm
+                    call mozcart_lbc_set( chem, num_chem, grid%id, &
                                      ims, ime, jms, jme, kms, kme,    & 
                                      its, ite, jts, jte, kts )
+                end if
             end if
 
          end if
@@ -1155,9 +1159,11 @@
              ims,ime, jms,jme, kms,kme,                                               &
              its,ite,jts,jte,kts,k_end)
              if( chm_is_mozart ) then
+                 if(config_flags%mozcart_lbc_set_onoff > 0) then
                      call mozcart_lbc_set( chem, num_chem, grid%id, &
                                  ims, ime, jms, jme, kms, kme,    &
                                  its, ite, jts, jte, kts )
+                 endif
              end if
         ! accumulate convective tendencies
         DO nv=PARAM_FIRST_SCALAR,num_chem_ct
@@ -1277,9 +1283,11 @@ CALL kpp_mechanism_driver (chem,                                                
    ims,ime, jms,jme, kms,kme,                                                         &
    its,ite,jts,jte,kts,kte,grid%id,num_irr_diag,irr_rates)
           if( chm_is_mozart ) then
-             call mozcart_lbc_set( chem, num_chem, grid%id, &
+              if(config_flags%mozcart_lbc_set_onoff > 0) then ! jm
+                  call mozcart_lbc_set( chem, num_chem, grid%id, &
                                    ims, ime, jms, jme, kms, kme,    &
                                     its, ite, jts, jte, kts )
+              end if
           end if
     IF( grid%irr_opt == 1 ) then
       select case( config_flags%chem_opt )
