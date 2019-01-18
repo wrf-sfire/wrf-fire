@@ -1,4 +1,4 @@
-subroutine da_transfer_xatowrf(grid)
+subroutine da_transfer_xatowrf(grid, config_flags)
 
    !---------------------------------------------------------------------------
    !  Purpose: Convert analysis increments into WRF increments
@@ -20,8 +20,9 @@ subroutine da_transfer_xatowrf(grid)
    !---------------------------------------------------------------------------
 
    implicit none
-   
-   type(domain), intent(inout)        :: grid
+
+   type(domain), intent(inout)            :: grid
+   type(grid_config_rec_type), intent(in) :: config_flags
 
    integer :: i, j, k
 
@@ -41,11 +42,20 @@ subroutine da_transfer_xatowrf(grid)
    real :: t_full, p_full, rho_dry, q_full, ph_full, ph_xb_hd, &
            qvf1, qvf2, qvf1_b, qvf2_b
 
-   real :: uu, vv, ps1, ps2, ts1, ts2, qv1, qv2, height
+   real :: uu, vv, ps1, ts1, qv1, height
    real :: zs1, zs2, pf2, theta, thetam, mu_full, pfu, pfd, phm, cvpm, p2m
    real, dimension(kms:kme) :: ald, ph
+   logical :: has_lsm_info
 
    if (trace_use) call da_trace_entry("da_transfer_xatowrf")
+
+   has_lsm_info = .false.
+   if ( grid%sf_surface_physics == 2 ) then
+       if ( sum(grid%hfx*grid%hfx)   > 0.0 .and. &
+            sum(grid%qfx*grid%qfx)   > 0.0 ) then
+          has_lsm_info = .true.
+       end if
+   end if
 
    ! To keep the background PH perturbation:
 
@@ -110,8 +120,8 @@ subroutine da_transfer_xatowrf(grid)
          qvf1   = qvf1*qvf2_b + qvf1_b*qvf2
          qvf1_b = qvf1_b*qvf2_b
          grid%xa%p(i,j,k) = (-0.5/grid%rdnw(k)) * &
-                    ((mu_cgrid(i,j)+qvf1*grid%mub(i,j)) / qvf2_b &
-                     -(grid%mu_2(i,j)+qvf1_b*grid%mub(i,j))*qvf2/(qvf2_b*qvf2_b))
+                    ((c1f(k)*mu_cgrid(i,j)+qvf1*c1f(k)*grid%mub(i,j)) / qvf2_b &
+                     -(c1f(k)*grid%mu_2(i,j)+qvf1_b*c1f(k)*grid%mub(i,j))*qvf2/(qvf2_b*qvf2_b))
 
          do k = kte-1,1,-1
             qvf1   = 0.5*(q_cgrid(i,j,k)+q_cgrid(i,j,k+1))
@@ -122,8 +132,8 @@ subroutine da_transfer_xatowrf(grid)
             qvf1_b = qvf1_b*qvf2_b
             grid%xa%p(i,j,k) = grid%xa%p(i,j,k+1)  &
                        - (1.0/grid%rdn(k+1)) * &
-                       ((mu_cgrid(i,j)+qvf1*grid%mub(i,j)) / qvf2_b &
-                        -(grid%mu_2(i,j)+qvf1_b*grid%mub(i,j))*qvf2/(qvf2_b*qvf2_b))
+                       ((c1f(k)*mu_cgrid(i,j)+qvf1*c1f(k)*grid%mub(i,j)) / qvf2_b &
+                        -(c1f(k)*grid%mu_2(i,j)+qvf1_b*c1f(k)*grid%mub(i,j))*qvf2/(qvf2_b*qvf2_b))
          end do
 
       end do
@@ -234,13 +244,16 @@ subroutine da_transfer_xatowrf(grid)
             ! To compute the theta increment with the full fields:
             grid%t_2(i,j,k) = t_full*(base_pres/p_full)**kappa - t0
 
-            ! The full fiteld of analysis ph:
+            ! The full field of analysis ph:
             ph_full  = ph_full  &
-                       - grid%xb%dnw(k) * (grid%xb%psac(i,j)+mu_cgrid(i,j)) / rho_dry
+                       - grid%xb%dnw(k) * &
+                       ((c1h(k)*grid%xb%psac(i,j)+c2h(k))+c1h(k)*mu_cgrid(i,j)) &
+                       / rho_dry
 
             ! background hydrostatic phi:
             ph_xb_hd  = ph_xb_hd  &
-                       - grid%xb%dnw(k) * grid%xb%psac(i,j) / grid%xb%rho(i,j,k)
+                       - grid%xb%dnw(k) * &
+                       (c1h(k)*grid%xb%psac(i,j)+c2h(k)) / grid%xb%rho(i,j,k)
 
             ! The analysis perturbation = Hydro_ph - base_ph + nonhydro_xb_ph:
             grid%ph_2(i,j,k+1) = ph_full - grid%phb(i,j,k+1) &
@@ -258,12 +271,10 @@ subroutine da_transfer_xatowrf(grid)
    DO j=jts,jte
    DO i=its,ite
 
-      ! dry air density
       mu_full = grid%mub(i,j)+grid%mu_2(i,j)+mu_cgrid(i,j)
-      ph      = 0.0
 
       ! Compute geopotential (using dry inverse density and dry pressure)
-
+      ph      = 0.0
       ph(kts) = grid%ht(i,j) * gravity
       DO k = kts, kte
          p_full = grid%xb%p(i,j,k) + grid%xa%p(i,j,k)
@@ -280,9 +291,9 @@ subroutine da_transfer_xatowrf(grid)
 
       ! Dry mass is purely hydrostatic: Native approach in WRF
 
-          pfu = mu_full*grid%znw(k+1) + grid%p_top
-          pfd = mu_full*grid%znw(k)   + grid%p_top
-          phm = mu_full*grid%znu(k)   + grid%p_top
+          pfu = mu_full*c3f(k+1) + c4f(k+1) + grid%p_top
+          pfd = mu_full*c3f(k)   + c4f(k)   + grid%p_top
+          phm = mu_full*c3h(k)   + c4h(k)   + grid%p_top
           ph(k+1) = ph(k) + ald(k)*phm*LOG(pfd/pfu) 
           grid%ph_2(i,j,k+1) = ph(k+1) - grid%phb(i,j,k+1)
        END DO
@@ -496,45 +507,60 @@ subroutine da_transfer_xatowrf(grid)
          uu = 0.5*(grid%u_2(i,j,kts)+grid%u_2(i+1,j,kts) )
          vv = 0.5*(grid%v_2(i,j,kts)+grid%v_2(i,j+1,kts) )
          ps1 = grid%p(i,j,kts)   + grid%pb(i,j,kts)
-         ps2 = grid%p(i,j,kts+1) + grid%pb(i,j,kts+1)
          ts1 = (t0+grid%t_2(i,j,kts))*(ps1/base_pres)**kappa
-         ts2 = (t0+grid%t_2(i,j,kts+1))*(ps2/base_pres)**kappa
-         qv1 = grid%moist(i,j,kts, p_qv)/(1.0+grid%moist(i,j,kts,p_qv))
-         qv2 = grid%moist(i,j,kts+1, p_qv)/(1.0+grid%moist(i,j,kts+1,p_qv))
-         if (grid%hypsometric_opt == 1) then
-            height = 0.5*(grid%phb(i,j,kts)+grid%ph_2(i,j,kts)+ &
-                          grid%phb(i,j,kts+1)+grid%ph_2(i,j,kts+1))/gravity
-            height = height - grid%ht(i,j)
-         elseif (grid%hypsometric_opt == 2) then
-          ! Height is in proportion to log pressure: wee 11/22/2011
-            zs1 = (grid%phb(i,j,kts)+grid%ph_2(i,j,kts))/gravity
-            zs2 = (grid%phb(i,j,kts+1)+grid%ph_2(i,j,kts+1))/gravity
-
-            mu_full = grid%mub(i,j)+grid%mu_2(i,j)
-            pfu = mu_full*grid%znw(kts+1) + grid%p_top
-            pfd = mu_full*grid%znw(kts)   + grid%p_top
-            phm = mu_full*grid%znu(kts)   + grid%p_top
-            height = (zs2-zs1)*LOG(pfd/phm)/LOG(pfd/pfu)
-         endif
+         qv1 = grid%moist(i,j,kts, p_qv) !qv1, input to da_sfc_wtq, is mixing ratio
+         !hcl-07/2015 comment out below
+         !if (grid%hypsometric_opt == 1) then
+         !   height = 0.5*(grid%phb(i,j,kts)+grid%ph_2(i,j,kts)+ &
+         !                 grid%phb(i,j,kts+1)+grid%ph_2(i,j,kts+1))/gravity
+         !   height = height - grid%ht(i,j)
+         !elseif (grid%hypsometric_opt == 2) then
+         ! ! Height is in proportion to log pressure: wee 11/22/2011
+         !   zs1 = (grid%phb(i,j,kts)+grid%ph_2(i,j,kts))/gravity
+         !   zs2 = (grid%phb(i,j,kts+1)+grid%ph_2(i,j,kts+1))/gravity
+         !
+         !   mu_full = grid%mub(i,j)+grid%mu_2(i,j)
+         !   pfu = mu_full*grid%znw(kts+1) + grid%p_top
+         !   pfd = mu_full*grid%znw(kts)   + grid%p_top
+         !   phm = mu_full*grid%znu(kts)   + grid%p_top
+         !   height = (zs2-zs1)*LOG(pfd/phm)/LOG(pfd/pfu)
+         !endif
+         !hcl-07/2015 to be consistent with the height calculation done in wrf
+         height = 0.5*(grid%phb(i,j,kts)+grid%ph_2(i,j,kts)+ &
+                       grid%phb(i,j,kts+1)+grid%ph_2(i,j,kts+1))/gravity
+         height = height - grid%ht(i,j)
          if (height <= 0.0) then
             message(1) = "Negative height found"
             write (unit=message(2),FMT='(2I6,A,F10.2,A,F10.2)') &
                i,j,' ht = ',height ,' terr =  ',grid%ht(i,j)
             call da_error(__FILE__,__LINE__, message(1:2))
          end if
-         call da_sfc_wtq(grid%psfc(i,j), grid%tsk(i,j), &
-            ps1, ts1, qv1, uu, vv, &
-            ps2, ts2, qv2, &
-            height,  grid%xb%rough(i,j),grid%xb%xland(i,j), grid%xb%ds, &
-            grid%u10(i,j), grid%v10(i,j), grid%t2(i,j), &
-            grid%q2(i,j), grid%xb%regime(i,j))
+         if ( update_sfcdiags ) then
+            if ( use_wrf_sfcinfo ) then
+               call da_sfc_wtq(grid%psfc(i,j), grid%tsk(i,j),                 &
+                  ps1, ts1, qv1, uu, vv,                                      &
+                  height,  grid%xb%rough(i,j),grid%xb%xland(i,j), grid%xb%ds, &
+                  grid%u10(i,j), grid%v10(i,j), grid%t2(i,j),                 &
+                  grid%q2(i,j), grid%xb%regime(i,j),                          &
+                  has_lsm_info, regime_wrf=grid%regime(i,j),                  &
+                  qsfc_wrf=grid%qsfc(i,j), znt_wrf=grid%znt(i,j),             &
+                  ust_wrf=grid%ust(i,j), mol_wrf=grid%mol(i,j),               &
+                  hfx=grid%hfx(i,j), qfx=grid%qfx(i,j), pblh=grid%pblh(i,j) )
+            else
+               call da_sfc_wtq(grid%psfc(i,j), grid%tsk(i,j),                 &
+                  ps1, ts1, qv1, uu, vv,                                      &
+                  height,  grid%xb%rough(i,j),grid%xb%xland(i,j), grid%xb%ds, &
+                  grid%u10(i,j), grid%v10(i,j), grid%t2(i,j),                 &
+                  grid%q2(i,j), grid%xb%regime(i,j))
+            end if
 
-         ! This is obviously incorrect: wee 11/22/2011
-         ! grid%th2(i,j) = grid%t2(i,j)*(base_pres/ps1)**kappa
+            ! 2-m pressure: Ground level and first half level are used
+            !hcl p2m = grid%psfc(i,j)*EXP(-2.0/height*LOG(grid%psfc(i,j)/ps1))
+            !hcl grid%th2(i,j) = grid%t2(i,j)*(base_pres/p2m)**kappa
 
-         ! 2-m pressure: Ground level and first half level are used
-         p2m = grid%psfc(i,j)*EXP(-2.0/height*LOG(grid%psfc(i,j)/ps1))
-         grid%th2(i,j) = grid%t2(i,j)*(base_pres/p2m)**kappa
+            !hcl-07/2015 to be consistent with the th2 calculation done in wrf
+            grid%th2(i,j) = grid%t2(i,j)*(base_pres/grid%psfc(i,j))**kappa
+         end if ! if update_sfcdiags
       end do
    end do
 

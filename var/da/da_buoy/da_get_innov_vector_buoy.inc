@@ -134,7 +134,7 @@ subroutine da_get_innov_vector_buoy( it,num_qcstat_conv, grid, ob, iv)
       ! Surface data assimilation approach 2
       ! -----------------------------------
 
-      ! 1.2.1 Surface assmiilation approach 2(10-m u, v, 2-m t, q, 
+      ! 1.2.1 Surface assimilation approach 2(10-m u, v, 2-m t, q, 
       ! and sfc_p)
 
       call da_interp_lin_2d (grid%xb%u10,  iv%info(buoy), 1,model_u)
@@ -212,7 +212,8 @@ subroutine da_get_innov_vector_buoy( it,num_qcstat_conv, grid, ob, iv)
       end if
     end if
 
-      if (ob % buoy(n) % p > 0.0 .AND. iv % buoy(n) % p % qc >= obs_qc_pointer) then
+      !if (ob % buoy(n) % p > 0.0 .AND. iv % buoy(n) % p % qc >= obs_qc_pointer) then
+      if ( iv % buoy(n) % p % qc >= obs_qc_pointer ) then
          iv % buoy(n) % p % inv = iv%buoy(n)%p%inv - model_p(1,n)
       else
          iv % buoy(n) % p % inv = 0.0

@@ -54,6 +54,8 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
    iv % gpsref_ef_t = 1.0
    iv % gpsref_ef_q = 1.0
 
+   iv % gpseph_ef_eph = 1.0
+
    iv % sound_ef_u = 1.0
    iv % sound_ef_v = 1.0
    iv % sound_ef_t = 1.0
@@ -138,6 +140,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          ob % synop(n) % q = iv % synop(n) % q % inv
          ob % synop(n) % p = iv % synop(n) % p % inv
 
+        if ( q_error_options == 1 ) then
          ! Calculate q error from rh error:
 
          if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
@@ -158,6 +161,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
          ! end if
          end if
+        end if !q_error_options
       end do      
    end if
 
@@ -267,6 +271,16 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
             ob % gpsref(n) %   p(k) = iv % gpsref(n) %   p(k) % inv
             ob % gpsref(n) %   t(k) = iv % gpsref(n) %   t(k) % inv
             ob % gpsref(n) %   q(k) = iv % gpsref(n) %   q(k) % inv
+         end do
+      end do
+   end if
+
+   ! [2.6.1] Transfer GPS EPH obs:
+
+   if (iv%info(gpseph)%nlocal > 0) then
+      do n = 1, iv%info(gpseph)%nlocal
+         do k = 1, iv%info(gpseph)%levels(n)
+            ob % gpseph(n) % eph(k) = iv % gpseph(n) % eph(k) % inv
          end do
       end do
    end if
@@ -410,10 +424,6 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          end do
       end do
    end if
-   
-   ! [2.14] Setup pseudo observations:
-
-   if (iv%info(pseudo)%nlocal > 0) call da_setup_pseudo_obs(iv, ob)
 
    ! [2.15] Transfer scatterometer obs:
 
@@ -463,17 +473,17 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
       end do
    end if
 
-   ! [2.18] Transfer radar obs:
+   ! [2.18] Transfer radar obs: this section has been moved to da_fill_obs_structures_radar.inc
 
-   if (iv%info(radar)%nlocal > 0) then
-      do n = 1, iv%info(radar)%nlocal
-         do k = 1, iv%info(radar)%levels(n)
-            ! Copy observation variables:
-            ob % radar(n) % rv(k) = iv % radar(n) % rv(k) % inv
-           ob % radar(n) % rf(k) = iv % radar(n) % rf(k) % inv
-         end do
-      end do
-   end if
+!   if (iv%info(radar)%nlocal > 0) then
+!      do n = 1, iv%info(radar)%nlocal
+!         do k = 1, iv%info(radar)%levels(n)
+!            ! Copy observation variables:
+!            ob % radar(n) % rv(k) = iv % radar(n) % rv(k) % inv
+!           ob % radar(n) % rf(k) = iv % radar(n) % rf(k) % inv
+!         end do
+!      end do
+!   end if
 
    ! [2.19] Transfer TC bogus:
 
@@ -489,17 +499,19 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
             ob % bogus(n) % q(k) = iv % bogus(n) % q(k) % inv
 
             ! Calculate q error from rh error:
+            ! the conversion is not needed for LSAC
+            if (iv%info(bogus)%name(n)(1:4) /= "LSAC") then
+               rh_error = iv%bogus(n)%q(k)%error ! q error is rh at this stage!
+               call da_get_q_error(iv % bogus(n) % p(k), &
+                                   ob % bogus(n) % t(k), &
+                                   ob % bogus(n) % q(k), &
+                                   iv % bogus(n) % t(k) % error, &
+                                   rh_error, q_error)
 
-            rh_error = iv%bogus(n)%q(k)%error ! q error is rh at this stage!
-            call da_get_q_error(iv % bogus(n) % p(k), &
-                                 ob % bogus(n) % t(k), &
-                                 ob % bogus(n) % q(k), &
-                                 iv % bogus(n) % t(k) % error, &
-                                 rh_error, q_error)
-
-            iv % bogus(n) % q(k) % error = q_error
-            if (iv%bogus(n)% q(k) % error == missing_r) &
-               iv%bogus(n)% q(k) % qc = missing_data
+               iv % bogus(n) % q(k) % error = q_error
+               if (iv%bogus(n)% q(k) % error == missing_r) &
+                  iv%bogus(n)% q(k) % qc = missing_data
+            end if !LSAC
          end do
          ob % bogus(n) % slp = iv % bogus(n) % slp % inv
       end do

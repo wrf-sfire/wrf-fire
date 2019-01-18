@@ -18,7 +18,7 @@ subroutine da_transform_xtoy(cv_size, cv, grid, iv, y)
    ! [1.0] observation operator y = H(x):
    !--------------------------------------------------------------------------
   
-   if (iv%info(sound)%nlocal          > 0) call da_transform_xtoy_sound   (grid, iv, y)
+   if (iv%info(sound)%nlocal          > 0) call da_transform_xtoy_sound    (grid, iv, y)
    if (iv%info(sonde_sfc)%nlocal      > 0) call da_transform_xtoy_sonde_sfc(grid, iv, y)
    if (iv%info(mtgirs)%nlocal         > 0) call da_transform_xtoy_mtgirs   (grid, iv, y)
    if (iv%info(tamdar)%nlocal         > 0) call da_transform_xtoy_tamdar   (grid, iv, y)
@@ -30,14 +30,14 @@ subroutine da_transform_xtoy(cv_size, cv, grid, iv, y)
    if (iv%info(metar)%nlocal          > 0) call da_transform_xtoy_metar    (grid, iv, y)
    if (iv%info(ships)%nlocal          > 0) call da_transform_xtoy_ships    (grid, iv, y)
    if (iv%info(gpspw)%nlocal          > 0) then
-     if (use_gpspwObs) then
-       call da_transform_xtoy_gpspw    (grid, iv, y)
-     else if (use_GpsztdObs) then
-       call da_transform_xtoy_gpsztd   (grid, iv, y)
-     endif
+      if (use_gpspwobs) then
+         call da_transform_xtoy_gpspw    (grid, iv, y)
+      else if (use_gpsztdobs) then
+         call da_transform_xtoy_gpsztd   (grid, iv, y)
+      endif
    end if
    if (iv%info(ssmi_tb)%nlocal        > 0) call da_transform_xtoy_ssmi_tb  (grid, iv, y)
-   if (iv%info(ssmi_rv)%nlocal > 0) call da_transform_xtoy_ssmi_rv  (grid, iv, y)
+   if (iv%info(ssmi_rv)%nlocal        > 0) call da_transform_xtoy_ssmi_rv  (grid, iv, y)
    if (iv%info(pilot)%nlocal          > 0) call da_transform_xtoy_pilot    (grid, iv, y)
    if (iv%info(satem)%nlocal          > 0) call da_transform_xtoy_satem    (grid, iv, y)
    if (iv%info(ssmt1)%nlocal          > 0) call da_transform_xtoy_ssmt1    (grid, iv, y)
@@ -46,6 +46,7 @@ subroutine da_transform_xtoy(cv_size, cv, grid, iv, y)
    if (iv%info(profiler)%nlocal       > 0) call da_transform_xtoy_profiler (grid, iv, y)
    if (iv%info(buoy)%nlocal           > 0) call da_transform_xtoy_buoy     (grid, iv, y)
    if (iv%info(gpsref)%nlocal         > 0) call da_transform_xtoy_gpsref   (grid, iv, y)
+   if (iv%info(gpseph)%nlocal         > 0) call da_transform_xtoy_gpseph   (iv, y)
    if (iv%info(radar)%nlocal          > 0) call da_transform_xtoy_radar    (grid, iv, y)
    if (iv%info(bogus)%nlocal          > 0) call da_transform_xtoy_bogus    (grid, iv, y)
    if (iv%info(airsr)%nlocal          > 0) call da_transform_xtoy_airsr    (grid, iv, y)

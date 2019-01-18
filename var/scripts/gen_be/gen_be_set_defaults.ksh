@@ -38,9 +38,9 @@ export DOMAIN=${DOMAIN:-01}                          # domain id.
 export START_DATE=${START_DATE:-2003010200}          # Time of first perturbation.
 export END_DATE=${END_DATE:-2003012812}              # Time of last perturbation.
 export FCST_RANGE=${FCST_RANGE:-24}                  # Forecast range of forecast (hours).
-export FCST_RANGE1=${FCST_RANGE1:-24}                # Forecast range of forecast 1 (hours).
-export FCST_RANGE2=${FCST_RANGE2:-12}                # Forecast range of forecast 2 (hours).
-export INTERVAL=${INTERVAL:-12}                      # Period between files (hours).
+export INTERVAL=${INTERVAL:-12}                      # Period between valid times (hours).
+export FCST_RANGE1=${FCST_RANGE1:-24}                # Forecast range of NMC long-leadtime forecast (hours).
+export FCST_RANGE2=${FCST_RANGE2:-$INTERVAL}         # Forecast range of NMC short-leadtime forecast (hours).
 export BE_METHOD=${BE_METHOD:-NMC}                   # NMC (NMC-method), ENS (Ensemble-Method).
 export NE=${NE:-1}                                   # Number of ensemble members (for ENS).
 export BIN_TYPE=${BIN_TYPE:-5}                       # 0=None, 1=1:ni, 2=latitude, ....
@@ -89,6 +89,8 @@ export NL_CV_OPTIONS=${NL_CV_OPTIONS:-5}
 export NUM_PROCS=${NUM_PROCS:-1}
 export PROCESS_AERO=${PROCESS_AERO:-false}
 export AEROS_TO_PROCESS=${AEROS_TO_PROCESS:-" "}
+export NOCOLONS=${NOCOLONS:-false}                 # Set to true if using WRF "nocolons" option
+export ALLOW_MISSING_DATES=${ALLOW_MISSING_DATES:-false}  # Set to true if you want GEN_BE to attempt to continue with gaps in data (missing dates)
 
 # Directories:
 export REL_DIR=${REL_DIR:-$HOME/trunk}            # Directory containing codes.
@@ -118,10 +120,14 @@ else
 fi
 
 if [[ $NL_CV_OPTIONS == 6 ]]; then
-export CONTROL_VARIABLES=${CONTROL_VARIABLES:-" psi chi_u t_u rh_u ps_u "}
-export RUN_GEN_BE_STAGE2A=false
+   export CONTROL_VARIABLES=${CONTROL_VARIABLES:-" psi chi_u t_u rh_u ps_u "}
+   export RUN_GEN_BE_STAGE2A=false
+elif [[ $NL_CV_OPTIONS == 7 ]]; then
+   export CONTROL_VARIABLES=${CONTROL_VARIABLES:-" u v t rh ps "}
+   export RUN_GEN_BE_STAGE2=false
+   export RUN_GEN_BE_STAGE2A=false
 else
-export CONTROL_VARIABLES=${CONTROL_VARIABLES:-" psi chi_u t_u rh ps_u "}
+   export CONTROL_VARIABLES=${CONTROL_VARIABLES:-" psi chi_u t_u rh ps_u "}
 fi
 export DELETE_DIRS=${DELETE_DIRS:-" "}
 

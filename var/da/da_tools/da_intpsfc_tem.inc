@@ -5,7 +5,7 @@ subroutine da_intpsfc_tem (val, ho, po, to, height, pressure, temp, kts, kte)
    !
    ! Reference: 
    ! ---------
-   ! The use of surface observations in four dimensional data assmiilation
+   ! The use of surface observations in four dimensional data assimilation
    !  Using a mesoscale model.
    !  Ruggiero et al., 1996, Monthly Weather Review, Volume 124, 1018-1033
    !
@@ -79,6 +79,7 @@ subroutine da_intpsfc_tem (val, ho, po, to, height, pressure, temp, kts, kte)
       write (unit=message(4),fmt='(A,F10.3)')      ' P_SFC  = ',         prs_mb (kts) 
       call da_warning(__FILE__,__LINE__,message(1:4))
       val = missing_r
+      if (trace_use_dull) call da_trace_exit("da_intpsfc_tem")
       return
    end if
 

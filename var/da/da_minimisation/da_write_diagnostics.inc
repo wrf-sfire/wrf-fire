@@ -1,7 +1,7 @@
 subroutine da_write_diagnostics(it, grid,num_qcstat_conv, ob, iv, re, y, j)
 
    !---------------------------------------------------------------------------
-   ! Purpose: Output data assmiilation diagnostics
+   ! Purpose: Output data assimilation diagnostics
    !---------------------------------------------------------------------------
 
    implicit none
@@ -45,6 +45,7 @@ subroutine da_write_diagnostics(it, grid,num_qcstat_conv, ob, iv, re, y, j)
    if (iv%info(ships)%ntotal    > 0) call da_oi_stats_ships    (stats_unit, iv, ob)
    if (iv%info(gpspw)%ntotal    > 0) call da_oi_stats_gpspw    (stats_unit, iv)
    if (iv%info(gpsref)%ntotal   > 0) call da_oi_stats_gpsref   (stats_unit, iv)
+   if (iv%info(gpseph)%ntotal   > 0) call da_oi_stats_gpseph   (stats_unit, iv)
    if (iv%info(ssmi_tb)%ntotal  > 0) call da_oi_stats_ssmi_tb  (stats_unit, iv)
    if (iv%info(ssmi_rv)%ntotal  > 0) call da_oi_stats_ssmi_rv  (stats_unit, iv)
    if (iv%info(satem)%ntotal    > 0) call da_oi_stats_satem    (stats_unit, iv)
@@ -62,7 +63,7 @@ subroutine da_write_diagnostics(it, grid,num_qcstat_conv, ob, iv, re, y, j)
    if (iv%num_inst > 0) call da_oi_stats_rad (stats_unit, iv)
 #endif
 
-   if (num_pseudo > 0) call da_oi_stats_pseudo (stats_unit, iv)
+   if ( pseudo_uvtpq ) call da_oi_stats_pseudo (stats_unit, iv)
 
    !---- ----------------------------------------------------------------------
    ! [2.0] Calculate residual vector (O-A) statistics:
@@ -83,6 +84,7 @@ if (.not. anal_type_verify) then
    if (iv%info(ships)%ntotal    > 0) call da_ao_stats_ships    (stats_unit, iv, re, ob)
    if (iv%info(gpspw)%ntotal    > 0) call da_ao_stats_gpspw    (stats_unit, iv, re)
    if (iv%info(gpsref)%ntotal   > 0) call da_ao_stats_gpsref   (stats_unit, iv, re)
+   if (iv%info(gpseph)%ntotal   > 0) call da_ao_stats_gpseph   (stats_unit, iv, re)
    if (iv%info(ssmi_tb)%ntotal  > 0) call da_ao_stats_ssmi_tb  (stats_unit, iv, re)
    if (iv%info(ssmi_rv)%ntotal  > 0) call da_ao_stats_ssmi_rv  (stats_unit, iv, re)
    if (iv%info(satem)%ntotal    > 0) call da_ao_stats_satem    (stats_unit, iv, re)
@@ -100,7 +102,7 @@ if (.not. anal_type_verify) then
    if (iv%num_inst > 0) call da_ao_stats_rad (stats_unit, iv, re)
 #endif
 
-   if (num_pseudo > 0) call da_ao_stats_pseudo (stats_unit, iv, re)
+   if ( pseudo_uvtpq ) call da_ao_stats_pseudo (stats_unit, iv, re)
 
    !---------------------------------------------------------------------------
    ! [3.0] Calculate analysis increment (A-B) statistics:
@@ -112,9 +114,18 @@ if (.not. anal_type_verify) then
    ! [4.0] Write VAR diagnostic :
    !------------------------------------------------------------------------------
 
-   call da_get_var_diagnostics ( iv, j)
+   call da_get_var_diagnostics (it, iv, j)
 
 end if
+
+   if ( num_pseudo > 0 ) then
+      if (rootproc .and. print_detail_outerloop) then
+          close(stats_unit)
+          call da_free_unit (stats_unit)
+      end if
+      if (trace_use) call da_trace_exit("da_write_diagnostics")
+      return
+   end if
 
    !---- -------------------------------------------------------------------------
    !  [5.0] Write observation data (O, O-B, O-A, y=hx'):

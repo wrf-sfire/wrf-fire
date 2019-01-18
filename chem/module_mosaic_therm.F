@@ -26,6 +26,10 @@
 
 
 !   zz01aerchemistry.f (mosaic.28.0)
+!   5/21/2014  raz - updated subr. aerosol_phase_state and function aerosol_water. 
+!                    All particles are forced to be metastable (or stable) for RH > 35%
+!                    OC (POA), SOA, OIN, BC are now included in water content calculation using kappa-Kohler theory.
+!                    The kappa values are hardcoded in function aerosol_water.
 !   11/13/2008 raz - updated calculation of "epercent" variable
 !   6/25/2008  raz - updated nh4no3 and nh4cl condensation algorithm
 !   30-apr-07 raz - made about a dozen changes/bug fixes. search for "raz-30apr07" to see the changes
@@ -968,6 +972,16 @@
         else
         gas(ismpbb_g) = 0.0
         end if
+       if (kgly .ge. p1st) then
+            gas(igly)   = rsub(kgly,k,m)*conv1a
+        else
+        gas(igly) = 0.0
+        end if
+        if (koh .ge. p1st) then
+            gas(iho)   = rsub(koh,k,m)*conv1a
+        else
+        gas(koh) = 0.0
+        end if
 
 
         if (kant1_c .ge. p1st) then
@@ -1054,7 +1068,65 @@
         gas(ibiog4_o_g) = 0.0
         end if
 
+        if (kasoaX .ge. p1st) then
+            gas(iasoaX_g)   = rsub(kasoaX,k,m)*conv1a
+        else
+        gas(iasoaX_g) = 0.0
+        end if
 
+        if (kasoa1 .ge. p1st) then
+            gas(iasoa1_g)   = rsub(kasoa1,k,m)*conv1a
+        else
+        gas(iasoa1_g) = 0.0
+        end if
+
+        if (kasoa2 .ge. p1st) then
+            gas(iasoa2_g)   = rsub(kasoa2,k,m)*conv1a
+        else
+        gas(iasoa2_g) = 0.0
+        end if
+
+        if (kasoa3 .ge. p1st) then
+            gas(iasoa3_g)   = rsub(kasoa3,k,m)*conv1a
+        else
+        gas(iasoa3_g) = 0.0
+        end if
+
+        if (kasoa4 .ge. p1st) then
+            gas(iasoa4_g)   = rsub(kasoa4,k,m)*conv1a
+        else
+        gas(iasoa4_g) = 0.0
+        end if
+
+        if (kbsoaX .ge. p1st) then
+            gas(ibsoaX_g)   = rsub(kbsoaX,k,m)*conv1a
+        else
+        gas(ibsoaX_g) = 0.0
+        end if
+
+        if (kbsoa1 .ge. p1st) then
+            gas(ibsoa1_g)   = rsub(kbsoa1,k,m)*conv1a
+        else
+        gas(ibsoa1_g) = 0.0
+        end if
+
+        if (kbsoa2 .ge. p1st) then
+            gas(ibsoa2_g)   = rsub(kbsoa2,k,m)*conv1a
+        else
+        gas(ibsoa2_g) = 0.0
+        end if
+
+        if (kbsoa3 .ge. p1st) then
+            gas(ibsoa3_g)   = rsub(kbsoa3,k,m)*conv1a
+        else
+        gas(ibsoa3_g) = 0.0
+        end if
+
+        if (kbsoa4 .ge. p1st) then
+            gas(ibsoa4_g)   = rsub(kbsoa4,k,m)*conv1a
+        else
+        gas(ibsoa4_g) = 0.0
+        end if
 
 
 
@@ -1573,6 +1645,40 @@
             aer(ismpbb_a,jtotal,ibin)=0.0
        end if
 
+       l = lptr_glysoa_r1_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iglysoa_r1_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iglysoa_r1_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_glysoa_r2_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iglysoa_r2_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iglysoa_r2_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_glysoa_sfc_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iglysoa_sfc_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iglysoa_sfc_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_glysoa_nh4_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iglysoa_nh4_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iglysoa_nh4_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_glysoa_oh_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iglysoa_oh_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iglysoa_oh_a,jtotal,ibin)=0.0
+       end if
 
        l = lptr_ant1_c_aer(isize,itype,iphase)
        if (l .ge. p1st) then
@@ -1686,6 +1792,75 @@
             aer(ibiog4_o_a,jtotal,ibin)=0.0
        end if
 
+       l = lptr_asoaX_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iasoaX_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iasoaX_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_asoa1_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iasoa1_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iasoa1_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_asoa2_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iasoa2_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iasoa2_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_asoa3_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iasoa3_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iasoa3_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_asoa4_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(iasoa4_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(iasoa4_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_bsoaX_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(ibsoaX_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(ibsoaX_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_bsoa1_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(ibsoa1_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(ibsoa1_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_bsoa2_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(ibsoa2_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(ibsoa2_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_bsoa3_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(ibsoa3_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(ibsoa3_a,jtotal,ibin)=0.0
+       end if
+
+       l = lptr_bsoa4_aer(isize,itype,iphase)
+       if (l .ge. p1st) then
+           aer(ibsoa4_a,jtotal,ibin)=rsub(l,k,m)*conv1a
+       else
+            aer(ibsoa4_a,jtotal,ibin)=0.0
+       end if
 
 ! water_a and water_a_hyst units are kg/(m^3 air)
         l = hyswptr_aer(isize,itype)
@@ -1875,6 +2050,11 @@
             rsub(kopcg8_f_o,k,m)   = gas(iopcg8_f_o_g)*conv1b
         if (ksmpa .ge. p1st)   &
             rsub(ksmpa,k,m)   = gas(ismpa_g)*conv1b
+        if (kgly .ge. p1st)   &
+            rsub(kgly,k,m)   = gas(igly)*conv1b
+        ! CK 20120913 OH is only used as scaling quantity, not returned to gas array
+!!        if (koh .ge. p1st)   &
+!!            rsub(koh,k,m)   = gas(iho)*conv1b
         if (ksmpbb .ge. p1st)   &
             rsub(ksmpbb,k,m)   = gas(ismpbb_g)*conv1b
         if (kant1_c .ge. p1st)   &
@@ -1909,6 +2089,27 @@
             rsub(kbiog3_o,k,m)   = gas(ibiog3_o_g)*conv1b
         if (kbiog4_o .ge. p1st)   &
             rsub(kbiog4_o,k,m)   = gas(ibiog4_o_g)*conv1b
+        if (kasoaX .ge. p1st)   &
+            rsub(kasoaX,k,m)   = gas(iasoaX_g)*conv1b
+        if (kasoa1 .ge. p1st)   &
+            rsub(kasoa1,k,m)   = gas(iasoa1_g)*conv1b
+        if (kasoa2 .ge. p1st)   &
+            rsub(kasoa2,k,m)   = gas(iasoa2_g)*conv1b
+        if (kasoa3 .ge. p1st)   &
+            rsub(kasoa3,k,m)   = gas(iasoa3_g)*conv1b
+        if (kasoa4 .ge. p1st)   &
+            rsub(kasoa4,k,m)   = gas(iasoa4_g)*conv1b
+        if (kbsoaX .ge. p1st)   &
+            rsub(kbsoaX,k,m)   = gas(ibsoaX_g)*conv1b
+        if (kbsoa1 .ge. p1st)   &
+            rsub(kbsoa1,k,m)   = gas(ibsoa1_g)*conv1b
+        if (kbsoa2 .ge. p1st)   &
+            rsub(kbsoa2,k,m)   = gas(ibsoa2_g)*conv1b
+        if (kbsoa3 .ge. p1st)   &
+            rsub(kbsoa3,k,m)   = gas(ibsoa3_g)*conv1b
+        if (kbsoa4 .ge. p1st)   &
+            rsub(kbsoa4,k,m)   = gas(ibsoa4_g)*conv1b
+
 ! aerosol
         iphase = ai_phase
         ibin = 0
@@ -2095,6 +2296,16 @@
        if (l .ge. p1st) rsub(l,k,m) = aer(ismpa_a,jtotal,ibin)*conv1b
        l = lptr_smpbb_aer(isize,itype,iphase)
        if (l .ge. p1st) rsub(l,k,m) = aer(ismpbb_a,jtotal,ibin)*conv1b
+       l = lptr_glysoa_r1_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iglysoa_r1_a,jtotal,ibin)*conv1b
+       l = lptr_glysoa_r2_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iglysoa_r2_a,jtotal,ibin)*conv1b
+       l = lptr_glysoa_sfc_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iglysoa_sfc_a,jtotal,ibin)*conv1b
+       l = lptr_glysoa_nh4_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iglysoa_nh4_a,jtotal,ibin)*conv1b
+       l = lptr_glysoa_oh_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iglysoa_oh_a,jtotal,ibin)*conv1b
 
        l = lptr_ant1_c_aer(isize,itype,iphase)
        if (l .ge. p1st) rsub(l,k,m) = aer(iant1_c_a,jtotal,ibin)*conv1b
@@ -2129,6 +2340,26 @@
        l = lptr_biog4_o_aer(isize,itype,iphase)
        if (l .ge. p1st) rsub(l,k,m) = aer(ibiog4_o_a,jtotal,ibin)*conv1b
 
+       l = lptr_asoaX_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iasoaX_a,jtotal,ibin)*conv1b
+       l = lptr_asoa1_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iasoa1_a,jtotal,ibin)*conv1b
+       l = lptr_asoa2_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iasoa2_a,jtotal,ibin)*conv1b
+       l = lptr_asoa3_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iasoa3_a,jtotal,ibin)*conv1b
+       l = lptr_asoa4_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(iasoa4_a,jtotal,ibin)*conv1b
+       l = lptr_bsoaX_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(ibsoaX_a,jtotal,ibin)*conv1b
+       l = lptr_bsoa1_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(ibsoa1_a,jtotal,ibin)*conv1b
+       l = lptr_bsoa2_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(ibsoa2_a,jtotal,ibin)*conv1b
+       l = lptr_bsoa3_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(ibsoa3_a,jtotal,ibin)*conv1b
+       l = lptr_bsoa4_aer(isize,itype,iphase)
+       if (l .ge. p1st) rsub(l,k,m) = aer(ibsoa4_a,jtotal,ibin)*conv1b
 
 
 
@@ -2791,6 +3022,8 @@
 !
 ! author: rahul a. zaveri
 ! update: jan 2005
+! update: 21 may 2014 - revised code to force metastable or stable state (upper curve) for RH > 35%
+!
 !-----------------------------------------------------------------------
       subroutine mesa(ibin)	! touch
 !     implicit none
@@ -2804,7 +3037,6 @@
 !     real(kind=8) aerosol_water				! mosaic func
 !     real(kind=8) drh_mutual					! mosaic func
       real(kind=8) h_ion, sum_dum				! raz update 11/13/2008
-
 
 
 ! calculate percent composition	! raz update 11/13/2008
@@ -2838,41 +3070,54 @@
 
 
 ! step 2: check for supersaturation/metastable state
-      if(water_a_hyst(ibin) .gt. 0.5*water_a_up(ibin))then
+!     jdum = 1 ! 1 = forced metastable. 0 = maybe stable               ! RAZ 5/21/2014
+!     if(water_a_hyst(ibin) .gt. 0.5*water_a_up(ibin) .or. jdum .eq. 1)then
+
+! 2017.12.03 water hysteresis changes
+      if (mhyst_method .eq. mhyst_uporlo_waterhyst) then
+         jdum = 0
+         if (water_a_hyst(ibin) .gt. 0.5*water_a_up(ibin)) jdum = 1
+      else if (mhyst_method .eq. mhyst_force_up) then
+         jdum = 1
+      else ! if (mhyst_method .eq. mhyst_force_lo) then
+         jdum = 0
+      end if
+
+      if (jdum .eq. 1) then
 
         call do_full_deliquescence(ibin)
 
-        sum_soluble = 0.0
-        do js = 1, nsoluble
-          sum_soluble = sum_soluble + electrolyte(js,jtotal,ibin)
-        enddo
+!       sum_soluble = 0.0
+!       do js = 1, nsoluble
+!         sum_soluble = sum_soluble + electrolyte(js,jtotal,ibin)
+!       enddo
 
-        solids = electrolyte(jcaso4,jtotal,ibin) +   &
-                 electrolyte(jcaco3,jtotal,ibin) +   &
-                 aer(ioin_a ,jtotal,ibin)
-
-
-        if(sum_soluble .lt. 1.e-15 .and. solids .gt. 0.0)then
-
-          jaerosolstate(ibin) = all_solid ! no soluble material present
-          jphase(ibin) = jsolid
-          call adjust_solid_aerosol(ibin)
-
+!       solids = electrolyte(jcaso4,jtotal,ibin) +   &
+!                electrolyte(jcaco3,jtotal,ibin) +   &
+!                aer(ioin_a ,jtotal,ibin)
+!
+!
+!       if(sum_soluble .lt. 1.e-15 .and. solids .gt. 0.0)then
+!
+!         jaerosolstate(ibin) = all_solid ! no soluble material present
+!         jphase(ibin) = jsolid
+!         call adjust_solid_aerosol(ibin)
+!
 ! new wet mass and wet volume
-          mass_wet_a(ibin) = mass_dry_a(ibin) + water_a(ibin)*1.e-3	! g/cc(air)
-          vol_wet_a(ibin)  = vol_dry_a(ibin) + water_a(ibin)*1.e-3	! cc(aer)/cc(air) or m^3/m^3(air)
-          growth_factor(ibin) = mass_wet_a(ibin)/mass_dry_a(ibin)	! mass growth factor
-
-          return
-
-        elseif(sum_soluble .gt. 0.0 .and. solids .eq. 0.0)then
+!         mass_wet_a(ibin) = mass_dry_a(ibin) + water_a(ibin)*1.e-3	! g/cc(air)
+!         vol_wet_a(ibin)  = vol_dry_a(ibin) + water_a(ibin)*1.e-3	! cc(aer)/cc(air) or m^3/m^3(air)
+!         growth_factor(ibin) = mass_wet_a(ibin)/mass_dry_a(ibin)	! mass growth factor
+!
+!         return
+!
+!       elseif(sum_soluble .gt. 0.0 .and. solids .eq. 0.0)then
 
           jaerosolstate(ibin) = all_liquid
           jhyst_leg(ibin) = jhyst_up
           jphase(ibin) = jliquid
           water_a(ibin) = aerosol_water(jtotal,ibin)
 
-          if(water_a(ibin) .lt. 0.0)then
+          if(water_a(ibin) .lt. 0.0)then    ! one last attempt to catch bad input
             jaerosolstate(ibin) = all_solid ! no soluble material present
             jphase(ibin)    = jsolid
             jhyst_leg(ibin) = jhyst_lo
@@ -2889,7 +3134,7 @@
 
           return
 
-        endif
+!       endif
 
       endif
 
@@ -3068,6 +3313,11 @@
       aer(iopcg8_f_o_a,jsolid,ibin)= aer(iopcg8_f_o_a,jtotal,ibin)
       aer(ismpa_a,jsolid,ibin)= aer(ismpa_a,jtotal,ibin)
       aer(ismpbb_a,jsolid,ibin)= aer(ismpbb_a,jtotal,ibin)
+      aer(iglysoa_r1_a,jsolid,ibin)= aer(iglysoa_r1_a,jtotal,ibin)
+      aer(iglysoa_r2_a,jsolid,ibin)= aer(iglysoa_r2_a,jtotal,ibin)
+      aer(iglysoa_sfc_a,jsolid,ibin)= aer(iglysoa_sfc_a,jtotal,ibin)
+      aer(iglysoa_nh4_a,jsolid,ibin)= aer(iglysoa_nh4_a,jtotal,ibin)
+      aer(iglysoa_oh_a,jsolid,ibin)= aer(iglysoa_oh_a,jtotal,ibin)
       aer(iant1_c_a,jsolid,ibin)= aer(iant1_c_a,jtotal,ibin)
       aer(iant2_c_a,jsolid,ibin)= aer(iant2_c_a,jtotal,ibin)
       aer(iant3_c_a,jsolid,ibin)= aer(iant3_c_a,jtotal,ibin)
@@ -3084,6 +3334,16 @@
       aer(ibiog2_o_a,jsolid,ibin)= aer(ibiog2_o_a,jtotal,ibin)
       aer(ibiog3_o_a,jsolid,ibin)= aer(ibiog3_o_a,jtotal,ibin)
       aer(ibiog4_o_a,jsolid,ibin)= aer(ibiog4_o_a,jtotal,ibin)
+      aer(iasoaX_a,jsolid,ibin)= aer(iasoaX_a,jtotal,ibin)
+      aer(iasoa1_a,jsolid,ibin)= aer(iasoa1_a,jtotal,ibin)
+      aer(iasoa2_a,jsolid,ibin)= aer(iasoa2_a,jtotal,ibin)
+      aer(iasoa3_a,jsolid,ibin)= aer(iasoa3_a,jtotal,ibin)
+      aer(iasoa4_a,jsolid,ibin)= aer(iasoa4_a,jtotal,ibin)
+      aer(ibsoaX_a,jsolid,ibin)= aer(ibsoaX_a,jtotal,ibin)
+      aer(ibsoa1_a,jsolid,ibin)= aer(ibsoa1_a,jtotal,ibin)
+      aer(ibsoa2_a,jsolid,ibin)= aer(ibsoa2_a,jtotal,ibin)
+      aer(ibsoa3_a,jsolid,ibin)= aer(ibsoa3_a,jtotal,ibin)
+      aer(ibsoa4_a,jsolid,ibin)= aer(ibsoa4_a,jtotal,ibin)
 
 ! liquid-phase
       aer(iso4_a,jliquid,ibin) = aer(iso4_a,jtotal,ibin) -   &
@@ -3169,6 +3429,11 @@
       aer(iopcg8_f_o_a,jliquid,ibin)= 0.0
       aer(ismpa_a,jliquid,ibin)= 0.0
       aer(ismpbb_a,jliquid,ibin)= 0.0
+      aer(iglysoa_r1_a,jliquid,ibin)= 0.0
+      aer(iglysoa_r2_a,jliquid,ibin)= 0.0
+      aer(iglysoa_sfc_a,jliquid,ibin)= 0.0
+      aer(iglysoa_nh4_a,jliquid,ibin)= 0.0
+      aer(iglysoa_oh_a,jliquid,ibin)= 0.0
       aer(iant1_c_a,jliquid,ibin)= 0.0
       aer(iant2_c_a,jliquid,ibin)= 0.0
       aer(iant3_c_a,jliquid,ibin)= 0.0
@@ -3185,6 +3450,16 @@
       aer(ibiog2_o_a,jliquid,ibin)= 0.0
       aer(ibiog3_o_a,jliquid,ibin)= 0.0
       aer(ibiog4_o_a,jliquid,ibin)= 0.0
+      aer(iasoaX_a,jliquid,ibin)= 0.0
+      aer(iasoa1_a,jliquid,ibin)= 0.0
+      aer(iasoa2_a,jliquid,ibin)= 0.0
+      aer(iasoa3_a,jliquid,ibin)= 0.0
+      aer(iasoa4_a,jliquid,ibin)= 0.0
+      aer(ibsoaX_a,jliquid,ibin)= 0.0
+      aer(ibsoa1_a,jliquid,ibin)= 0.0
+      aer(ibsoa2_a,jliquid,ibin)= 0.0
+      aer(ibsoa3_a,jliquid,ibin)= 0.0
+      aer(ibsoa4_a,jliquid,ibin)= 0.0
 
 
 
@@ -4313,11 +4588,18 @@
         sumflux = sumflux + abs(flux_sl(js))
       enddo
 
-      crustal_solids = electrolyte(jcaco3,jsolid,ibin) +  &
-                       electrolyte(jcaso4,jsolid,ibin) +  &
-                       aer(ioin_a,jsolid,ibin)
+! 2017.12.03 implement xhyst_up_crustal_thresh
+!     crustal_solids = electrolyte(jcaco3,jsolid,ibin) +  &
+!                      electrolyte(jcaso4,jsolid,ibin) +  &
+!                      aer(ioin_a,jsolid,ibin)
+      crustal_solids = electrolyte(jcaco3,jsolid,ibin)*mw_electrolyte(jcaco3) +  &
+                       electrolyte(jcaso4,jsolid,ibin)*mw_electrolyte(jcaso4) +  &
+                       aer(ioin_a,jsolid,ibin)*mw_aer_mac(ioin_a)
 
-      if(sumflux .eq. 0.0 .and. crustal_solids .eq. 0.0)then
+!     if(sumflux .eq. 0.0 .and. crustal_solids .eq. 0.0)then
+      if ( sumflux .eq. 0.0 .and. &
+           crustal_solids .le. xhyst_up_crustal_thresh*(mass_dry_a(ibin)*1.0e15) ) then
+         ! crustal_solids is ng/m^3, mass_dry_a is g/cm^3
         idissolved = myes
       endif
 
@@ -4510,6 +4792,11 @@
       aer(iopcg8_f_o_a,jsolid,ibin)= aer(iopcg8_f_o_a,jtotal,ibin)
       aer(ismpa_a,jsolid,ibin)= aer(ismpa_a,jtotal,ibin)
       aer(ismpbb_a,jsolid,ibin)= aer(ismpbb_a,jtotal,ibin)
+      aer(iglysoa_r1_a,jsolid,ibin)= aer(iglysoa_r1_a,jtotal,ibin)
+      aer(iglysoa_r2_a,jsolid,ibin)= aer(iglysoa_r2_a,jtotal,ibin)
+      aer(iglysoa_sfc_a,jsolid,ibin)= aer(iglysoa_sfc_a,jtotal,ibin)
+      aer(iglysoa_nh4_a,jsolid,ibin)= aer(iglysoa_nh4_a,jtotal,ibin)
+      aer(iglysoa_oh_a,jsolid,ibin)= aer(iglysoa_oh_a,jtotal,ibin)
       aer(iant1_c_a,jsolid,ibin)= aer(iant1_c_a,jtotal,ibin)
       aer(iant2_c_a,jsolid,ibin)= aer(iant2_c_a,jtotal,ibin)
       aer(iant3_c_a,jsolid,ibin)= aer(iant3_c_a,jtotal,ibin)
@@ -4526,6 +4813,16 @@
       aer(ibiog2_o_a,jsolid,ibin)= aer(ibiog2_o_a,jtotal,ibin)
       aer(ibiog3_o_a,jsolid,ibin)= aer(ibiog3_o_a,jtotal,ibin)
       aer(ibiog4_o_a,jsolid,ibin)= aer(ibiog4_o_a,jtotal,ibin)
+      aer(iasoaX_a,jsolid,ibin)= aer(iasoaX_a,jtotal,ibin)
+      aer(iasoa1_a,jsolid,ibin)= aer(iasoa1_a,jtotal,ibin)
+      aer(iasoa2_a,jsolid,ibin)= aer(iasoa2_a,jtotal,ibin)
+      aer(iasoa3_a,jsolid,ibin)= aer(iasoa3_a,jtotal,ibin)
+      aer(iasoa4_a,jsolid,ibin)= aer(iasoa4_a,jtotal,ibin)
+      aer(ibsoaX_a,jsolid,ibin)= aer(ibsoaX_a,jtotal,ibin)
+      aer(ibsoa1_a,jsolid,ibin)= aer(ibsoa1_a,jtotal,ibin)
+      aer(ibsoa2_a,jsolid,ibin)= aer(ibsoa2_a,jtotal,ibin)
+      aer(ibsoa3_a,jsolid,ibin)= aer(ibsoa3_a,jtotal,ibin)
+      aer(ibsoa4_a,jsolid,ibin)= aer(ibsoa4_a,jtotal,ibin)
 
 
 
@@ -4616,6 +4913,11 @@
       aer(iopcg8_f_o_a,jliquid,ibin)= 0.0
       aer(ismpa_a,jliquid,ibin)= 0.0
       aer(ismpbb_a,jliquid,ibin)= 0.0
+      aer(iglysoa_r1_a,jliquid,ibin)= 0.0
+      aer(iglysoa_r2_a,jliquid,ibin)= 0.0
+      aer(iglysoa_sfc_a,jliquid,ibin)= 0.0
+      aer(iglysoa_nh4_a,jliquid,ibin)= 0.0
+      aer(iglysoa_oh_a,jliquid,ibin)= 0.0
       aer(iant1_c_a,jliquid,ibin)= 0.0
       aer(iant2_c_a,jliquid,ibin)= 0.0
       aer(iant3_c_a,jliquid,ibin)= 0.0
@@ -4632,6 +4934,16 @@
       aer(ibiog2_o_a,jliquid,ibin)= 0.0
       aer(ibiog3_o_a,jliquid,ibin)= 0.0
       aer(ibiog4_o_a,jliquid,ibin)= 0.0
+      aer(iasoaX_a,jliquid,ibin)= 0.0
+      aer(iasoa1_a,jliquid,ibin)= 0.0
+      aer(iasoa2_a,jliquid,ibin)= 0.0
+      aer(iasoa3_a,jliquid,ibin)= 0.0
+      aer(iasoa4_a,jliquid,ibin)= 0.0
+      aer(ibsoaX_a,jliquid,ibin)= 0.0
+      aer(ibsoa1_a,jliquid,ibin)= 0.0
+      aer(ibsoa2_a,jliquid,ibin)= 0.0
+      aer(ibsoa3_a,jliquid,ibin)= 0.0
+      aer(ibsoa4_a,jliquid,ibin)= 0.0
 
 
 
@@ -4663,6 +4975,9 @@
 ! update: jan 2007
 !-----------------------------------------------------------------------
       subroutine ASTEM(dtchem,vbs_nbin)
+
+      USE module_mosaic_gly, only : glysoa_complex, glysoa_simple
+
 !      implicit none
 !      include 'chemistry.com'
 !      include 'mosaic.h'
@@ -4672,9 +4987,7 @@
       integer ibin
       real(kind=8) dumdum
       integer vbs_nbin(1)
-! 20130807 acd_alma_bugfix start
       integer start_svoc, Nsoa
-! 20130807 acd_alma_bugfix end
 !      logical first
 !      save first
 !      data first/.true./
@@ -4739,21 +5052,26 @@
       call ASTEM_semi_volatiles(dtchem)	! semi-implicit + explicit euler
       if (istat_mosaic_fe1 .lt. 0) return
 
+      if (glysoa_param == glysoa_param_simple)  call glysoa_simple(dtchem)
+      if (glysoa_param == glysoa_param_complex) call glysoa_complex(dtchem)
+
 ! condense secondary organic gases (8 sorgam species)
       if (istat_mosaic_fe1 .lt. 0) return
 
-! 20130807 acd_alma_bugfix start
       start_svoc = 1
       Nsoa       = 0
       ! simple version, Hodzic and Jimenez, GMD, 2011
       if (vbs_nbin(1).eq.0) then
         start_svoc = ismpa_g
-        Nsoa = ngas_volatile-start_svoc
+      ! 4-bin version, Knote et al., ACPD, 2014
+      else if (vbs_nbin(1).eq.4) then
+        start_svoc = iasoaX_g
       ! 9-bin version
       else
         start_svoc = ipcg1_b_c_g
-        Nsoa = ngas_volatile-start_svoc
+!        Nsoa = ngas_volatile-start_svoc
       end if
+      Nsoa       = ngas_ioa + ngas_soa - start_svoc + 1
 
       call equilibrium(start_svoc,Nsoa)
 
@@ -4764,7 +5082,6 @@
 !      call equilibrium
 !      !Bend if
 !
-! 20130807 acd_alma_bugfix end
 
 ! template for error status checking
 !        if (iprint_mosaic_fe1 .gt. 0) then
@@ -4870,14 +5187,10 @@
 
 
 ! Calculates the equilibrium gas-particle partitioning for SOA species
-! 20130807 acd_alma_bugfix start
         subroutine  equilibrium(start_ind,N)
 !        subroutine  equilibrium
-! 20130807 acd_alma_bugfix end
 ! This routine was implemented by Manish Shrivastava on 12/24/2009 to do gas-particle partitioning of SOA assuming thermodynamic equilibrium.
-! 20130807 acd_alma_bugfix start
 ! Modified by Alma Hodzic 12/2012 to implement the partitioning for mozart-mosaic species (based on the initial code implemented by Manish Shrivastava and originated from CAMx) 
-! 20130807 acd_alma_bugfix end
 ! This would give MOSAIC cpabilities of running both dynamic and equilibrium gas-particle partitioning
 ! Calls the subroutine soap. Subroutine soap calls subroutine spfcn
 !        use module_data_mosaic_main
@@ -4885,10 +5198,8 @@
 
         implicit none
         real(kind=8), parameter :: tinys=1.0d-15
-! 20130807 acd_alma_bugfix start
         integer, intent(in) :: start_ind, N
 !        integer, parameter :: N=ngas_soa !Total number of soa species
-! 20130807 acd_alma_bugfix end
         integer, parameter :: itermax=2000
         integer idxfresh(N),idxaged(N)   !counter for fresh and aged soa species
         real(kind=8) :: dq,frqfresh(nbin_a),frqaged(nbin_a)
@@ -4933,7 +5244,6 @@
 ! Initialize flagsoap
           do i=1,N
              flagsoap(i)=1
-! 20130807 acd_alma_bugfix start
              Ctot(i) = 0.0
              Ctotaged(i) = 0.0
              Ctotfresh(i) = 0.0
@@ -4946,13 +5256,11 @@
              Csat(i) = 0.0
              Csataged(i) = 0.0
              Csatfresh(i) = 0.0
-! 20130807 acd_alma_bugfix end
           enddo
-! 20130807 acd_alma_bugfix start
 ! Calculate Ctot and Paer
 !              do iv = ipcg1_b_c_g, ngas_volatile
-              do iv = start_ind, ngas_ioa + ngas_soa
-! 20130807 acd_alma_bugfix end
+!              do iv = start_ind, ngas_ioa + ngas_soa
+              do iv = start_ind, (start_ind + N - 1)
         total_species(iv) = gas(iv)
         do ibin = 1, nbin_a
           total_species(iv) = total_species(iv) + aer(iv,jtotal,ibin)
@@ -4964,7 +5272,6 @@
         cpxaged= cpxaged+aer(ioc_a,jp,ibin)
          enddo
 
-! 20130807 acd_alma_bugfix start
 !  Maps arrays starting from start_ind or ipcg1_b_c_g on to corresponding arrays starting from 1 for just soa species
         do i=1,N
            Ctot(i)=total_species(start_ind+i-1)
@@ -4981,7 +5288,6 @@
 !     Seperate the fresh and aged species and treat them as 2 different solutions. Note this approach differes from PMCAMx
 !     In PMCAMx if flagsoap(i) was set to zero those species were not considered solution forming.
 
-! 20130807 acd_alma_bugfix start
          do i=1,N
             flagsoap(i)=1 ! Biomass burning(carbon and oxygen species) +traditional soa species
          enddo
@@ -5014,7 +5320,6 @@
 !        do i=69,84
 !            flagsoap(i)=1 !Oxidized fossil oxygen
 !        enddo
-! 20130807 acd_alma_bugfix end
 
       do i=1,N
          if (flagsoap(i).eq.2) then ! fresh primary species forming 1 solution
@@ -5065,8 +5370,7 @@
        enddo
 !       Check for total number of species
         if (ntrack.ne.N) then
-        print *, 'Error in mapping fresh and primary species arrays'
-        stop
+        call wrf_error_fatal('Error in mapping fresh and primary species arrays')
         endif
 ! From here on distribute the organic aerosol in size bins following Koo et al. 2003 " Integrated approaches to modeling
 ! the organic and inorganic atmospheric aerosol components"
@@ -5078,8 +5382,8 @@
            xsumfresh(ibin)=0.0
            xsumaged(ibin)=0.0
               xsumaged(ibin)= xsumaged(ibin)+aer(ioc_a,jp,ibin)!Caluclate pre-existing primary in each bin for aged aerosol
-! 20130807 acd_alma_bugfix start
-         do iv = start_ind, ngas_ioa + ngas_soa
+!         do iv = start_ind, ngas_ioa + ngas_soa
+         do iv = start_ind, (start_ind + N - 1)
            if (flagsoap(iv-start_ind+1).eq.2) then
                xsumfresh(ibin)= xsumfresh(ibin)+aer(iv,jtotal,ibin)
            elseif (flagsoap(iv-start_ind+1).eq.1) then
@@ -5097,7 +5401,6 @@
 !                 print *, 'Error in mapping flagsoap to ipcg1_b_c_g'
 !           endif
 !         enddo
-! 20130807 acd_alma_bugfix end
 
 ! Give a small non-zero value to xsum if it is zero in the section
           if (xsumfresh(ibin).eq.0.0) xsumfresh(ibin)=tinys
@@ -5107,14 +5410,13 @@
 
 ! Calculate dq as (gas concentration) G(t)-G(t+h):
 ! Caluclate driving force at previous time step (Cgas,i-XiCsati) for both fresh and aged solutions
-! 20130807 acd_alma_bugfix start
-          do iv = start_ind, ngas_ioa + ngas_soa
+!          do iv = start_ind, ngas_ioa + ngas_soa
+          do iv = start_ind, (start_ind + N - 1)
            if (Ctot(iv-start_ind+1).lt.1d-10) goto 120 ! If a given species concentration is too low skip
             dq=gas(iv)-Cgas(iv-start_ind+1) !Since both fresh and aged species have been remapped to an array going from 1 to N
 !          do iv = ipcg1_b_c_g, ngas_volatile
 !           if (Ctot(iv-ipcg1_b_c_g+1).lt.1d-10) goto 120 ! If a given species concentration is too low skip
 !            dq=gas(iv)-Cgas(iv-ipcg1_b_c_g+1) !Since both fresh and aged species have been remapped to an array going from 1 to N
-! 20130807 acd_alma_bugfix end
            frqtotfresh=0.0d0
            frqtotaged=0.0d0
            mnkfresh=0.0d0
@@ -5125,7 +5427,6 @@
 ! fraceq(iv,ibin) is calculated as the rate of mass transfer
 ! The weighting fractions frqfresh(ibin) amd frqaged(ibin) are caluclated assuming mole fractions from previous time step
 ! This assumtion could be relaxed by iterativetely solving this equation
-! 20130807 acd_alma_bugfix start
            if (flagsoap(iv-start_ind+1).eq.2) then
               frqfresh(ibin)= kg(iv,ibin)*(gas(iv) & ! replaced fraceq(iv,ibin) by kg(iv,ibin) on 01/19/10
               -(aer(iv,jtotal,ibin))/xsumfresh(ibin) &
@@ -5149,18 +5450,15 @@
 !             -(aer(iv,jtotal,ibin))/xsumaged(ibin) &
 !              *Csat(iv-ipcg1_b_c_g+1))
 !          endif
-! 20130807 acd_alma_bugfix end
             mnkfresh=min(mnkfresh,frqfresh(ibin))
             mnkaged=min(mnkaged,frqaged(ibin))
 
             mxkfresh=max(mxkfresh,frqfresh(ibin))
             mxkaged=max(mxkaged,frqaged(ibin))
           enddo ! for ibin
-! 20130807 acd_alma_bugfix start
 !          Repeat code from this point on for aged aerosol species
             if (flagsoap(iv-start_ind+1).eq.2) then
 !            if (flagsoap(iv-ipcg1_b_c_g+1).eq.2) then
-! 20130807 acd_alma_bugfix end
 ! Condensation is favored in the next time step in this bin
           if(dq.gt.0.and.mnkfresh.lt.0.and.mxkfresh.gt.0) then
              do ibin=1,nbin_a
@@ -5183,10 +5481,8 @@
            frqfresh(ibin)=frqfresh(ibin)/frqtotfresh
            enddo
  
-! 20130807 acd_alma_bugfix start    
             elseif(flagsoap(iv-start_ind+1).eq.1) then
 !            elseif(flagsoap(iv-ipcg1_b_c_g+1).eq.1) then
-! 20130807 acd_alma_bugfix end
           if(dq.gt.0.and.mnkaged.lt.0.and.mxkaged.gt.0) then
              do ibin=1,nbin_a
                frqaged(ibin)=max(frqaged(ibin)-mnkaged,0.0d0)
@@ -5209,7 +5505,6 @@
 !     Condense all condensing species
            if(dq.gt.0.0d0) then
 
-! 20130807 acd_alma_bugfix start
             !  Map the species back into the original MOSAIC arrays
              do ibin=1,nbin_a
                  if (flagsoap(iv-start_ind+1).eq.2) then
@@ -5232,24 +5527,19 @@
 !             enddo
 !! Set the gas phase species to equilibrium value
 !                gas(iv)=Cgas(iv-ipcg1_b_c_g+1)
-! 20130807 acd_alma_bugfix end
 
 !     Evaporate all evaporating species
          elseif(dq.lt.0.0d0) then
             iter=0
 100         frt=1.0d0
                do ibin=1,nbin_a
-! 20130807 acd_alma_bugfix start
                    if (flagsoap(iv-start_ind+1).eq.2) then
 !                   if (flagsoap(iv-ipcg1_b_c_g+1).eq.2) then
-! 20130807 acd_alma_bugfix end
 ! Cannot evaporate more than whats in the bin ie ratio (aer(iv,jtotal,ibin)/dq*frqfresh(ibin)) should be less than equal to 1
                  if(frqfresh(ibin).gt.0.0d0) &
          frt=MAX(MIN(aer(iv,jtotal,ibin)/abs(-dq*frqfresh(ibin)),frt),0.0d0)
-! 20130807 acd_alma_bugfix start
 !                  elseif(flagsoap(iv-ipcg1_b_c_g+1).eq.1) then
                   elseif(flagsoap(iv-start_ind+1).eq.1) then
-! 20130807 acd_alma_bugfix end
                if(frqaged(ibin).gt.0.0d0) &
          frt=MAX(MIN(aer(iv,jtotal,ibin)/abs(-dq*frqaged(ibin)),frt),0.0d0)
                   endif ! for flagsoap
@@ -5261,19 +5551,15 @@
          frqtotaged=0.0d0
 
              do ibin=1,nbin_a
-! 20130807 acd_alma_bugfix start
         if (flagsoap(iv-start_ind+1).eq.2) then
 !        if (flagsoap(iv-ipcg1_b_c_g+1).eq.2) then
-! 20130807 acd_alma_bugfix end
                aer(iv,jtotal,ibin)= &
 ! Since dq is negative this is evaporating aerosols
                MAX(aer(iv,jtotal,ibin)+frt*dq*frqfresh(ibin),0.0d0)
          if(aer(iv,jtotal,ibin).lt.tinys) frqfresh(ibin)=0.0d0
               frqtotfresh=frqtotfresh+frqfresh(ibin)
-! 20130807 acd_alma_bugfix start
 !        elseif (flagsoap(iv-ipcg1_b_c_g+1).eq.1) then
         elseif (flagsoap(iv-start_ind+1).eq.1) then
-! 20130807 acd_alma_bugfix end
                aer(iv,jtotal,ibin)= &
                MAX(aer(iv,jtotal,ibin)+frt*dq*frqaged(ibin),0.0d0)
          if(aer(iv,jtotal,ibin).lt.tinys) frqaged(ibin)=0.0d0
@@ -5283,10 +5569,8 @@
 
 ! Check if we should evaporate more
           dq=(1.0d0-frt)*dq
-! 20130807 acd_alma_bugfix start
 !         if (flagsoap(iv-ipcg1_b_c_g+1).eq.2) then
          if (flagsoap(iv-start_ind+1).eq.2) then
-! 20130807 acd_alma_bugfix end
            if(dq.lt.-1.d-8) then ! check if d-8 is better
              if(frqtotfresh.gt.tinys) then ! we have sections which are not empty
               if(iter.le.itermax) then ! check infinite loop
@@ -5298,10 +5582,8 @@
             endif ! for iter
           endif ! frqtotfresh.gt.tinys
            endif ! dq.lt.-1.d-7
-! 20130807 acd_alma_bugfix start
 !          elseif (flagsoap(iv-ipcg1_b_c_g+1).eq.1) then
           elseif (flagsoap(iv-start_ind+1).eq.1) then
-! 20130807 acd_alma_bugfix end
            if(dq.lt.-1.d-8) then
              if(frqtotaged.gt.tinys) then ! we have sections which are not empty
               if(iter.le.itermax) then ! check infinite loop
@@ -5320,10 +5602,8 @@
            endif ! for flagsoap
 
 ! now set the gas species concentration conservatively
-! 20130807 acd_alma_bugfix start
 !           gas(iv)=Ctot(iv-ipcg1_b_c_g+1)
            gas(iv)=Ctot(iv-start_ind+1)
-! 20130807 acd_alma_bugfix end
              do ibin=1,nbin_a
                gas(iv)=gas(iv)-aer(iv,jtotal,ibin)
              enddo
@@ -5336,7 +5616,7 @@
 
 
 !---------------------------------
-! Calculates the equilibrium gas-particle partitioning for SOA species when MOZART_MOSAIC_4BIN_VBS0_KPP is used
+! Calculates the equilibrium gas-particle partitioning for SOA species when MOZART_MOSAIC_4BIN_KPP is used
 ! This routine was modified by Alma Hodzic based on the initial code implemented by Manish Shrivastava and originated from CAMx 
 
 !++ alma - removed the subroutine  equilibrium_smp
@@ -5415,9 +5695,9 @@
           if(abs(fmid).le.xtol*xmid.or.dx.le.xtol*xmid) goto 100 ! converged
            if (fmid.lt.0.0) xend=xmid
          enddo
-        write (2,*) "Error in SOAP"
-        write (2,*) "Error: max number of iterations reached"
-50      stop
+50       call wrf_message("Error in SOAP")
+         call wrf_error_fatal("Error: max number of iterations reached")
+
 
 99     xmid=xend
 100    continue
@@ -7987,9 +8267,7 @@
 !     include 'mosaic.h'
 ! local variables
       integer nghq,vbs_nbin(1)
-! 20130618 acd_ck_vbsmoz start
       integer start_ind
-! 20130618 acd_ck_vbsmoz end
       parameter (nghq = 2)		! gauss-hermite quadrature order
       integer ibin, iq, iv
       real(kind=8) tworootpi, root2, beta
@@ -8086,6 +8364,8 @@
       mw_vol(iopcg8_f_o_g)=250.0
       mw_vol(ismpa_g)=250.0
       mw_vol(ismpbb_g)=250.0
+      mw_vol(igly)=58.0
+      mw_vol(iho)=17.0
       mw_vol(iant1_c_g)=250.0
       mw_vol(iant2_c_g)=250.0
       mw_vol(iant3_c_g)=250.0
@@ -8102,6 +8382,16 @@
       mw_vol(ibiog2_o_g)=250.0
       mw_vol(ibiog3_o_g)=250.0
       mw_vol(ibiog4_o_g)=250.0
+      mw_vol(iasoaX_g)=250.0
+      mw_vol(iasoa1_g)=250.0
+      mw_vol(iasoa2_g)=250.0
+      mw_vol(iasoa3_g)=250.0
+      mw_vol(iasoa4_g)=250.0
+      mw_vol(ibsoaX_g)=250.0
+      mw_vol(ibsoa1_g)=250.0
+      mw_vol(ibsoa2_g)=250.0
+      mw_vol(ibsoa3_g)=250.0
+      mw_vol(ibsoa4_g)=250.0
 
 
 
@@ -8193,6 +8483,9 @@
       accom(iopcg8_f_o_g)=0.1
       accom(ismpa_g)=0.1
       accom(ismpbb_g)=0.1
+      ! added glyoxal, but only for completeness - is hopefully never used
+      accom(igly)=0.1
+      accom(iho)=0.1
       accom(iant1_c_g)=0.1
       accom(iant2_c_g)=0.1
       accom(iant3_c_g)=0.1
@@ -8209,6 +8502,16 @@
       accom(ibiog2_o_g)=0.1
       accom(ibiog3_o_g)=0.1
       accom(ibiog4_o_g)=0.1
+      accom(iasoaX_g)=0.1
+      accom(iasoa1_g)=0.1
+      accom(iasoa2_g)=0.1
+      accom(iasoa3_g)=0.1
+      accom(iasoa4_g)=0.1
+      accom(ibsoaX_g)=0.1
+      accom(ibsoa1_g)=0.1
+      accom(ibsoa2_g)=0.1
+      accom(ibsoa3_g)=0.1
+      accom(ibsoa4_g)=0.1
 
 
 
@@ -8230,20 +8533,21 @@
       enddo
 
 ! soa
-! 20130618 acd_ck_vbsmoz start
       start_ind = 1
       if(vbs_nbin(1) .eq. 0) then
         start_ind = ismpa_g
+      else if (vbs_nbin(1) .eq. 4) then
+        start_ind = iasoaX_g
       else
         start_ind = ipcg1_b_c_g
       end if
-
-      do iv = start_ind, ngas_ioa + ngas_soa
+      !BSINGH(03/10/2015): Added 2 in the following do-loop to accomodate oh and gly species.
+      ! *IMPORTANT*:This is a TEMPORARY fix, we need a better fix for this problem.
+      do iv = start_ind, ngas_ioa + ngas_soa+2
         speed = mean_molecular_speed(t_k,mw_vol(iv))    ! cm/s
         dg(iv) = 0.1                                    ! cm^2/s (increased from 0.2 to 0.035 by Manish Shrivastava)
         freepath(iv) = 3.*dg(iv)/speed
       enddo
-! 20130618 acd_ck_vbsmoz end
 
 ! het-rct gases   ! DL 9/9/2011
       do iv = (ngas_volatile+1), (ngas_volatile+ngas_het)
@@ -8435,13 +8739,13 @@
         dens_dry_a(ibin) = mass_dry_a(ibin)/vol_dry_a(ibin) ! g/cc(aerosol)
         dens_wet_a(ibin) = mass_wet_a(ibin)/vol_wet_a(ibin) ! g/cc(aerosol)
 
-! calculate mean dry and wet particle surface areas
-        area_dry_a(ibin)= 0.785398*num_a(ibin)*Dp_dry_a(ibin)**2	! cm^2/cc(air)
-        area_wet_a(ibin)= 0.785398*num_a(ibin)*Dp_wet_a(ibin)**2	! cm^2/cc(air)
-
 ! calculate mean dry and wet particle diameters
         dp_dry_a(ibin)=(1.90985*vol_dry_a(ibin)/num_a(ibin))**0.3333333	! cm
         dp_wet_a(ibin)=(1.90985*vol_wet_a(ibin)/num_a(ibin))**0.3333333 ! cm
+
+! calculate mean dry and wet particle surface areas
+        area_dry_a(ibin)= 3.14159*num_a(ibin)*dp_dry_a(ibin)**2	! cm^2/cc(air)
+        area_wet_a(ibin)= 3.14159*num_a(ibin)*dp_wet_a(ibin)**2	! cm^2/cc(air)
 
 ! calculate volume average refractive index
 !   load comp_a array
@@ -8521,6 +8825,11 @@
          comp_a(jopcg8_f_o)= aer(iopcg8_f_o_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jsmpa)= aer(ismpa_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jsmpbb)= aer(ismpbb_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jglysoa_r1)= aer(iglysoa_r1_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jglysoa_r2)= aer(iglysoa_r2_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jglysoa_sfc)= aer(iglysoa_sfc_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jglysoa_nh4)= aer(iglysoa_nh4_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jglysoa_oh)= aer(iglysoa_oh_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jant1_c)= aer(iant1_c_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jant2_c)= aer(iant2_c_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jant3_c)= aer(iant3_c_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
@@ -8537,6 +8846,16 @@
          comp_a(jbiog2_o)= aer(ibiog2_o_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jbiog3_o)= aer(ibiog3_o_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
          comp_a(jbiog4_o)= aer(ibiog4_o_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jasoaX)= aer(iasoaX_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jasoa1)= aer(iasoa1_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jasoa2)= aer(iasoa2_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jasoa3)= aer(iasoa3_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jasoa4)= aer(iasoa4_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jbsoaX)= aer(ibsoaX_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jbsoa1)= aer(ibsoa1_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jbsoa2)= aer(ibsoa2_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jbsoa3)= aer(ibsoa3_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
+         comp_a(jbsoa4)= aer(ibsoa4_a,jtotal,ibin)*mw_comp_a(je)*1.e-15 ! g/cc(air)
 
 
 
@@ -11650,8 +11969,26 @@
       ibiog2_o_g =89
       ibiog3_o_g =90
       ibiog4_o_g =91
-      in2o5_g    =92  ! ioa --> NO3-
-      iclno2_g   =93  ! ioa N2O5+Cl- -->
+!      in2o5_g    =92  ! ioa --> NO3-
+!      iclno2_g   =93  ! ioa N2O5+Cl- -->
+!     the order of species is ngas_ioa, then ngas_soa, then the rest...
+!     for the "equilibrium" routine i*_a and i*_g species
+!     have to have the same index.
+      iasoaX_g=92
+      iasoa1_g=93
+      iasoa2_g=94
+      iasoa3_g=95
+      iasoa4_g=96
+      ibsoaX_g=97
+      ibsoa1_g=98
+      ibsoa2_g=99
+      ibsoa3_g=100
+      ibsoa4_g=101
+      in2o5_g    =102  ! ioa --> NO3-
+      iclno2_g   =103  ! ioa N2O5+Cl- -->
+
+      igly       =104
+      iho        =105
 
 
 !      ico2_g	= 14	! currently not used
@@ -11748,12 +12085,36 @@
       ibiog2_o_a =89
       ibiog3_o_a =90
       ibiog4_o_a =91
-      ico3_a    = 92    ! <-> ico2_g ! ico3_a was 14 earlier, changed to 82 by Manish Shrivastava
-      ina_a     = 93
-      ica_a     = 94
-      ioin_a    = 95
-      ioc_a     = 96
-      ibc_a     = 97
+! for the "equilibrium" routine, 
+! i*_g and i*_a species have to have the same index...
+!      ico3_a    = 92    ! <-> ico2_g ! ico3_a was 14 earlier, changed to 82 by Manish Shrivastava
+!      ina_a     = 93
+!      ica_a     = 94
+!      ioin_a    = 95
+!      ioc_a     = 96
+!      ibc_a     = 97
+      iasoaX_a=92
+      iasoa1_a=93
+      iasoa2_a=94
+      iasoa3_a=95
+      iasoa4_a=96
+      ibsoaX_a=97
+      ibsoa1_a=98
+      ibsoa2_a=99
+      ibsoa3_a=100
+      ibsoa4_a=101
+      iglysoa_r1_a = 102
+      iglysoa_r2_a = 103
+      iglysoa_sfc_a = 104
+      iglysoa_nh4_a = 105
+      iglysoa_oh_a = 106
+
+      ico3_a    = 107    ! <-> ico2_g ! ico3_a was 14 earlier, changed to 82 by Manish Shrivastava
+      ina_a     = 108
+      ica_a     = 109
+      ioin_a    = 110
+      ioc_a     = 111
+      ibc_a     = 112
 
 ! electrolyte indices (used for water content calculations)
 ! these indices are order sensitive
@@ -11869,7 +12230,23 @@
       jbiog2_o =109
       jbiog3_o =110
       jbiog4_o =111
-      jh2o	= 112	! water - part of naercomp
+!      jh2o	= 112	! water - part of naercomp
+      jasoaX=112
+      jasoa1=113
+      jasoa2=114
+      jasoa3=115
+      jasoa4=116
+      jbsoaX=117
+      jbsoa1=118
+      jbsoa2=119
+      jbsoa3=120
+      jbsoa4=121
+      jglysoa_r1  = 122
+      jglysoa_r2  = 123
+      jglysoa_sfc = 124
+      jglysoa_nh4 = 125
+      jglysoa_oh  = 126
+      jh2o  = 127 ! water - part of naercomp
 
 ! local aerosol ions
 ! cations
@@ -11975,6 +12352,11 @@
       aer_name(iopcg8_f_o_a)="opcg8_f_o"
       aer_name(ismpa_a)="smpa"
       aer_name(ismpbb_a)="smpbb"
+      aer_name(iglysoa_r1_a)="glysoa_r1"
+      aer_name(iglysoa_r2_a)="glysoa_r2"
+      aer_name(iglysoa_sfc_a)="glysoa_sfc"
+      aer_name(iglysoa_nh4_a)="glysoa_nh4"
+      aer_name(iglysoa_oh_a)="glysoa_oh"
       aer_name(iant1_c_a)="ant1_c"
       aer_name(iant2_c_a)="ant2_c"
       aer_name(iant3_c_a)="ant3_c"
@@ -11991,6 +12373,16 @@
       aer_name(ibiog2_o_a)="biog2_o"
       aer_name(ibiog3_o_a)="biog3_o"
       aer_name(ibiog4_o_a)="biog4_o"
+      aer_name(iasoaX_a)="asoaX"
+      aer_name(iasoa1_a)="asoa1"
+      aer_name(iasoa2_a)="asoa2"
+      aer_name(iasoa3_a)="asoa3"
+      aer_name(iasoa4_a)="asoa4"
+      aer_name(ibsoaX_a)="bsoaX"
+      aer_name(ibsoa1_a)="bsoa1"
+      aer_name(ibsoa2_a)="bsoa2"
+      aer_name(ibsoa3_a)="bsoa3"
+      aer_name(ibsoa4_a)="bsoa4"
 
 ! names of gas species
       gas_name(ih2so4_g) = 'h2so4'
@@ -12086,6 +12478,18 @@
       gas_name(ibiog4_o_g)="biog4_o"
       gas_name(in2o5_g) = "n2o5 "
       gas_name(iclno2_g)= "clno2"
+      gas_name(iasoaX_g)="asoaX"
+      gas_name(iasoa1_g)="asoa1"
+      gas_name(iasoa2_g)="asoa2"
+      gas_name(iasoa3_g)="asoa3"
+      gas_name(iasoa4_g)="asoa4"
+      gas_name(ibsoaX_g)="bsoaX"
+      gas_name(ibsoa1_g)="bsoa1"
+      gas_name(ibsoa2_g)="bsoa2"
+      gas_name(ibsoa3_g)="bsoa3"
+      gas_name(ibsoa4_g)="bsoa4"
+      gas_name(igly)="gly"
+      gas_name(iho)="ho" 
       
 ! names of electrolytes
       ename(jnh4so4) = 'amso4'
@@ -12283,6 +12687,11 @@
       dens_comp_a(iopcg8_f_o_a)=1.0
       dens_comp_a(ismpa_a)=1.0
       dens_comp_a(ismpbb_a)=1.0
+      dens_comp_a(iglysoa_r1_a)=1.0
+      dens_comp_a(iglysoa_r2_a)=1.0
+      dens_comp_a(iglysoa_sfc_a)=1.0
+      dens_comp_a(iglysoa_nh4_a)=1.0
+      dens_comp_a(iglysoa_oh_a)=1.0
       dens_comp_a(iant1_c_a)=1.0
       dens_comp_a(iant2_c_a)=1.0
       dens_comp_a(iant3_c_a)=1.0
@@ -12299,6 +12708,16 @@
       dens_comp_a(ibiog2_o_a)=1.0
       dens_comp_a(ibiog3_o_a)=1.0
       dens_comp_a(ibiog4_o_a)=1.0
+      dens_comp_a(iasoaX_a)=1.5
+      dens_comp_a(iasoa1_a)=1.5
+      dens_comp_a(iasoa2_a)=1.5
+      dens_comp_a(iasoa3_a)=1.5
+      dens_comp_a(iasoa4_a)=1.5
+      dens_comp_a(ibsoaX_a)=1.5
+      dens_comp_a(ibsoa1_a)=1.5
+      dens_comp_a(ibsoa2_a)=1.5
+      dens_comp_a(ibsoa3_a)=1.5
+      dens_comp_a(ibsoa4_a)=1.5
 
 ! molecular weights of generic aerosol species
       mw_aer_mac(iso4_a) = 96.0
@@ -12382,6 +12801,11 @@
       mw_aer_mac(iopcg8_f_o_a)=250.0
       mw_aer_mac(ismpa_a) = 250.0
       mw_aer_mac(ismpbb_a) = 250.0
+      mw_aer_mac(iglysoa_r1_a) = 250.0
+      mw_aer_mac(iglysoa_r2_a) = 250.0
+      mw_aer_mac(iglysoa_sfc_a) = 250.0
+      mw_aer_mac(iglysoa_nh4_a) = 250.0
+      mw_aer_mac(iglysoa_oh_a) = 250.0
       mw_aer_mac(iant1_c_a) = 250.0
       mw_aer_mac(iant2_c_a) = 250.0
       mw_aer_mac(iant3_c_a) = 250.0
@@ -12398,6 +12822,16 @@
       mw_aer_mac(ibiog2_o_a) = 250.0
       mw_aer_mac(ibiog3_o_a) = 250.0
       mw_aer_mac(ibiog4_o_a) = 250.0
+      mw_aer_mac(iasoaX_a) = 250.0
+      mw_aer_mac(iasoa1_a) = 250.0
+      mw_aer_mac(iasoa2_a) = 250.0
+      mw_aer_mac(iasoa3_a) = 250.0
+      mw_aer_mac(iasoa4_a) = 250.0
+      mw_aer_mac(ibsoaX_a) = 250.0
+      mw_aer_mac(ibsoa1_a) = 250.0
+      mw_aer_mac(ibsoa2_a) = 250.0
+      mw_aer_mac(ibsoa3_a) = 250.0
+      mw_aer_mac(ibsoa4_a) = 250.0
 
 
 ! molecular weights of compounds
@@ -12497,6 +12931,11 @@
       mw_comp_a(jopcg8_f_o)=250.0
       mw_comp_a(jsmpa)=250.0
       mw_comp_a(jsmpbb)=250.0
+      mw_comp_a(jglysoa_r1)=250.0
+      mw_comp_a(jglysoa_r2)=250.0
+      mw_comp_a(jglysoa_sfc)=250.0
+      mw_comp_a(jglysoa_nh4)=250.0
+      mw_comp_a(jglysoa_oh)=250.0
       mw_comp_a(jant1_c)=250.0
       mw_comp_a(jant2_c)=250.0
       mw_comp_a(jant3_c)=250.0
@@ -12513,6 +12952,16 @@
       mw_comp_a(jbiog2_o)=250.0
       mw_comp_a(jbiog3_o)=250.0
       mw_comp_a(jbiog4_o)=250.0
+      mw_comp_a(jasoaX)=250.0
+      mw_comp_a(jasoa1)=250.0
+      mw_comp_a(jasoa2)=250.0
+      mw_comp_a(jasoa3)=250.0
+      mw_comp_a(jasoa4)=250.0
+      mw_comp_a(jbsoaX)=250.0
+      mw_comp_a(jbsoa1)=250.0
+      mw_comp_a(jbsoa2)=250.0
+      mw_comp_a(jbsoa3)=250.0
+      mw_comp_a(jbsoa4)=250.0
 
 ! densities of generic aerosol species
       dens_aer_mac(iso4_a) = 1.8	! used
@@ -12596,6 +13045,11 @@
       dens_aer_mac(iopcg8_f_o_a)=1.0
       dens_aer_mac(ismpa_a)=1.0
       dens_aer_mac(ismpbb_a)=1.0
+      dens_aer_mac(iglysoa_r1_a)=1.0
+      dens_aer_mac(iglysoa_r2_a)=1.0
+      dens_aer_mac(iglysoa_sfc_a)=1.0
+      dens_aer_mac(iglysoa_nh4_a)=1.0
+      dens_aer_mac(iglysoa_oh_a)=1.0
       dens_aer_mac(iant1_c_a)=1.0
       dens_aer_mac(iant2_c_a)=1.0
       dens_aer_mac(iant3_c_a)=1.0
@@ -12612,6 +13066,16 @@
       dens_aer_mac(ibiog2_o_a)=1.0
       dens_aer_mac(ibiog3_o_a)=1.0
       dens_aer_mac(ibiog4_o_a)=1.0
+      dens_aer_mac(iasoaX_a)=1.5
+      dens_aer_mac(iasoa1_a)=1.5
+      dens_aer_mac(iasoa2_a)=1.5
+      dens_aer_mac(iasoa3_a)=1.5
+      dens_aer_mac(iasoa4_a)=1.5
+      dens_aer_mac(ibsoaX_a)=1.5
+      dens_aer_mac(ibsoa1_a)=1.5
+      dens_aer_mac(ibsoa2_a)=1.5
+      dens_aer_mac(ibsoa3_a)=1.5
+      dens_aer_mac(ibsoa4_a)=1.5
 
 ! partial molar volumes of condensing species
       partial_molar_vol(ih2so4_g) = 51.83
@@ -12707,6 +13171,18 @@
       partial_molar_vol(ibiog4_o_g)=250.0
       partial_molar_vol(in2o5_g)  = 200.0	! assumed...
       partial_molar_vol(iclno2_g) = 200.0	! assumed...
+      partial_molar_vol(iasoaX_g)=250.0
+      partial_molar_vol(iasoa1_g)=250.0
+      partial_molar_vol(iasoa2_g)=250.0
+      partial_molar_vol(iasoa3_g)=250.0
+      partial_molar_vol(iasoa4_g)=250.0
+      partial_molar_vol(ibsoaX_g)=250.0
+      partial_molar_vol(ibsoa1_g)=250.0
+      partial_molar_vol(ibsoa2_g)=250.0
+      partial_molar_vol(ibsoa3_g)=250.0
+      partial_molar_vol(ibsoa4_g)=250.0
+      partial_molar_vol(igly)=58.0
+      partial_molar_vol(iho)=17.0
 
 ! refractive index
       ref_index_a(jnh4so4) = cmplx(1.52,0.)
@@ -15164,6 +15640,7 @@
       d_mdrh(j_index,3) = -0.033488456
       d_mdrh(j_index,4) = 4.12458e-05
 
+      call load_kappa_nonelectro
 
       endif ! first
 
@@ -15173,9 +15650,156 @@
 
 
 
+      subroutine load_kappa_nonelectro
 
+      use module_data_mosaic_asect, only: &
+         hygro_oin_aer, hygro_oc_aer, hygro_bc_aer,  &
+         hygro_pcg1_b_c_aer,  hygro_pcg2_b_c_aer,  hygro_pcg3_b_c_aer,  &
+         hygro_pcg4_b_c_aer,  hygro_pcg5_b_c_aer,  hygro_pcg6_b_c_aer,  &
+         hygro_pcg7_b_c_aer,  hygro_pcg8_b_c_aer,  hygro_pcg9_b_c_aer,  &
+         hygro_pcg1_b_o_aer,  hygro_pcg2_b_o_aer,  hygro_pcg3_b_o_aer,  &
+         hygro_pcg4_b_o_aer,  hygro_pcg5_b_o_aer,  hygro_pcg6_b_o_aer,  &
+         hygro_pcg7_b_o_aer,  hygro_pcg8_b_o_aer,  hygro_pcg9_b_o_aer,  &
+         hygro_opcg1_b_c_aer, hygro_opcg2_b_c_aer, hygro_opcg3_b_c_aer,  &
+         hygro_opcg4_b_c_aer, hygro_opcg5_b_c_aer, hygro_opcg6_b_c_aer,  &
+         hygro_opcg7_b_c_aer, hygro_opcg8_b_c_aer,  &
+         hygro_opcg1_b_o_aer, hygro_opcg2_b_o_aer, hygro_opcg3_b_o_aer,  &
+         hygro_opcg4_b_o_aer, hygro_opcg5_b_o_aer, hygro_opcg6_b_o_aer,  &
+         hygro_opcg7_b_o_aer, hygro_opcg8_b_o_aer,  &
+         hygro_pcg1_f_c_aer,  hygro_pcg2_f_c_aer,  hygro_pcg3_f_c_aer,  &
+         hygro_pcg4_f_c_aer,  hygro_pcg5_f_c_aer,  hygro_pcg6_f_c_aer,  &
+         hygro_pcg7_f_c_aer,  hygro_pcg8_f_c_aer,  hygro_pcg9_f_c_aer,  &
+         hygro_pcg1_f_o_aer,  hygro_pcg2_f_o_aer,  hygro_pcg3_f_o_aer,  &
+         hygro_pcg4_f_o_aer,  hygro_pcg5_f_o_aer,  hygro_pcg6_f_o_aer,  &
+         hygro_pcg7_f_o_aer,  hygro_pcg8_f_o_aer,  hygro_pcg9_f_o_aer,  &
+         hygro_opcg1_f_c_aer, hygro_opcg2_f_c_aer, hygro_opcg3_f_c_aer,  &
+         hygro_opcg4_f_c_aer, hygro_opcg5_f_c_aer, hygro_opcg6_f_c_aer,  &
+         hygro_opcg7_f_c_aer, hygro_opcg8_f_c_aer,  &
+         hygro_opcg1_f_o_aer, hygro_opcg2_f_o_aer, hygro_opcg3_f_o_aer,  &
+         hygro_opcg4_f_o_aer, hygro_opcg5_f_o_aer, hygro_opcg6_f_o_aer,  &
+         hygro_opcg7_f_o_aer, hygro_opcg8_f_o_aer,  &
+         hygro_ant1_c_aer,  hygro_ant2_c_aer,  hygro_ant3_c_aer,  hygro_ant4_c_aer,  &
+         hygro_ant1_o_aer,  hygro_ant2_o_aer,  hygro_ant3_o_aer,  hygro_ant4_o_aer,  &
+         hygro_biog1_c_aer, hygro_biog2_c_aer, hygro_biog3_c_aer, hygro_biog4_c_aer,  &
+         hygro_biog1_o_aer, hygro_biog2_o_aer, hygro_biog3_o_aer, hygro_biog4_o_aer,  &
+         hygro_smpa_aer, hygro_smpbb_aer,  &
+         hygro_glysoa_r1_aer,  hygro_glysoa_r2_aer,  hygro_glysoa_oh_aer,  &
+         hygro_glysoa_nh4_aer, hygro_glysoa_sfc_aer,  &
+         hygro_asoaX_aer, hygro_asoa1_aer, hygro_asoa2_aer,  &
+         hygro_asoa3_aer, hygro_asoa4_aer,  &
+         hygro_bsoaX_aer, hygro_bsoa1_aer, hygro_bsoa2_aer,  &
+         hygro_bsoa3_aer, hygro_bsoa4_aer
 
+      if (ioin_a        > 0) kappa_nonelectro(ioin_a       ) = hygro_oin_aer
+      if (ioc_a         > 0) kappa_nonelectro(ioc_a        ) = hygro_oc_aer
+      if (ibc_a         > 0) kappa_nonelectro(ibc_a        ) = hygro_bc_aer
 
+      if (ipcg1_b_c_a   > 0) kappa_nonelectro(ipcg1_b_c_a  ) = hygro_pcg1_b_c_aer
+      if (ipcg2_b_c_a   > 0) kappa_nonelectro(ipcg2_b_c_a  ) = hygro_pcg2_b_c_aer
+      if (ipcg3_b_c_a   > 0) kappa_nonelectro(ipcg3_b_c_a  ) = hygro_pcg3_b_c_aer
+      if (ipcg4_b_c_a   > 0) kappa_nonelectro(ipcg4_b_c_a  ) = hygro_pcg4_b_c_aer
+      if (ipcg5_b_c_a   > 0) kappa_nonelectro(ipcg5_b_c_a  ) = hygro_pcg5_b_c_aer
+      if (ipcg6_b_c_a   > 0) kappa_nonelectro(ipcg6_b_c_a  ) = hygro_pcg6_b_c_aer
+      if (ipcg7_b_c_a   > 0) kappa_nonelectro(ipcg7_b_c_a  ) = hygro_pcg7_b_c_aer
+      if (ipcg8_b_c_a   > 0) kappa_nonelectro(ipcg8_b_c_a  ) = hygro_pcg8_b_c_aer
+      if (ipcg9_b_c_a   > 0) kappa_nonelectro(ipcg9_b_c_a  ) = hygro_pcg9_b_c_aer
+      if (ipcg1_b_o_a   > 0) kappa_nonelectro(ipcg1_b_o_a  ) = hygro_pcg1_b_o_aer
+      if (ipcg2_b_o_a   > 0) kappa_nonelectro(ipcg2_b_o_a  ) = hygro_pcg2_b_o_aer
+      if (ipcg3_b_o_a   > 0) kappa_nonelectro(ipcg3_b_o_a  ) = hygro_pcg3_b_o_aer
+      if (ipcg4_b_o_a   > 0) kappa_nonelectro(ipcg4_b_o_a  ) = hygro_pcg4_b_o_aer
+      if (ipcg5_b_o_a   > 0) kappa_nonelectro(ipcg5_b_o_a  ) = hygro_pcg5_b_o_aer
+      if (ipcg6_b_o_a   > 0) kappa_nonelectro(ipcg6_b_o_a  ) = hygro_pcg6_b_o_aer
+      if (ipcg7_b_o_a   > 0) kappa_nonelectro(ipcg7_b_o_a  ) = hygro_pcg7_b_o_aer
+      if (ipcg8_b_o_a   > 0) kappa_nonelectro(ipcg8_b_o_a  ) = hygro_pcg8_b_o_aer
+      if (ipcg9_b_o_a   > 0) kappa_nonelectro(ipcg9_b_o_a  ) = hygro_pcg9_b_o_aer
+      if (iopcg1_b_c_a  > 0) kappa_nonelectro(iopcg1_b_c_a ) = hygro_opcg1_b_c_aer
+      if (iopcg2_b_c_a  > 0) kappa_nonelectro(iopcg2_b_c_a ) = hygro_opcg2_b_c_aer
+      if (iopcg3_b_c_a  > 0) kappa_nonelectro(iopcg3_b_c_a ) = hygro_opcg3_b_c_aer
+      if (iopcg4_b_c_a  > 0) kappa_nonelectro(iopcg4_b_c_a ) = hygro_opcg4_b_c_aer
+      if (iopcg5_b_c_a  > 0) kappa_nonelectro(iopcg5_b_c_a ) = hygro_opcg5_b_c_aer
+      if (iopcg6_b_c_a  > 0) kappa_nonelectro(iopcg6_b_c_a ) = hygro_opcg6_b_c_aer
+      if (iopcg7_b_c_a  > 0) kappa_nonelectro(iopcg7_b_c_a ) = hygro_opcg7_b_c_aer
+      if (iopcg8_b_c_a  > 0) kappa_nonelectro(iopcg8_b_c_a ) = hygro_opcg8_b_c_aer
+      if (iopcg1_b_o_a  > 0) kappa_nonelectro(iopcg1_b_o_a ) = hygro_opcg1_b_o_aer
+      if (iopcg2_b_o_a  > 0) kappa_nonelectro(iopcg2_b_o_a ) = hygro_opcg2_b_o_aer
+      if (iopcg3_b_o_a  > 0) kappa_nonelectro(iopcg3_b_o_a ) = hygro_opcg3_b_o_aer
+      if (iopcg4_b_o_a  > 0) kappa_nonelectro(iopcg4_b_o_a ) = hygro_opcg4_b_o_aer
+      if (iopcg5_b_o_a  > 0) kappa_nonelectro(iopcg5_b_o_a ) = hygro_opcg5_b_o_aer
+      if (iopcg6_b_o_a  > 0) kappa_nonelectro(iopcg6_b_o_a ) = hygro_opcg6_b_o_aer
+      if (iopcg7_b_o_a  > 0) kappa_nonelectro(iopcg7_b_o_a ) = hygro_opcg7_b_o_aer
+      if (iopcg8_b_o_a  > 0) kappa_nonelectro(iopcg8_b_o_a ) = hygro_opcg8_b_o_aer
+      if (ipcg1_f_c_a   > 0) kappa_nonelectro(ipcg1_f_c_a  ) = hygro_pcg1_f_c_aer
+      if (ipcg2_f_c_a   > 0) kappa_nonelectro(ipcg2_f_c_a  ) = hygro_pcg2_f_c_aer
+      if (ipcg3_f_c_a   > 0) kappa_nonelectro(ipcg3_f_c_a  ) = hygro_pcg3_f_c_aer
+      if (ipcg4_f_c_a   > 0) kappa_nonelectro(ipcg4_f_c_a  ) = hygro_pcg4_f_c_aer
+      if (ipcg5_f_c_a   > 0) kappa_nonelectro(ipcg5_f_c_a  ) = hygro_pcg5_f_c_aer
+      if (ipcg6_f_c_a   > 0) kappa_nonelectro(ipcg6_f_c_a  ) = hygro_pcg6_f_c_aer
+      if (ipcg7_f_c_a   > 0) kappa_nonelectro(ipcg7_f_c_a  ) = hygro_pcg7_f_c_aer
+      if (ipcg8_f_c_a   > 0) kappa_nonelectro(ipcg8_f_c_a  ) = hygro_pcg8_f_c_aer
+      if (ipcg9_f_c_a   > 0) kappa_nonelectro(ipcg9_f_c_a  ) = hygro_pcg9_f_c_aer
+      if (ipcg1_f_o_a   > 0) kappa_nonelectro(ipcg1_f_o_a  ) = hygro_pcg1_f_o_aer
+      if (ipcg2_f_o_a   > 0) kappa_nonelectro(ipcg2_f_o_a  ) = hygro_pcg2_f_o_aer
+      if (ipcg3_f_o_a   > 0) kappa_nonelectro(ipcg3_f_o_a  ) = hygro_pcg3_f_o_aer
+      if (ipcg4_f_o_a   > 0) kappa_nonelectro(ipcg4_f_o_a  ) = hygro_pcg4_f_o_aer
+      if (ipcg5_f_o_a   > 0) kappa_nonelectro(ipcg5_f_o_a  ) = hygro_pcg5_f_o_aer
+      if (ipcg6_f_o_a   > 0) kappa_nonelectro(ipcg6_f_o_a  ) = hygro_pcg6_f_o_aer
+      if (ipcg7_f_o_a   > 0) kappa_nonelectro(ipcg7_f_o_a  ) = hygro_pcg7_f_o_aer
+      if (ipcg8_f_o_a   > 0) kappa_nonelectro(ipcg8_f_o_a  ) = hygro_pcg8_f_o_aer
+      if (ipcg9_f_o_a   > 0) kappa_nonelectro(ipcg9_f_o_a  ) = hygro_pcg9_f_o_aer
+      if (iopcg1_f_c_a  > 0) kappa_nonelectro(iopcg1_f_c_a ) = hygro_opcg1_f_c_aer
+      if (iopcg2_f_c_a  > 0) kappa_nonelectro(iopcg2_f_c_a ) = hygro_opcg2_f_c_aer
+      if (iopcg3_f_c_a  > 0) kappa_nonelectro(iopcg3_f_c_a ) = hygro_opcg3_f_c_aer
+      if (iopcg4_f_c_a  > 0) kappa_nonelectro(iopcg4_f_c_a ) = hygro_opcg4_f_c_aer
+      if (iopcg5_f_c_a  > 0) kappa_nonelectro(iopcg5_f_c_a ) = hygro_opcg5_f_c_aer
+      if (iopcg6_f_c_a  > 0) kappa_nonelectro(iopcg6_f_c_a ) = hygro_opcg6_f_c_aer
+      if (iopcg7_f_c_a  > 0) kappa_nonelectro(iopcg7_f_c_a ) = hygro_opcg7_f_c_aer
+      if (iopcg8_f_c_a  > 0) kappa_nonelectro(iopcg8_f_c_a ) = hygro_opcg8_f_c_aer
+      if (iopcg1_f_o_a  > 0) kappa_nonelectro(iopcg1_f_o_a ) = hygro_opcg1_f_o_aer
+      if (iopcg2_f_o_a  > 0) kappa_nonelectro(iopcg2_f_o_a ) = hygro_opcg2_f_o_aer
+      if (iopcg3_f_o_a  > 0) kappa_nonelectro(iopcg3_f_o_a ) = hygro_opcg3_f_o_aer
+      if (iopcg4_f_o_a  > 0) kappa_nonelectro(iopcg4_f_o_a ) = hygro_opcg4_f_o_aer
+      if (iopcg5_f_o_a  > 0) kappa_nonelectro(iopcg5_f_o_a ) = hygro_opcg5_f_o_aer
+      if (iopcg6_f_o_a  > 0) kappa_nonelectro(iopcg6_f_o_a ) = hygro_opcg6_f_o_aer
+      if (iopcg7_f_o_a  > 0) kappa_nonelectro(iopcg7_f_o_a ) = hygro_opcg7_f_o_aer
+      if (iopcg8_f_o_a  > 0) kappa_nonelectro(iopcg8_f_o_a ) = hygro_opcg8_f_o_aer
+
+      if (iant1_c_a     > 0) kappa_nonelectro(iant1_c_a    ) = hygro_ant1_c_aer
+      if (iant2_c_a     > 0) kappa_nonelectro(iant2_c_a    ) = hygro_ant2_c_aer
+      if (iant3_c_a     > 0) kappa_nonelectro(iant3_c_a    ) = hygro_ant3_c_aer
+      if (iant4_c_a     > 0) kappa_nonelectro(iant4_c_a    ) = hygro_ant4_c_aer
+      if (iant1_o_a     > 0) kappa_nonelectro(iant1_o_a    ) = hygro_ant1_o_aer
+      if (iant2_o_a     > 0) kappa_nonelectro(iant2_o_a    ) = hygro_ant2_o_aer
+      if (iant3_o_a     > 0) kappa_nonelectro(iant3_o_a    ) = hygro_ant3_o_aer
+      if (iant4_o_a     > 0) kappa_nonelectro(iant4_o_a    ) = hygro_ant4_o_aer
+      if (ibiog1_c_a    > 0) kappa_nonelectro(ibiog1_c_a   ) = hygro_biog1_c_aer
+      if (ibiog2_c_a    > 0) kappa_nonelectro(ibiog2_c_a   ) = hygro_biog2_c_aer
+      if (ibiog3_c_a    > 0) kappa_nonelectro(ibiog3_c_a   ) = hygro_biog3_c_aer
+      if (ibiog4_c_a    > 0) kappa_nonelectro(ibiog4_c_a   ) = hygro_biog4_c_aer
+      if (ibiog1_o_a    > 0) kappa_nonelectro(ibiog1_o_a   ) = hygro_biog1_o_aer
+      if (ibiog2_o_a    > 0) kappa_nonelectro(ibiog2_o_a   ) = hygro_biog2_o_aer
+      if (ibiog3_o_a    > 0) kappa_nonelectro(ibiog3_o_a   ) = hygro_biog3_o_aer
+      if (ibiog4_o_a    > 0) kappa_nonelectro(ibiog4_o_a   ) = hygro_biog4_o_aer
+
+      if (ismpa_a       > 0) kappa_nonelectro(ismpa_a      ) = hygro_smpa_aer
+      if (ismpbb_a      > 0) kappa_nonelectro(ismpbb_a     ) = hygro_smpbb_aer
+      if (iglysoa_r1_a  > 0) kappa_nonelectro(iglysoa_r1_a ) = hygro_glysoa_r1_aer
+      if (iglysoa_r2_a  > 0) kappa_nonelectro(iglysoa_r2_a ) = hygro_glysoa_r2_aer
+      if (iglysoa_oh_a  > 0) kappa_nonelectro(iglysoa_oh_a ) = hygro_glysoa_oh_aer
+      if (iglysoa_nh4_a > 0) kappa_nonelectro(iglysoa_nh4_a) = hygro_glysoa_nh4_aer
+      if (iglysoa_sfc_a > 0) kappa_nonelectro(iglysoa_sfc_a) = hygro_glysoa_sfc_aer
+      if (iasoaX_a      > 0) kappa_nonelectro(iasoaX_a     ) = hygro_asoaX_aer
+      if (iasoa1_a      > 0) kappa_nonelectro(iasoa1_a     ) = hygro_asoa1_aer
+      if (iasoa2_a      > 0) kappa_nonelectro(iasoa2_a     ) = hygro_asoa2_aer
+      if (iasoa3_a      > 0) kappa_nonelectro(iasoa3_a     ) = hygro_asoa3_aer
+      if (iasoa4_a      > 0) kappa_nonelectro(iasoa4_a     ) = hygro_asoa4_aer
+      if (ibsoaX_a      > 0) kappa_nonelectro(ibsoaX_a     ) = hygro_bsoaX_aer
+      if (ibsoa1_a      > 0) kappa_nonelectro(ibsoa1_a     ) = hygro_bsoa1_aer
+      if (ibsoa2_a      > 0) kappa_nonelectro(ibsoa2_a     ) = hygro_bsoa2_aer
+      if (ibsoa3_a      > 0) kappa_nonelectro(ibsoa3_a     ) = hygro_bsoa3_aer
+      if (ibsoa4_a      > 0) kappa_nonelectro(ibsoa4_a     ) = hygro_bsoa4_aer
+
+      return
+      end subroutine load_kappa_nonelectro
 
 
 
@@ -15191,9 +15815,7 @@
 !     include 'mosaic.h'
 ! local variables
       integer iv, j_index, ibin, je,vbs_nbin(1)
-! 20130816 acd_ck_vbsmoz start
       integer start_ind
-! 20130816 acd_ck_vbsmoz end
       real(kind=8) :: tr, rt, term
       real(kind=8) :: gam_nh4no3_0, gam_nh4cl_0, m_nh4no3_0, m_nh4cl_0  ! raz update 6/25/2008
 ! function
@@ -15242,10 +15864,11 @@
       keq_sl(jcano3)  = fn_keq(4.31d5, 7.83d0,42.01d0, t_k)*1.e5  ! ca(no3)2(s) = ca++ + 2no3-
       keq_sl(jcamsa2) = 1.e15				 ! CaMSA2(s)= Ca+ + 2MSA-
 
-! 20130816 acd_ck_vbsmoz start
       start_ind = 1
       if (vbs_nbin(1).eq.0) then
         start_ind = ismpa_g
+      else if (vbs_nbin(1) .eq. 4) then
+        start_ind = iasoaX_g
       else
         start_ind = ipcg1_b_c_g
       endif
@@ -15253,7 +15876,6 @@
       do iv = start_ind, ngas_ioa + ngas_soa
         sat_soa(iv) = 0.0       ! [nmol/m^3(air)]
       enddo
-! 20130816 acd_ck_vbsmoz end
 
        if (vbs_nbin(1).eq.9) then
 ! vapor pressures of soa species
@@ -15344,6 +15966,46 @@
       po_soa(ibiog4_o_g) = fn_po(9.91d-3, 82.0d0, T_K) ! [Pascal]
       endif
 
+      if (vbs_nbin(1).eq.4) then
+        po_soa(iasoaX_g) = fn_po(9.91d-10, 40.0d0, T_K) ! [Pascal]
+        po_soa(iasoa1_g) = fn_po(9.91d-6, dhr_approx(0.0d0), T_K) ! [Pascal]
+        po_soa(iasoa2_g) = fn_po(9.91d-5, dhr_approx(1.0d0), T_K) ! [Pascal]
+        po_soa(iasoa3_g) = fn_po(9.91d-4, dhr_approx(2.0d0), T_K) ! [Pascal]
+        po_soa(iasoa4_g) = fn_po(9.91d-3, dhr_approx(3.0d0), T_K) ! [Pascal]
+        po_soa(ibsoaX_g) = fn_po(9.91d-10, 40.0d0, T_K) ! [Pascal]
+        po_soa(ibsoa1_g) = fn_po(9.91d-6, dhr_approx(0.0d0), T_K) ! [Pascal]
+        po_soa(ibsoa2_g) = fn_po(9.91d-5, dhr_approx(1.0d0), T_K) ! [Pascal]
+        po_soa(ibsoa3_g) = fn_po(9.91d-4, dhr_approx(2.0d0), T_K) ! [Pascal]
+        po_soa(ibsoa4_g) = fn_po(9.91d-3, dhr_approx(3.0d0), T_K) ! [Pascal]
+      endif
+
+      if (vbs_nbin(1).eq.3) then
+! these values for pcg and opcg gases are the same as vbs_nbin(1)==2
+! below
+        po_soa(ipcg1_b_c_g)  = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg2_b_c_g)  = fn_po(9.91d-1, 83.0d0, T_K) ! [Pascal]
+        po_soa(iopcg1_b_c_g) = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg1_b_o_g)  = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg2_b_o_g)  = fn_po(9.91d-1, 83.0d0, T_K) ! [Pascal]
+        po_soa(iopcg1_b_o_g) = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg1_f_c_g)  = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg2_f_c_g)  = fn_po(9.91d-1, 83.0d0, T_K) ! [Pascal]
+        po_soa(iopcg1_f_c_g) = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg1_f_o_g)  = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+        po_soa(ipcg2_f_o_g)  = fn_po(9.91d-1, 83.0d0, T_K) ! [Pascal]
+        po_soa(iopcg1_f_o_g) = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
+! these values for ant and bio gases are from manish wrfchem 3.5
+        po_soa(iant1_c_g)    = fn_po(9.91d-7, 106.0d0, T_K) ! [Pascal]
+        po_soa(iant2_c_g)    = fn_po(9.91d-6, 100.0d0, T_K) ! [Pascal]
+        po_soa(iant3_c_g)    = fn_po(9.91d-5,  94.0d0, T_K) ! [Pascal]
+        po_soa(iant4_c_g)    = fn_po(9.91d-4,  88.0d0, T_K) ! [Pascal]
+        po_soa(ibiog1_c_g)   = fn_po(9.91d-7, 106.0d0, T_K) ! [Pascal]
+        po_soa(ibiog2_c_g)   = fn_po(9.91d-6, 100.0d0, T_K) ! [Pascal]
+        po_soa(ibiog3_c_g)   = fn_po(9.91d-5,  94.0d0, T_K) ! [Pascal]
+        po_soa(ibiog1_o_g)   = fn_po(9.91d-7, 106.0d0, T_K) ! [Pascal]
+        po_soa(ibiog2_o_g)   = fn_po(9.91d-6, 100.0d0, T_K) ! [Pascal]
+      endif
+
       if (vbs_nbin(1).eq.2) then
       po_soa(ipcg1_b_c_g) = fn_po(9.91d-8, 83.0d0, T_K) ! [Pascal]
       po_soa(ipcg2_b_c_g) = fn_po(9.91d-1, 83.0d0, T_K) ! [Pascal]
@@ -15369,10 +16031,11 @@
         po_soa(ibiog1_o_g) = fn_po(9.91d-6, 83.0d0, T_K) ! [Pascal]
       endif
 
-! 20130716 acd_ck_vbsmoz start
       start_ind = 1
       if (vbs_nbin(1).eq.0) then
         start_ind = ismpa_g
+      else if (vbs_nbin(1).eq.4) then
+        start_ind = iasoaX_g
       else
         start_ind = ipcg1_b_c_g
       end if
@@ -15380,7 +16043,6 @@
       do iv = start_ind, ngas_ioa + ngas_soa
         sat_soa(iv) = 1.e9*po_soa(iv)/(8.314*t_k)	! [nmol/m^3(air)]
       enddo
-! 20130716 acd_ck_vbsmoz end
 
 ! water surface tension
       term = (647.15 - t_k)/647.15
@@ -15416,6 +16078,17 @@
       return
       end subroutine update_thermodynamic_constants
 
+      ! Function to approximate enthalpy of vaporization for
+      ! semi-volatile organic aerosols as a function of volatility
+      ! from Epstein et al., ES&T, 2010 
+      ! http://pubs.acs.org/doi/abs/10.1021/es902497z
+      real(kind=8) function dhr_approx(log10_Csat_298)
+
+        real(kind=8), intent(in) :: log10_Csat_298
+
+        dhr_approx = -11.0 * log10_Csat_298 + 131.0 ! kJ/mol
+
+      end function dhr_approx
 
 
 
@@ -15536,25 +16209,37 @@
 
 !----------------------------------------------------------
 ! zsr method
+!
+! RAZ 5/21/2014: Included organics, oin, and bc in water absorption (but does not include organic-inorganic interactions)
+!
       real(kind=8) function aerosol_water(jp,ibin) ! kg (water)/m^3 (air)
 !     implicit none
 !     include 'mosaic.h'
 ! subr. arguments
       integer jp, ibin
 ! local variables
-      integer je
-      real(kind=8) dum
+      integer ja, je
+      real(kind=8) dum, tmpa
 ! function
 !     real(kind=8) bin_molality
 
 
-
       dum = 0.0
       do je = 1, (nsalt+4)	! include hno3 and hcl in water calculation
-        dum = dum + 1.e-9*electrolyte(je,jp,ibin)/bin_molality(je,ibin)
+        dum = dum + electrolyte(je,jp,ibin)/bin_molality(je,ibin)
       enddo
 
-      aerosol_water = dum
+      if (mwater_kappa_nonelectro > 0) then
+         tmpa = 0.0
+         do ja = 1, naer
+            if (kappa_nonelectro(ja) > 0.0) then
+               tmpa = tmpa + (aer(ja,jtotal,ibin)*mw_aer_mac(ja)/dens_aer_mac(ja))*kappa_nonelectro(ja)
+            end if
+         end do
+         dum = dum + 1.0e-3*tmpa*aH2O_a(ibin)/(1.0-aH2O_a(ibin))
+      end if
+
+      aerosol_water = dum*1.e-9  ! kg(water)/m^3(air)
 
       if(aerosol_water .le. 0.0)then
         if (iprint_mosaic_diag1 .gt. 0) then
@@ -16436,3 +17121,4 @@
 !-----------------------------------------------------------------------
 
       end module module_mosaic_therm
+

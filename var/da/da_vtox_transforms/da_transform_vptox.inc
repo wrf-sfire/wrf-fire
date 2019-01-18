@@ -1,4 +1,5 @@
 subroutine da_transform_vptox(grid, vp, be, ep)
+!subroutine da_transform_vptox(grid, vp, be, ep, nobwin)
 
    !-----------------------------------------------------------------------
    ! Purpose: Physical transform of analysis increment variables.
@@ -17,6 +18,7 @@ subroutine da_transform_vptox(grid, vp, be, ep)
    type (vp_type), intent(inout)        :: vp  ! CV on grid structure.
    type (be_type), intent(in), optional :: be  ! Background errors.
    type (ep_type), intent(in), optional :: ep  ! Ensemble perturbations.
+!   integer, intent(in), optional         :: nobwin
 
    integer :: i, k, j, k1, ij            ! Loop counters.
    real, allocatable          :: chi_u(:,:,:)  ! Unbalanced chi
@@ -51,13 +53,15 @@ subroutine da_transform_vptox(grid, vp, be, ep)
    end if
 
    ! Chi:
-   do k = kts, kte
-      do j = grid%j_start(ij), grid%j_end(ij)
-         do i = its, ite
-            vp%v2(i,j,k) = vp%v2(i,j,k) + be%reg_psi_chi(j,k)* vp%v1(i,j,k)
+   if (cv_options /= 7) then
+      do k = kts, kte
+         do j = grid%j_start(ij), grid%j_end(ij)
+            do i = its, ite
+               vp%v2(i,j,k) = vp%v2(i,j,k) + be%reg_psi_chi(j,k)* vp%v1(i,j,k)
+            end do
          end do
       end do
-   end do
+   end if
   
    ! Temperature:
    do k = kts, kte
@@ -68,15 +72,18 @@ subroutine da_transform_vptox(grid, vp, be, ep)
       end do
    end do
 
-   do k1 = kts, kte
-      do k = kts, kte
-         do j = grid%j_start(ij), grid%j_end(ij)
-            do i = its, ite
-               grid%xa%t(i,j,k) = grid%xa%t(i,j,k) + be%reg_psi_t(j,k,k1)*vp%v1(i,j,k1)
+   if (cv_options /= 7) then
+      do k1 = kts, kte
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa%t(i,j,k) = grid%xa%t(i,j,k) + be%reg_psi_t(j,k,k1)*vp%v1(i,j,k1)
+               end do
             end do
          end do
       end do
-   end do
+   end if
+
    if ( cv_options == 6 ) then
       do k1 = kts, kte
          do k = kts, kte
@@ -96,13 +103,16 @@ subroutine da_transform_vptox(grid, vp, be, ep)
       end do
    end do
 
-   do k = kts,kte
-      do j = grid%j_start(ij), grid%j_end(ij)
-         do i = its, ite
-            grid%xa%psfc(i,j) = grid%xa%psfc(i,j) +  be%reg_psi_ps(j,k)*vp%v1(i,j,k)
+   if (cv_options /= 7) then
+      do k = kts,kte
+         do j = grid%j_start(ij), grid%j_end(ij)
+            do i = its, ite
+               grid%xa%psfc(i,j) = grid%xa%psfc(i,j) + be%reg_psi_ps(j,k)*vp%v1(i,j,k)
+            end do
          end do
       end do
-   end do
+   end if
+
    if ( cv_options == 6 ) then
       do k = kts,kte
          do j = grid%j_start(ij), grid%j_end(ij)
@@ -177,15 +187,29 @@ subroutine da_transform_vptox(grid, vp, be, ep)
 #endif
 
    ! Psi and chi to u and v:
+   if ( cv_options == 5 .or. cv_options == 6 ) then
+      call da_psichi_to_uv(vp % v1, vp % v2, grid%xb % coefx, &
+           grid%xb % coefy , grid%xa % u, grid%xa % v)
+   else if ( cv_options == 7 ) then
+      grid%xa%u = vp%v1
+      grid%xa%v = vp%v2
+   end if
 
-   call da_psichi_to_uv(vp % v1, vp % v2, grid%xb % coefx, &
-      grid%xb % coefy , grid%xa % u, grid%xa % v)
-
-  if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud).or. & 
-       (grid%pseudo_var(1:1).eq.'q' .and. grid%pseudo_var(2:2).ne.' ') .or.  &
-       (grid%pseudo_var(1:1).eq.'Q' .and. grid%pseudo_var(2:2).ne.' ') ) then
-
-   if ( cloud_cv_options == 1 ) then
+   if ( cloud_cv_options /= 1 ) then
+      ! Pseudo RH --> Water vapor mixing ratio:
+      !$OMP PARALLEL DO &
+      !$OMP PRIVATE ( ij, i, j, k )
+      do ij = 1 , grid%num_tiles
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa % q(i,j,k) =  vp%v4(i,j,k) * grid%xb%qs(i,j,k)
+               enddo
+            enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+   else ! cloud_cv_options=1
       ! Pseudo RH --> Total water mixing ratio:
       !$OMP PARALLEL DO &
       !$OMP PRIVATE ( ij, i, j, k )
@@ -199,22 +223,10 @@ subroutine da_transform_vptox(grid, vp, be, ep)
          enddo
       enddo
       !$OMP END PARALLEL DO
-   else
-      ! Pseudo RH --> Water vapor mixing ratio:
-      !$OMP PARALLEL DO &
-      !$OMP PRIVATE ( ij, i, j, k )
-      do ij = 1 , grid%num_tiles
-         do k = kts, kte
-            do j = grid%j_start(ij), grid%j_end(ij)
-               do i = its, ite
-                  grid%xa % q(i,j,k) =  vp%v4(i,j,k) * grid%xb%qs(i,j,k)
-               enddo
-            enddo
-         enddo
-      enddo
-      !$OMP END PARALLEL DO
-#ifdef CLOUD_CV
-!qcloud
+   end if
+
+   if ( cloud_cv_options >= 2 ) then
+      !qcloud
       !$OMP PARALLEL DO &
       !$OMP PRIVATE ( ij, i, j, k )
       do ij = 1 , grid%num_tiles
@@ -227,7 +239,7 @@ subroutine da_transform_vptox(grid, vp, be, ep)
          enddo
       enddo
       !$OMP END PARALLEL DO
-!qrain
+      !qrain
       !$OMP PARALLEL DO &
       !$OMP PRIVATE ( ij, i, j, k )
       do ij = 1 , grid%num_tiles
@@ -240,7 +252,7 @@ subroutine da_transform_vptox(grid, vp, be, ep)
          enddo
       enddo
       !$OMP END PARALLEL DO
-!qice
+      !qice
       !$OMP PARALLEL DO &
       !$OMP PRIVATE ( ij, i, j, k )
       do ij = 1 , grid%num_tiles
@@ -253,7 +265,7 @@ subroutine da_transform_vptox(grid, vp, be, ep)
          enddo
       enddo
       !$OMP END PARALLEL DO
-!qsnow
+      !qsnow
       !$OMP PARALLEL DO &
       !$OMP PRIVATE ( ij, i, j, k )
       do ij = 1 , grid%num_tiles
@@ -266,37 +278,59 @@ subroutine da_transform_vptox(grid, vp, be, ep)
          enddo
       enddo
       !$OMP END PARALLEL DO
-#endif
-   end if
-  else  ! no rf or cloud radiance
-      ! Pseudo RH --> Water vapor mixing ratio:
+      !qgraupel
       !$OMP PARALLEL DO &
       !$OMP PRIVATE ( ij, i, j, k )
       do ij = 1 , grid%num_tiles
          do k = kts, kte
             do j = grid%j_start(ij), grid%j_end(ij)
                do i = its, ite
-                  grid%xa % q(i,j,k) =  vp%v4(i,j,k) * grid%xb%qs(i,j,k)
+                  grid%xa % qgr(i,j,k) =  vp%v10(i,j,k)
                enddo
             enddo
          enddo
       enddo
       !$OMP END PARALLEL DO
-  end if ! RF or Radiance
-   !---------------------------------------------------------------------------
-   !  [4] Add flow-dependent increments in model space (grid%xa):
-   !---------------------------------------------------------------------------
+   end if ! cloud_cv_options>=2
 
-!  if (be % ne > 0 .and. alphacv_method == alphacv_method_xa) then
-!     call da_add_flow_dependence_xa(grid, be % ne, ep, vp)
-!  end if
-   if (be % ne > 0 .and. alphacv_method == alphacv_method_xa) then
-      if ( anal_type_hybrid_dual_res ) then
-         call da_add_flow_dependence_xa_dual_res(grid, be % ne, ep, vp)
-      else
-         call da_add_flow_dependence_xa(grid, be % ne, ep, vp)
-      endif
-   end if
+   if ( use_cv_w ) then
+      !vertical velocity
+      !$OMP PARALLEL DO &
+      !$OMP PRIVATE ( ij, i, j, k )
+      do ij = 1 , grid%num_tiles
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa % w(i,j,k) =  vp%v11(i,j,k)
+               enddo
+            enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+   end if ! use_cv_w
+
+!   !---------------------------------------------------------------------------
+!   !  [4] Add flow-dependent increments in model space (grid%xa):
+!   !---------------------------------------------------------------------------
+!
+!!  if (be % ne > 0 .and. alphacv_method == alphacv_method_xa) then
+!!     call da_add_flow_dependence_xa(grid, be % ne, ep, vp)
+!!  end if
+!   if (be % ne > 0 .and. alphacv_method == alphacv_method_xa) then
+!      if ( anal_type_hybrid_dual_res ) then
+!         if( present(nobwin) ) then
+!            call da_add_flow_dependence_xa_dual_res(grid, be % ne, ep, vp, nobwin)
+!         else
+!            call da_add_flow_dependence_xa_dual_res(grid, be % ne, ep, vp)
+!         end if
+!      else
+!         if( present(nobwin) ) then
+!            call da_add_flow_dependence_xa(grid, be % ne, ep, vp, nobwin)
+!         else
+!            call da_add_flow_dependence_xa(grid, be % ne, ep, vp)
+!         end if
+!      endif
+!   end if
 
    if (trace_use) call da_trace_exit("da_transform_vptox") 
  

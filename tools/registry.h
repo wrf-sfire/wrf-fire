@@ -1,6 +1,6 @@
 #ifndef REGISTRY_H
 #define NAMELEN 512
-#define NAMELEN_LONG 12500 /*changed from 8192 to 12500 by PNNL on 12/22/2010*/
+#define NAMELEN_LONG 125000
 #define MAXDIMS 21
 #define MAX_DYNCORES 50   /* ha ha, just kidding */
 /* #define MAX_ARGLINE 175    WRF uses 128 by default, but the nested chem version hit the continuation line limit for efc so it had to be increased, wig 14-Oct-2004 */
@@ -31,6 +31,9 @@ enum proc_orient     { ALL_Z_ON_PROC , ALL_X_ON_PROC , ALL_Y_ON_PROC } ;
 #define DIM       64
 #define PACKAGE  128
 #define HALO     256
+#if ( WRFPLUS == 1 )
+#define HALO_NTA 256
+#endif
 #define PERIOD   512
 #define SWAP    1024
 #define CYCLE   2048

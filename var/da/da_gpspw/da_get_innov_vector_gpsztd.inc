@@ -7,14 +7,13 @@ SUBROUTINE da_get_innov_vector_gpsztd ( it, num_qcstat_conv, grid, ob, iv )
 ! used the PW structure for ZTD to avoid declaration of the
 ! another structure.          
 !                                 Y.-R. Guo           05/21/2008
-!    Updated for Analysis on Arakawa-C grid
-!    Author: Syed RH Rizvi,  MMM/ESSL/NCAR,  Date: 10/22/2008
+! History:
+!    2017-06: Jamie Bresch
+!             (1) reject obs-model height difference larger than Max_StHeight_Diff_ztd
+!             (2) properly write out ztd innov info
+!             (3) minor clean-up
 !----------------------------------------------------------------
    IMPLICIT NONE
-
-!-----
-!    INCLUDE 'mpif.h'
-!-----
 
    integer,       intent(in)    :: it      ! External iteration.
    type(domain),  intent(in)    :: grid    ! first guess state
@@ -26,202 +25,137 @@ SUBROUTINE da_get_innov_vector_gpsztd ( it, num_qcstat_conv, grid, ob, iv )
    INTEGER                      :: i, j     ! Index dimension.
    REAL                         :: dx, dxm  ! Interpolation weights.
    REAL                         :: dy, dym  ! Interpolation weights.
-   REAL                         :: mdl_ztd  ! Model value u at oblocation.
-   INTEGER           :: ittpw,ittpwf
+   REAL                         :: mdl_ztd  ! Model ztd at ob location.
 
 !--------------------------------------------------------------------------
    INTEGER                :: k            ! Index dimension
-   REAL                   :: dzd, ddzd    ! adjustment pw [mm]
+   REAL                   :: dzd, ddzd    ! adjustment ztd (ref*dz*10**6)
    REAL                   :: obs_terr     ! real terrain height at GPS site [m]
    REAL                   :: model_terr   ! model terrain height at GPS site[m]
-   REAL,DIMENSION(kts:kte):: model_ztd    ! model q at GPS site [kg/kg]
+   REAL,DIMENSION(kts:kte):: model_ztd    ! model ref at GPS site [kg/kg]
    REAL,DIMENSION(kts:kte):: model_z      ! model z at GPS site [m]
-   INTEGER                      :: myrank, ierr, unit_gps
+   INTEGER                :: iunit, ierr
+   character(len=256)     :: fname
+
+
+   if ( iv%info(gpspw)%nlocal <= 0 ) return
 
    if (trace_use_dull) call da_trace_entry("da_get_innov_vector_gpsztd")
 
-   myrank=0
-   unit_gps = myrank + 140
-!---------------------------------------------------------------------------
-
-!
-! GPS ZTD Pseudo OBS test:
-!
-   if ( (pseudo_var(1:3) == 'ztd' .and. num_pseudo > 0) .and. &
-        it == 1 ) then
-
-! Deallocate:
-     if (iv%info(gpspw)%nlocal > 0) then
-       write(unit=stdout, fmt='(a,i4)') 'iv%num_gpsztd =', iv%info(gpspw)%nlocal
-       deallocate (iv % gpspw)
-       deallocate (ob % gpspw)
-     endif
-     
-     use_gpsztdObs = .true.
-
-! Allocate:
-     iv %info(gpspw)%nlocal  = num_pseudo
-     iv %info(gpspw)%plocal(1)= num_pseudo
-     iv %info(gpspw)%ntotal  = num_pseudo
-     iv %info(pseudo)%nlocal = 0
-
-     call da_allocate_observations (iv)
-     iv%info(gpspw)%n1 = 1
-     iv%info(gpspw)%n2 = 1
-     allocate (ob % gpspw (1:num_pseudo))
-     ob % gpspw(1) % tpw   = 0.0
-
-      write(unit=message(1),fmt='(a,i2)') '==> GPS ZTD pseudo OBS test: num_pseudo=',num_pseudo
-      call da_message(message(1:1))
-     
-     iv % info(gpspw) % x(:,1)  = pseudo_x
-     iv % info(gpspw) % y(:,1)  = pseudo_y
-     iv % info(gpspw) % i(:,1)  = int(pseudo_x)
-     iv % info(gpspw) % j(:,1)  = int(pseudo_y)
-     iv % info(gpspw) % dx(:,1) = pseudo_x-real(iv % info(gpspw) % i(1,1))
-     iv % info(gpspw) % dy(:,1) = pseudo_y-real(iv % info(gpspw) % j(1,1))
-     iv % info(gpspw) % dxm(:,1)= 1.0 - iv % info(gpspw) % dx(1,1)
-     iv % info(gpspw) % dym(:,1)= 1.0 - iv % info(gpspw) % dy(1,1)
-
-     iv % gpspw(1) % tpw % inv   = pseudo_val
-     iv % gpspw(1) % tpw % qc    = 0
-     iv % gpspw(1) % tpw % error = pseudo_err
-
-! To consider the site elevation effect, set the model terrain height
-! to elevation for pseudo OBS:
-
-     i   = iv%info(gpspw)%i(1,1)
-     j   = iv%info(gpspw)%j(1,1)
-     dx  = iv%info(gpspw)%dx(1,1)
-     dy  = iv%info(gpspw)%dy(1,1)
-     dxm = iv%info(gpspw)%dxm(1,1)
-     dym = iv%info(gpspw)%dym(1,1)
-
-     iv%info(gpspw)%elv(1) = dym*(dxm*grid%xb%terr(i,j)   + dx*grid%xb%terr(i+1,j)) + & 
-                            dy *(dxm*grid%xb%terr(i,j+1) + dx*grid%xb%terr(i+1,j+1))
-
-! Set halo:
-     if((iv%info(gpspw)%i(1,1) < its-1) .or. (iv%info(gpspw)%i(1,1) > ite) .or. & 
-        (iv%info(gpspw)%j(1,1) < jts-1) .or. (iv%info(gpspw)%j(1,1) > jte)) then 
-        call da_error(__FILE__,__LINE__,(/"Should never have obs outside halo by now"/))
-        iv%info(gpspw)%proc_domain(:,1) = .false. 
-     else 
-        iv%info(gpspw)%proc_domain(:,1) = .false.  
-     
-        if(iv%info(gpspw)%i(1,1) >= its .and. iv%info(gpspw)%i(1,1) <= ite .and. &  
-           iv%info(gpspw)%j(1,1) >= jts .and. iv%info(gpspw)%j(1,1) <= jte) then  
-           iv%info(gpspw)%proc_domain(:,1) = .true.  
-        endif  
-     endif 
-
-     write(unit=message(1),fmt='(a,2f15.5)') pseudo_var, pseudo_val, pseudo_err
-     write(unit=message(2),fmt='(3f15.5)')   pseudo_x,  pseudo_y,  pseudo_z
-     write(unit=message(3),fmt='(a,f8.2)')   'iv%gpsztd: elv=',iv%info(gpspw)%elv(1)
-     call da_message(message(1:3))
+   if ( write_iv_gpsztd ) then
+      if ( num_fgat_time > 1 ) then
+         write(unit=fname, fmt='(i2.2,a,i2.2,a,i4.4)') &
+            it,'_inv_gpsztd_t', iv%time, '.', myproc
+      else
+         write(unit=fname, fmt='(i2.2,a,i4.4)') it,'_inv_gpsztd.', myproc
+      end if
+      call da_get_unit(iunit)
+      open(unit=iunit,file=trim(fname),form='formatted',iostat=ierr)
+      write(unit=iunit,fmt='(a4,1x,a4,12a10)')  'ztd:', '   n',   &
+                       '       lat', '       lon', '   obs_ght',  &
+                       '   mdl_ght', ' obsh-mdlh', '   obs_ztd',  &
+                       '   mdl_ztd', '   O-B ztd', '      Dztd',  &
+                       '  O-B+Dztd', '   Obs_err', '        qc'
    end if
 
-! ----------------------------------------------------------------------------
+   do n = iv%info(gpspw)%n1,iv%info(gpspw)%n2
 
-   if ( iv%info(gpspw)%nlocal > 0 ) then
+      if ( iv % gpspw(n) % tpw % qc == fails_error_max .and. it > 1 ) then
+         iv % gpspw(n) % tpw % qc = 0
+      end if
 
-   ittpw   = 0 ; ittpwf  = 0
+      ! Get horizontal interpolation weights:
 
-    write(unit=unit_gps,fmt='(3x,a3,12a10)') ' n ','     lat  ',  &
-                       '     lon  ', '  obs ght ', '  mdl ght ',  &
-                       ' obsh-mdlh', '   obs ztd', ' model ztd',  &
-                       '   O-B ztd', '    Dztd  ', '  O-B+Dztd',  &
-                       '   Obs_err', '    qc    ' 
+      i   = iv%info(gpspw)%i(1,n)
+      j   = iv%info(gpspw)%j(1,n)
+      dx  = iv%info(gpspw)%dx(1,n)
+      dy  = iv%info(gpspw)%dy(1,n)
+      dxm = iv%info(gpspw)%dxm(1,n)
+      dym = iv%info(gpspw)%dym(1,n)
 
-      do n=iv%info(gpspw)%n1,iv%info(gpspw)%n2
+      ! xb%ztd (cm) is computed in da_transfer_wrftoxb by calling da_transform_xtoztd
+      mdl_ztd   = dym*(dxm*grid%xb%ztd(i,j)   + dx*grid%xb%ztd(i+1,j)) + &
+                  dy *(dxm*grid%xb%ztd(i,j+1) + dx*grid%xb%ztd(i+1,j+1))
 
-         if( iv % gpspw(n) % tpw % qc == fails_error_max .and. it > 1) &
-             iv % gpspw(n) % tpw % qc = 0
+      if ( .not. pseudo_ztd ) iv % gpspw(n) % tpw % inv = 0.0
+      if ( ob % gpspw(n) % tpw > missing_r .and. &
+           iv % gpspw(n) % tpw % qc >= obs_qc_pointer ) then
 
-!        [1.1] Get horizontal interpolation weights:
+         dzd = 0.0
+         obs_terr   = iv%info(gpspw)%elv(n)
+         model_terr = dym*(dxm*grid%xb%terr(i,j)   + dx*grid%xb%terr(i+1,j)) + &
+                      dy *(dxm*grid%xb%terr(i,j+1) + dx*grid%xb%terr(i+1,j+1))
 
-         i   = iv%info(gpspw)%i(1,n)
-         j   = iv%info(gpspw)%j(1,n)
-         dx  = iv%info(gpspw)%dx(1,n)
-         dy  = iv%info(gpspw)%dy(1,n)
-         dxm = iv%info(gpspw)%dxm(1,n)
-         dym = iv%info(gpspw)%dym(1,n)
+         if ( obs_terr <= model_terr ) then
 
-         mdl_ztd   = dym*(dxm*grid%xb%ztd(i,j)   + dx*grid%xb%ztd(i+1,j)) + &
-                     dy *(dxm*grid%xb%ztd(i,j+1) + dx*grid%xb%ztd(i+1,j+1))
+            model_ztd(1) = dym*(dxm*grid%xb%ref(i,j,1)   + dx*grid%xb%ref(i+1,j,1)) + &
+                           dy *(dxm*grid%xb%ref(i,j+1,1) + dx*grid%xb%ref(i+1,j+1,1))
+            dzd = model_ztd(1) * ( obs_terr - model_terr )
 
-! To compute the 'inv':
-         if ( .not.(pseudo_var(1:3) == 'ztd' .and. num_pseudo > 0) ) &
-         iv % gpspw(n) % tpw % inv = 0.0
-         if ( ob % gpspw(n) % tpw > missing_r .and. &
-                 iv % gpspw(n) % tpw % qc >= obs_qc_pointer ) then
+         else
 
-            dzd = 0.0
-            obs_terr   = iv%info(gpspw)%elv(n)
-            model_terr = dym*(dxm*grid%xb%terr(i,j)   + dx*grid%xb%terr(i+1,j)) + &
-                         dy *(dxm*grid%xb%terr(i,j+1) + dx*grid%xb%terr(i+1,j+1))
+            model_z(1) = dym*(dxm*grid%xb%hf(i,j,1)   + dx*grid%xb%hf(i+1,j,1)) + &
+                         dy *(dxm*grid%xb%hf(i,j+1,1) + dx*grid%xb%hf(i+1,j+1,1))
 
-            if ( obs_terr <= model_terr ) then
+            do k = kts, kte
 
-               model_ztd(1) = dym*(dxm*grid%xb%ref(i,j,1)   + dx*grid%xb%ref(i+1,j,1)) + &
-                              dy *(dxm*grid%xb%ref(i,j+1,1) + dx*grid%xb%ref(i+1,j+1,1))
-               dzd = model_ztd(1) * ( obs_terr - model_terr )
+               if (model_z(k) >= obs_terr ) exit
 
-            else
+               model_z(k+1) = dym*(dxm*grid%xb%hf(i,j,k+1)   + dx*grid%xb%hf(i+1,j,k+1)) + &
+                              dy *(dxm*grid%xb%hf(i,j+1,k+1) + dx*grid%xb%hf(i+1,j+1,k+1))
+               model_ztd(k) = dym*(dxm*grid%xb%ref(i,j,k)   + dx*grid%xb%ref(i+1,j,k)) + &
+                              dy *(dxm*grid%xb%ref(i,j+1,k) + dx*grid%xb%ref(i+1,j+1,k))
 
-               model_z(1) = dym*(dxm*grid%xb%hf(i,j,1)   + dx*grid%xb%hf(i+1,j,1)) + &
-                            dy *(dxm*grid%xb%hf(i,j+1,1) + dx*grid%xb%hf(i+1,j+1,1))
+               if ( model_z(k+1) <= obs_terr ) then
+                  ddzd = model_ztd(k) * ( model_z(k+1) - model_z(k) )
+               else
+                  ddzd = model_ztd(k) * ( obs_terr - model_z(k) )
+               endif
 
-               do k = kts, kte
-                  
-                  if (model_z(k) >= obs_terr ) exit
+               dzd = dzd + ddzd
+            end do
+         end if
 
-                  model_z(k+1) = dym*(dxm*grid%xb%hf(i,j,k+1)   + dx*grid%xb%hf(i+1,j,k+1)) + &
-                                 dy *(dxm*grid%xb%hf(i,j+1,k+1) + dx*grid%xb%hf(i+1,j+1,k+1))
-                  model_ztd(k) = dym*(dxm*grid%xb%ref(i,j,k)   + dx*grid%xb%ref(i+1,j,k)) + &
-                                 dy *(dxm*grid%xb%ref(i,j+1,k) + dx*grid%xb%ref(i+1,j+1,k))
-                  
-                  if ( model_z(k+1) <= obs_terr ) then
-                    ddzd = model_ztd(k) * ( model_z(k+1) - model_z(k) )
-                  else
-                    ddzd = model_ztd(k) * ( obs_terr - model_z(k) )
-                  endif
+         if ( pseudo_ztd .and. it == 1 ) then
 
-                  dzd = dzd + ddzd
-               end do
-            end if
+            ! compute ob from input inv for pseudo_ztd
+            ob % gpspw(n) % tpw = iv % gpspw(n) % tpw % inv + mdl_ztd - 1.e-4 * dzd
 
-            if ( (pseudo_var(1:3) == 'ztd' .and. num_pseudo > 0) .and. it == 1 ) then
+         else
 
-! To compute the 'ob':
-              ob % gpspw(n) % tpw = iv % gpspw(n) % tpw % inv + mdl_ztd - 1.e-4 * dzd
-
-            else
-
-
-              iv % gpspw(n) % tpw % inv = ob % gpspw(n) % tpw - mdl_ztd &
+            ! compute inv for ztd
+            iv % gpspw(n) % tpw % inv = ob % gpspw(n) % tpw - mdl_ztd &
                                           + 1.e-4 * dzd
 !
 ! Overwrite the observation error specification (YRG):
 !
-!              iv % gpspw(n) % tpw % error = 1.0 + 0.02*(ob%gpspw(n)%tpw-200.)   
+!           iv % gpspw(n) % tpw % error = 1.0 + 0.02*(ob%gpspw(n)%tpw-200.)
 
-            end if
-         endif
-!---   
-        write(unit=unit_gps, fmt='(i4,11f10.3,i7)') n, &
+         end if !pseudo_ztd
+      end if ! valid obs
+
+      if ( abs(obs_terr - model_terr) > Max_StHeight_Diff_ztd ) then
+         iv%gpspw(n)%tpw%qc = -66
+      end if
+
+      if ( write_iv_gpsztd ) then
+         write(unit=iunit, fmt='(a4,1x,i4,11f10.3,i10)') 'ztd:', n, &
               iv%info(gpspw)%lat(1,n), iv%info(gpspw)%lon(1,n), obs_terr, &
               model_terr, obs_terr - model_terr, ob%gpspw(n)%tpw,   &
               mdl_ztd , ob%gpspw(n)%tpw-mdl_ztd, 1.e-4*dzd,       &
               ob%gpspw(n)%tpw-mdl_ztd+1.e-4*dzd, iv%gpspw(n)%tpw%error,&
               iv%gpspw(n)%tpw%qc
-!---   
-      end do
+      end if
 
-!------------------------------------------------------------------------
-!        [5.0] Perform optional maximum error check:
-!------------------------------------------------------------------------
-      if ( .not.(pseudo_var(1:3) == 'ztd' .and. num_pseudo > 0) .and. check_max_iv ) &
+   end do ! n1-n2 loop
+
+   ! Perform optional maximum error check:
+   if ( .not. pseudo_ztd .and. check_max_iv ) &
          call da_check_max_iv_gpspw(iv, it, num_qcstat_conv)
+
+   if ( write_iv_gpsztd ) then
+      call da_free_unit(iunit)
+      close(iunit)
    end if
 
    if (trace_use_dull) call da_trace_exit("da_get_innov_vector_gpsztd")

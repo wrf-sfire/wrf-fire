@@ -33,6 +33,7 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
    real, allocatable :: arrayglobal(:,:)
 
    logical:: no_ppb
+   logical :: has_znt, has_regime
 
    real, dimension(ims:ime,kms:kme) :: pf, pp
 
@@ -40,6 +41,11 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
    real   :: uu, vv
 #endif
 
+   real              :: zlclg(ids:ide,jds:jde)
+   real              :: zlcl(ims:ime,jms:jme)
+
+
+   call sfclayinit !for da_sfc_wtq
 
    ! If grid%pb does not existed in FG (YRG, 08/26/2010):
      ppb = sum(grid%pb*grid%pb)
@@ -65,7 +71,7 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
    !rizvi   xbx%big_header%bhi(8,5) = grid%start_hour
 
    !---------------------------------------------------------------------------
-   ! WRF-specific fitelds:
+   ! WRF-specific fields:
    !---------------------------------------------------------------------------
 
    ptop = grid%p_top
@@ -285,7 +291,8 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
 
    !$OMP PARALLEL DO &
    !$OMP PRIVATE ( ij, i, j, k, cvpm, cpovcv, ppb, temp, ttb ) &
-   !$OMP PRIVATE ( albn, qvf1, aln, theta )
+   !$OMP PRIVATE ( albn, qvf1, aln, theta ) &
+   !$OMP PRIVATE ( p_surf, pfu, pfd, phm )
    do ij = 1 , grid%num_tiles
 
    do j=grid%j_start(ij), grid%j_end(ij)
@@ -362,17 +369,20 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
           do j=grid%j_start(ij), grid%j_end(ij)
             do i=its,ite
                ! The base specific volume (from real.init.code)
-               ppb  = grid%znu(k) * grid%mub(i,j) + ptop
+               ppb  = c3h(k) * grid%mub(i,j) + c4h(k) + ptop
                grid%pb(i,j,k) = ppb
                temp = MAX ( iso_temp, base_temp + base_lapse*log(ppb/base_pres) )
+               if ( grid%pb(i,j,k) < base_pres_strat ) then
+                  temp = iso_temp + base_lapse_strat*log(grid%pb(i,j,k)/base_pres_strat)
+               end if
                ttb  = temp * (base_pres/ppb)**kappa
                ! ttb  = (base_temp + base_lapse*log(ppb/base_pres)) * &
                !   (base_pres/ppb)**kappa
                albn = (gas_constant/base_pres) * ttb * (ppb/base_pres)**cvpm
 
                qvf1 = 1.0 + grid%moist(i,j,k,P_QV) / rd_over_rv
-               aln  = -1.0 / (grid%mub(i,j)+grid%mu_2(i,j)) * &
-                      (albn*grid%mu_2(i,j) + grid%rdnw(k) * &
+               aln  = -1.0 / (c1h(k)*(grid%mub(i,j)+grid%mu_2(i,j))+c2h(k)) * &
+                      (albn*(c1h(k)*grid%mu_2(i,j)) + grid%rdnw(k) * &
                       (grid%ph_2(i,j,k+1) - grid%ph_2(i,j,k)))
                ! total pressure:
                grid%xb%p(i,j,k) = base_pres * &
@@ -380,7 +390,7 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
                                  (base_pres*(aln+albn)))**cpovcv
                ! total density
                grid%xb%rho(i,j,k)= 1.0 / (albn+aln)
-               ! pressure purtubation:
+               ! pressure perturbation:
                grid%p(i,j,k) = grid%xb%p(i,j,k) - ppb
             end do
            end do
@@ -390,11 +400,28 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
           do i=its,ite
             p_surf = base_pres * EXP ( -base_temp/base_lapse + ( (base_temp/base_lapse)**2 - 2.*gravity*grid%ht(i,j)/base_lapse/gas_constant ) **0.5 )
             do k = kts, kte
-               grid%pb(i,j,k) = grid%znu(k)*(p_surf - grid%p_top) + grid%p_top
+               grid%pb(i,j,k) = c3h(k)*(p_surf - grid%p_top) + c4h(k) + grid%p_top
                temp = MAX ( iso_temp, base_temp + base_lapse*log(grid%pb(i,j,k)/base_pres) )
+               if ( grid%pb(i,j,k) < base_pres_strat ) then
+                  temp = iso_temp + base_lapse_strat*log(grid%pb(i,j,k)/base_pres_strat)
+               end if
                grid%t_init(i,j,k) = temp*(base_pres/grid%pb(i,j,k))**(gas_constant/cp) - t0
                grid%alb(i,j,k) = (gas_constant/base_pres)*(grid%t_init(i,j,k)+t0)*(grid%pb(i,j,k)/base_pres)**cvpm
             end do
+            grid%mub(i,j) = p_surf - grid%p_top
+            grid%phb(i,j,1) = grid%ht(i,j) * gravity
+            if (grid%hypsometric_opt == 1) then
+               do k = kts,kte
+                  grid%phb(i,j,k+1) = grid%phb(i,j,k) - grid%dnw(k)*(c1h(k)*grid%mub(i,j)+c2h(k))*grid%alb(i,j,k)
+               end do
+            else if (grid%hypsometric_opt == 2) then
+               do k = kts,kte
+                  pfu = grid%mub(i,j)*c3f(k+1) + c4f(k+1) + grid%p_top
+                  pfd = grid%mub(i,j)*c3f(k  ) + c4f(k  ) + grid%p_top
+                  phm = grid%mub(i,j)*c3h(k  ) + c4h(k  ) + grid%p_top
+                  grid%phb(i,j,k+1) = grid%phb(i,j,k) + grid%alb(i,j,k)*phm*LOG(pfd/pfu)
+               end do
+            end if
           end do
          end do
 
@@ -402,7 +429,8 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
            do k=kts,kte
              do j=grid%j_start(ij), grid%j_end(ij)
                do i=its,ite
-                grid%al(i,j,k)=-1./(grid%mub(i,j)+grid%mu_2(i,j))*(grid%alb(i,j,k)*grid%mu_2(i,j)  &
+                grid%al(i,j,k)=-1./(c1h(k)*(grid%mub(i,j)+grid%mu_2(i,j))+c2h(k))* &
+                     (grid%alb(i,j,k)*(c1h(k)*grid%mu_2(i,j))  &
                      +grid%rdnw(k)*(grid%ph_2(i,j,k+1)-grid%ph_2(i,j,k)))
                 ! total density
                 grid%xb%rho(i,j,k)= 1.0 / (grid%alb(i,j,k)+grid%al(i,j,k))
@@ -413,9 +441,9 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
            do k=kts,kte
              do j=grid%j_start(ij), grid%j_end(ij)
               do i=its,ite
-               pfu = (grid%mub(i,j)+grid%mu_2(i,j))*grid%znw(k+1)+grid%p_top
-               pfd = (grid%mub(i,j)+grid%mu_2(i,j))*grid%znw(k)  +grid%p_top
-               phm = (grid%mub(i,j)+grid%mu_2(i,j))*grid%znu(k)  +grid%p_top
+               pfu = (grid%mub(i,j)+grid%mu_2(i,j))*c3f(k+1)+c4f(k+1)+grid%p_top
+               pfd = (grid%mub(i,j)+grid%mu_2(i,j))*c3f(k)  +c4f(k)  +grid%p_top
+               phm = (grid%mub(i,j)+grid%mu_2(i,j))*c3h(k)  +c4h(k)  +grid%p_top
                grid%al(i,j,k) = (grid%ph_2(i,j,k+1)-grid%ph_2(i,j,k)+grid%phb(i,j,k+1)-grid%phb(i,j,k)) &
                                  /phm/LOG(pfd/pfu)-grid%alb(i,j,k)
                ! total density
@@ -451,8 +479,8 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
         ! The full and half level dry hydrostatic pressure is easily computed (YRG, 12/20/2011):
         do i=its,ite
            do k=kts, kte+1
-              pf(i,k) = (grid%mub(i,j)+grid%mu_2(i,j)) * grid%znw(k) + ptop
-              pp(i,k) = (grid%mub(i,j)+grid%mu_2(i,j)) * grid%znu(k) + ptop
+              pf(i,k) = (grid%mub(i,j)+grid%mu_2(i,j)) * c3f(k) + c4f(k) + ptop
+              pp(i,k) = (grid%mub(i,j)+grid%mu_2(i,j)) * c3h(k) + c4h(k) + ptop
            enddo
         enddo
       endif
@@ -486,7 +514,7 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
             ! Convert to specific humidity from mixing ratio of water vapor:
             grid%xb%q(i,j,k)=grid%xb%q(i,j,k)/(1.0+grid%xb%q(i,j,k))
    
-            ! Background qrn needed for radar radial velocity assmiilation:
+            ! Background qrn needed for radar radial velocity assimilation:
 
             if (size(grid%moist,dim=4) >= 4) then
                grid%xb%qcw(i,j,k) = max(grid%moist(i,j,k,p_qc), 0.0)
@@ -513,7 +541,7 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
                grid%xb%qgr(i,j,k) = max(grid%moist(i,j,k,p_qg), 0.0)
             end if
 
-            if ( config_flags%mp_physics == 3 ) then   ! WSM3-class scheme
+            if ( grid%mp_physics == 3 ) then   ! WSM3-class scheme
                if ( grid%xb%t(i,j,k) <= t_kelvin ) then
                   grid%xb%qci(i,j,k) = grid%xb%qcw(i,j,k)
                   grid%xb%qcw(i,j,k) = 0.0
@@ -621,8 +649,21 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
    !xbx % mminlu = 'USGS'
    xbx % mminlu = trim(grid%mminlu)
 
-   call da_roughness_from_lanu(19, xbx % mminlu, current_date, &
-      grid%xb % lanu, grid%xb % rough)
+   has_regime = sum(grid%regime*grid%regime) > 0.0
+   has_znt    = sum(grid%znt*grid%znt)       > 0.0
+   if ( has_regime .neqv. has_znt ) then
+      ! make sure they are consistent
+      ! either both from model, or both calculated here
+      has_regime = .false.
+      has_znt    = .false.
+   end if
+   if ( has_znt ) then
+      grid%xb%rough = grid%znt
+   else
+      ! calculate rough only when it is not available from fg
+      call da_roughness_from_lanu(19, xbx % mminlu, current_date, &
+         grid%xb % lanu, grid%xb % rough)
+   end if
 
    !---------------------------------------------------------------------------
    ! Calculate 1/grid box areas:
@@ -637,7 +678,11 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
    end if
 
    !$OMP PARALLEL DO &
+#ifndef A2C
    !$OMP PRIVATE ( ij, i, j, tmpvar, height, message )
+#else
+   !$OMP PRIVATE ( ij, i, j, tmpvar, height, message, uu, vv )
+#endif
    do ij = 1 , grid%num_tiles
 
    do j=grid%j_start(ij),grid%j_end(ij)
@@ -664,22 +709,32 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
          uu = 0.5*(grid%xb%u(i,j,kts)+grid%xb%u(i+1,j,kts) )
          vv = 0.5*(grid%xb%v(i,j,kts)+grid%xb%v(i,j+1,kts) )
 #endif
-         call da_sfc_wtq(grid%xb%psfc(i,j), grid%xb%tgrn(i,j), &
+         if ( has_regime ) then
+            ! if fg contains valid regime info, use it
+            grid%xb%regime(i,j) = grid%regime(i,j)
+         else
+            ! xb t2/q2/u10/v10 will be coming directly from fg.
+            ! but still call da_sfc_wtq here in order to get regimes.
+            ! regimes can not be zero for sfc_assi_options=2.
+            ! regimes calculated here could be very different from WRF values
+            ! due to the lack of some input sfc info
+            call da_sfc_wtq(grid%xb%psfc(i,j), grid%xb%tgrn(i,j), &
 #ifdef A2C
-            grid%xb%p(i,j,kts), grid%xb%t(i,j,kts), grid%xb%q(i,j,kts),uu,vv, &
+               grid%xb%p(i,j,kts), grid%xb%t(i,j,kts), grid%xb%q(i,j,kts),uu,vv, &
 #else
-            grid%xb%p(i,j,kts), grid%xb%t(i,j,kts), grid%xb%q(i,j,kts), &
-            grid%xb%u(i,j,kts), grid%xb%v(i,j,kts), &
+               grid%xb%p(i,j,kts), grid%xb%t(i,j,kts), grid%xb%q(i,j,kts), &
+               grid%xb%u(i,j,kts), grid%xb%v(i,j,kts), &
 #endif
-            grid%xb%p(i,j,kts+1), grid%xb%t(i,j,kts+1), grid%xb%q(i,j,kts+1), &
-            height,  grid%xb%rough(i,j),grid%xb%xland(i,j), grid%xb%ds, & ! Modified by Eric Chiang (NOV 2010) 
-            grid%xb%u10(i,j), grid%xb%v10(i,j), grid%xb%t2(i,j), &
-            grid%xb%q2(i,j), grid%xb%regime(i,j))
-  
-            grid%xb%u10(i,j) = grid%u10(i,j)         ! Add by Eric Chiang (NOV 2010)
-            grid%xb%v10(i,j) = grid%v10(i,j)         ! Add by Eric Chiang (NOV 2010)
-            grid%xb%t2(i,j) = grid%t2(i,j)           ! Add by Eric Chiang (NOV 2010)
-            grid%xb%q2(i,j) = grid%q2(i,j)           ! Add by Eric Chiang (NOV 2010)
+               height,  grid%xb%rough(i,j),grid%xb%xland(i,j), grid%xb%ds, &
+               grid%xb%u10(i,j), grid%xb%v10(i,j), grid%xb%t2(i,j), &
+               grid%xb%q2(i,j), grid%xb%regime(i,j))
+         end if !if has_regime
+
+         ! use t2/q2/u10/v10 from fg
+         grid%xb%u10(i,j) = grid%u10(i,j)
+         grid%xb%v10(i,j) = grid%v10(i,j)
+         grid%xb%t2(i,j) = grid%t2(i,j)
+         grid%xb%q2(i,j) = grid%q2(i,j)
 
       end do
    end do
@@ -897,6 +952,38 @@ subroutine da_transfer_wrftoxb(xbx, grid, config_flags)
    end if
 
    deallocate (xbx % latc_mean)
+
+   ! calculate background/model LCL to be used by use_radar_rqv
+   if ( use_radarobs .and. use_radar_rqv .and. cloudbase_calc_opt == 2 ) then
+      do j = jts, jte
+         do i = its, ite
+            zlcl(i,j) = 125.0*(grid%xb%t(i,j,1)-grid%xb%td(i,j,1))
+         end do
+      end do
+      ij = (ide-ids+1)*(jde-jds+1)
+#ifdef DM_PARALLEL
+      call da_patch_to_global (grid, zlcl, zlclg)
+      call wrf_dm_bcast_real( zlclg, ij )
+#else
+      do j = jds, jde
+         do i = ids, ide
+            zlclg(i,j) = zlcl(i,j)
+         end do
+      end do
+#endif
+      ! Calculate the domain grid mean LCL
+      zlcl_mean = 0.0
+      do j = jds, jde
+         do i = ids, ide
+            zlcl_mean = zlcl_mean + zlclg(i,j)
+         end do
+      end do
+      zlcl_mean = zlcl_mean/float(ij)
+   end if ! lcl for use_radar_rqv
+
+   if ( use_gpsephobs ) then
+      call da_gpseph_init(grid)
+   end if
 
    if (trace_use) call da_trace_exit("da_transfer_wrftoxb")
 

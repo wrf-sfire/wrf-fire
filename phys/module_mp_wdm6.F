@@ -5,116 +5,387 @@
 #  define VREC vrec
 #  define VSQRT vsqrt
 #endif
-MODULE module_mp_wdm6
+!-------------------------------------------------------------------------------
+   module module_mp_wdm6
+!-------------------------------------------------------------------------------
+!
+   use module_utility, only: WRFU_Clock, WRFU_Alarm
+   use module_domain, only: HISTORY_ALARM, Is_alarm_tstep
+   use module_mp_radar
 !
 !
-   USE module_utility, ONLY: WRFU_Clock, WRFU_Alarm
-   USE module_domain, ONLY : HISTORY_ALARM, Is_alarm_tstep
-   USE module_mp_radar
+!-------------------------------------------------------------------------------
 !
-   REAL, PARAMETER, PRIVATE :: dtcldcr     = 120. ! maximum time step for minor loops
-   REAL, PARAMETER, PRIVATE :: n0r = 8.e6         ! intercept parameter rain
-   REAL, PARAMETER, PRIVATE :: n0g = 4.e6         ! intercept parameter graupel
-   REAL, PARAMETER, PRIVATE :: avtr = 841.9       ! a constant for terminal velocity of rain
-   REAL, PARAMETER, PRIVATE :: bvtr = 0.8         ! a constant for terminal velocity of rain
-   REAL, PARAMETER, PRIVATE :: r0 = .8e-5         ! 8 microm  in contrast to 10 micro m
-   REAL, PARAMETER, PRIVATE :: peaut = .55        ! collection efficiency
-   REAL, PARAMETER, PRIVATE :: xncr = 3.e8        ! maritime cloud in contrast to 3.e8 in tc80
-   REAL, PARAMETER, PRIVATE :: xmyu = 1.718e-5    ! the dynamic viscosity kgm-1s-1
-   REAL, PARAMETER, PRIVATE :: avts = 11.72       ! a constant for terminal velocity of snow
-   REAL, PARAMETER, PRIVATE :: bvts = .41         ! a constant for terminal velocity of snow 
-   REAL, PARAMETER, PRIVATE :: avtg = 330.        ! a constant for terminal velocity of graupel 
-   REAL, PARAMETER, PRIVATE :: bvtg = 0.8         ! a constant for terminal velocity of graupel
-   REAL, PARAMETER, PRIVATE :: deng = 500.        ! density of graupel
-   REAL, PARAMETER, PRIVATE :: n0smax =  1.e11    ! maximum n0s (t=-90C unlimited)
-   REAL, PARAMETER, PRIVATE :: lamdacmax = 5.0e5  ! limited maximum value for slope parameter of cloud water
-   REAL, PARAMETER, PRIVATE :: lamdacmin = 2.0e4  ! limited minimum value for slope parameter of cloud water
-   REAL, PARAMETER, PRIVATE :: lamdarmax = 5.0e4  ! limited maximum value for slope parameter of rain
-   REAL, PARAMETER, PRIVATE :: lamdarmin = 2.0e3  ! limited minimum value for slope parameter of rain
-   REAL, PARAMETER, PRIVATE :: lamdasmax = 1.e5   ! limited maximum value for slope parameter of snow
-   REAL, PARAMETER, PRIVATE :: lamdagmax = 6.e4   ! limited maximum value for slope parameter of graupel
-   REAL, PARAMETER, PRIVATE :: dicon = 11.9       ! constant for the cloud-ice diamter
-   REAL, PARAMETER, PRIVATE :: dimax = 500.e-6    ! limited maximum value for the cloud-ice diamter
-   REAL, PARAMETER, PRIVATE :: n0s = 2.e6         ! temperature dependent intercept parameter snow 
-   REAL, PARAMETER, PRIVATE :: alpha = .12        ! .122 exponen factor for n0s
-   REAL, PARAMETER, PRIVATE :: pfrz1 = 100.       ! constant in Biggs freezing
-   REAL, PARAMETER, PRIVATE :: pfrz2 = 0.66       ! constant in Biggs freezing
-   REAL, PARAMETER, PRIVATE :: qcrmin = 1.e-9     ! minimun values for qr, qs, and qg 
-   REAL, PARAMETER, PRIVATE :: ncmin = 1.e1       ! minimum value for Nc 
-   REAL, PARAMETER, PRIVATE :: nrmin = 1.e-2      ! minimum value for Nr
-   REAL, PARAMETER, PRIVATE :: eacrc = 1.0        ! Snow/cloud-water collection efficiency
-   REAL, PARAMETER, PRIVATE :: dens  =  100.0     ! Density of snow
-   REAL, PARAMETER, PRIVATE :: qs0   =  6.e-4     ! threshold amount for aggretion to occur
+!  constant   :
 !
-   REAL, PARAMETER, PRIVATE :: satmax = 1.0048    ! maximum saturation value for CCN activation 
-                                                  ! 1.008 for maritime /1.0048 for conti 
-   REAL, PARAMETER, PRIVATE :: actk = 0.6         ! parameter for the CCN activation
-   REAL, PARAMETER, PRIVATE :: actr = 1.5         ! radius of activated CCN drops
-   REAL, PARAMETER, PRIVATE :: ncrk1 = 3.03e3     ! Long's collection kernel coefficient
-   REAL, PARAMETER, PRIVATE :: ncrk2 = 2.59e15    ! Long's collection kernel coefficient
-   REAL, PARAMETER, PRIVATE :: di100 = 1.e-4      ! parameter related with accretion and collection of cloud drops
-   REAL, PARAMETER, PRIVATE :: di600 = 6.e-4      ! parameter related with accretion and collection of cloud drops
-   REAL, PARAMETER, PRIVATE :: di2000 = 2000.e-6  ! parameter related with accretion and collection of cloud drops 
-   REAL, PARAMETER, PRIVATE :: di82    = 82.e-6   ! dimater related with raindrops evaporation
-   REAL, PARAMETER, PRIVATE :: di15    = 15.e-6   ! auto conversion takes place beyond this diameter 
+!    dtcldcr       - maximum time step for minor loops
+!    n0r           - intercept parameter rain
+!    n0s           - intercept parameter snow
+!    n0g           - intercept parameter graupel
+!    n0smax        - maximum n0s (t=-90C unlimited)
+!    alpha         - 0.122 exponen factor for n0s
+!    avtr, bvtr    - a constant for terminal velocity of rain
+!    avts, bvts    - a constant for terminal velocity of snow
+!    avtg, bvtg    - a constant for terminal velocity of graupel
+!    lamdarmax     - limited maximum value for slope parameter of rain
+!    lamdarmin     - limited minimum value for slope parameter of rain
+!    lamdasmax     - limited maximum value for slope parameter of snow
+!    lamdagmax     - limited maximum value for slope parameter of graupel
+!    r0            - 8 microm  in contrast to 10 micro m
+!    peaut         - collection efficiency
+!    xncr          - maritime cloud in contrast to 3.e8 in tc80
+!    xmyu          - the dynamic viscosity kg m-1 s-1 
+!    dicon         - constant for the cloud-ice diamter
+!    dimax         - limited maximum value for the cloud-ice diamter
+!    pfrz1, pfrz2  - constant in Biggs freezing
+!    qcrmin        - minimum values for qr and qs
+!    ncmin         - minimum value for nc
+!    nrmin         - minimum value for nr
+!    eacrc         - now/cloud-water collection efficiency
+!    qs0           - threshold amount for aggretion to occur
+!    satmax        - maximum saturation value for CCN activation
+!                    1.008 for maritime /1.0048 for conti 
+!    actk          - parameter for the CCN activation
+!    actr          - radius of activated CCN drops
+!    ncrk1, ncrk2  - Long's collection kernel coefficient
+!    di100, di600, di2000  - parameter related with accretion and collection 
+!                            of cloud drops
+!    di82          - dimater related with raindrops evaporation
+!    di15          - auto conversion takes place beyond this diameter 
 !
-   REAL, SAVE ::                                           &
-             qc0,qck1,pidnc,bvtr1,bvtr2,bvtr3,bvtr4,bvtr5, &
-             bvtr6,bvtr7, bvtr2o5,bvtr3o5,                 &
-             g1pbr,g2pbr,g3pbr,g4pbr,g5pbr,g6pbr,g7pbr,    &
-             g5pbro2,g7pbro2,pi,                           &
-             pvtr,pvtrn,eacrr,pacrr,pidn0r,pidnr,          &
-             precr1,precr2,xmmax,roqimax,bvts1,bvts2,      &
-             bvts3,bvts4,g1pbs,g3pbs,g4pbs,g5pbso2,        &
-             pvts,pacrs,precs1,precs2,pidn0s,xlv1,pacrc,   &
-             bvtg1,bvtg2,bvtg3,bvtg4,g1pbg,g3pbg,g4pbg,    &
-             g5pbgo2,pvtg,pacrg,precg1,precg2,pidn0g,      &
-             rslopecmax,rslopec2max,rslopec3max,           &
-             rslopermax,rslopesmax,rslopegmax,             &
-             rsloperbmax,rslopesbmax,rslopegbmax,          &
-             rsloper2max,rslopes2max,rslopeg2max,          &
+!-------------------------------------------------------------------------------
+   real, parameter, private :: dtcldcr = 120.
+   real, parameter, private :: n0r     = 8.e6
+   real, parameter, private :: n0s     = 2.e6
+!   real, parameter, private :: n0g     = 4.e6
+   real, parameter, private :: n0smax  =  1.e11
+   real, parameter, private :: dens    = 100.0
+   real, parameter, private :: alpha   = .12
+   real, parameter, private :: avtr    = 841.9
+   real, parameter, private :: bvtr    = 0.8
+   real, parameter, private :: avts    = 11.72
+   real, parameter, private :: bvts    = .41
+!   real, parameter, private :: avtg    = 330.
+!   real, parameter, private :: bvtg    = 0.8
+   real, parameter, private :: lamdacmax = 5.e5
+   real, parameter, private :: lamdacmin = 2.e4
+   real, parameter, private :: lamdarmax = 5.e4
+   real, parameter, private :: lamdarmin = 2.e3
+   real, parameter, private :: lamdasmax = 1.e5
+!   real, parameter, private :: lamdagmax = 6.e4
+   real, parameter, private :: r0      = .8e-5
+   real, parameter, private :: peaut   = .55
+   real, parameter, private :: xncr    = 3.e8
+   real, parameter, private :: xncr0   = 5.e7
+   real, parameter, private :: xncr1   = 5.e8
+   real, parameter, private :: xmyu    = 1.718e-5
+   real, parameter, private :: dicon   = 11.9
+   real, parameter, private :: dimax   = 500.e-6
+   real, parameter, private :: pfrz1   = 100.
+   real, parameter, private :: pfrz2   = 0.66
+   real, parameter, private :: qcrmin  = 1.e-9
+   real, parameter, private :: ncmin   = 1.e1
+   real, parameter, private :: nrmin   = 1.e-2
+   real, parameter, private :: eacrc   = 1.0
+   real, parameter, private :: qs0     = 6.e-4
+   real, parameter, private :: satmax  = 1.0048
+   real, parameter, private :: actk    = 0.6
+   real, parameter, private :: actr    = 1.5
+   real, parameter, private :: ncrk1   = 3.03e3
+   real, parameter, private :: ncrk2   = 2.59e15
+   real, parameter, private :: di100   = 1.e-4
+   real, parameter, private :: di600   = 6.e-4
+   real, parameter, private :: di2000  = 2000.e-6
+   real, parameter, private :: di82    = 82.e-6
+   real, parameter, private :: di15    = 15.e-6
+   real, save ::                                                               &
+             qc0,qc1,qck1,pidnc,bvtr1,bvtr2,bvtr3,bvtr4,bvtr5,                 &
+             bvtr6,bvtr7, bvtr2o5,bvtr3o5,                                     &
+             g1pbr,g2pbr,g3pbr,g4pbr,g5pbr,g6pbr,g7pbr,                        &
+             g5pbro2,g7pbro2,pi,                                               &
+             pvtr,pvtrn,eacrr,pacrr,pidn0r,pidnr,                              &
+             precr1,precr2,xmmax,roqimax,bvts1,bvts2,                          &
+             bvts3,bvts4,g1pbs,g3pbs,g4pbs,g5pbso2,                            &
+             pvts,pacrs,precs1,precs2,pidn0s,xlv1,pacrc,                       &
+             bvtg1,bvtg2,bvtg3,bvtg4,g1pbg,g3pbg,g4pbg,                        &
+             g5pbgo2,pvtg,pacrg,precg1,precg2,pidn0g,                          &
+             n0g,avtg,bvtg,deng,lamdagmax,                                     &
+             rslopecmax,rslopec2max,rslopec3max,                               &
+             rslopermax,rslopesmax,rslopegmax,                                 &
+             rsloperbmax,rslopesbmax,rslopegbmax,                              &
+             rsloper2max,rslopes2max,rslopeg2max,                              &
              rsloper3max,rslopes3max,rslopeg3max
-CONTAINS
+!
+    contains
 !===================================================================
 !
-  SUBROUTINE wdm6(th, q, qc, qr, qi, qs, qg,               &
+    subroutine wdm6(th, q, qc, qr, qi, qs, qg,             &
                     nn, nc, nr,                            &
                     den, pii, p, delz,                     &
                     delt,g, cpd, cpv, ccn0, rd, rv, t0c,   &
                     ep1, ep2, qmin,                        &
-                    XLS, XLV0, XLF0, den0, denr,           &
+                    xls, xlv0, xlf0, den0, denr,           &
                     cliq,cice,psat,                        &
+                    xland,                                 &
                     rain, rainncv,                         &
                     snow, snowncv,                         &
                     sr,                                    &
                     refl_10cm, diagflag, do_radar_ref,     &
                     graupel, graupelncv,                   &
                     itimestep,                             &
+                    has_reqc, has_reqi, has_reqs,          &  ! for radiation
+                    re_cloud, re_ice,   re_snow,           &  ! for radiation     
                     ids,ide, jds,jde, kds,kde,             &
                     ims,ime, jms,jme, kms,kme,             &
                     its,ite, jts,jte, kts,kte              &
                                                            )
 !-------------------------------------------------------------------
-  IMPLICIT NONE
+   implicit none
 !-------------------------------------------------------------------
+   integer                                   , intent(in   ) :: itimestep
+   integer                                   , intent(in   ) ::                &
+                                                    ids,ide, jds,jde, kds,kde, &
+                                                    ims,ime, jms,jme, kms,kme, &
+                                                    its,ite, jts,jte, kts,kte
+   real                                      , intent(in   ) :: delt, g, ccn0, &
+                                                                rd, rv, t0c,   &
+                                                                cpd, cpv,      &
+                                                                den0, qmin,    &
+                                                                ep1, ep2, xls, &
+                                                                xlv0, xlf0,    &
+                                                                cliq, cice,    &
+                                                                psat, denr    
+   real, dimension(ims:ime,jms:jme)          , intent(in   ) :: xland
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: den
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: pii
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: p
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: delz
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: th
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: q
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qc
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qi
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qr
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qs
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qg
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nn
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nc
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nr
+   real, dimension(ims:ime,jms:jme)          , intent(inout) :: rain
+   real, dimension(ims:ime,jms:jme)          , intent(inout) :: rainncv
+   real, dimension(ims:ime,jms:jme)          , intent(inout) :: sr
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: snow
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: snowncv
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: graupel
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: graupelncv
+!
+! for radiation connecting
+!
+   integer                                 , intent(in   ) :: has_reqc
+   integer                                 , intent(in   ) :: has_reqi
+   integer                                 , intent(in   ) :: has_reqs
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_cloud
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_ice
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_snow
+!
+! for reflectivity
+!
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: refl_10cm
+   logical                       , optional, intent(in   ) :: diagflag
+   integer                       , optional, intent(in   ) :: do_radar_ref
+!   
+! local variables
+!
+   real, dimension(its:ite,kts:kte)   :: t
+   real, dimension(its:ite,kts:kte,2) :: qci
+   real, dimension(its:ite,kts:kte,3) :: qrs, ncr
+   integer                            :: i,j,k
+!
+! for reflectivity
+!
+   real, dimension(kts:kte) :: qv1d 
+   real, dimension(kts:kte) :: t1d
+   real, dimension(kts:kte) :: p1d
+   real, dimension(kts:kte) :: qr1d
+   real, dimension(kts:kte) :: nr1d
+   real, dimension(kts:kte) :: qs1d
+   real, dimension(kts:kte) :: qg1d
+   real, dimension(kts:kte) :: dBZ
+!
+! to calculate effective radius for radiation
+!
+   real, dimension(kts:kte) :: qc1d, nc1d, den1d
+   real, dimension(kts:kte) :: qi1d
+   real, dimension(kts:kte) :: re_qc, re_qi, re_qs
+!
+   if (itimestep .eq. 1) then 
+     do j = jms,jme
+       do k = kms,kme    
+         do i = ims,ime
+           nn(i,k,j) = ccn0   
+         enddo
+       enddo
+     enddo
+   endif
+!
+   do j = jts,jte
+     do k = kts,kte
+       do i = its,ite
+         t(i,k) = th(i,k,j)*pii(i,k,j)
+         qci(i,k,1) = qc(i,k,j)
+         qci(i,k,2) = qi(i,k,j)
+         qrs(i,k,1) = qr(i,k,j)
+         qrs(i,k,2) = qs(i,k,j)
+         qrs(i,k,3) = qg(i,k,j)
+         ncr(i,k,1) = nn(i,k,j)
+         ncr(i,k,2) = nc(i,k,j)
+         ncr(i,k,3) = nr(i,k,j)     
+       enddo
+     enddo   
+     ! 
+     !  Sending array starting locations of optional variables may cause
+     !  troubles, so we explicitly change the call.
+     !
+     call wdm62D(t, q(ims,kms,j), qci, qrs, ncr               &
+                ,den(ims,kms,j)                               &
+                ,p(ims,kms,j), delz(ims,kms,j)                &
+                ,delt,g, cpd, cpv, ccn0, rd, rv, t0c          &
+                ,ep1, ep2, qmin                               &
+                ,xls, xlv0, xlf0, den0, denr                  &
+                ,cliq,cice,psat                               &
+                ,j                                            &
+                ,xland(ims,j)                                 &
+                ,rain(ims,j),rainncv(ims,j)                   &
+                ,sr(ims,j)                                    &
+                ,ids,ide, jds,jde, kds,kde                    &
+                ,ims,ime, jms,jme, kms,kme                    &
+                ,its,ite, jts,jte, kts,kte                    &
+                ,snow(ims,j),snowncv(ims,j)                   &
+                ,graupel(ims,j),graupelncv(ims,j)             & 
+                                                               )
+!
+     do k = kts,kte
+       do i = its,ite
+         th(i,k,j) = t(i,k)/pii(i,k,j)
+         qc(i,k,j) = qci(i,k,1)
+         qi(i,k,j) = qci(i,k,2)
+         qr(i,k,j) = qrs(i,k,1)
+         qs(i,k,j) = qrs(i,k,2)
+         qg(i,k,j) = qrs(i,k,3)
+         nn(i,k,j) = ncr(i,k,1)
+         nc(i,k,j) = ncr(i,k,2)
+         nr(i,k,j) = ncr(i,k,3)   
+       enddo
+     enddo
+!
+     if ( present (diagflag) ) then
+       if (diagflag .and. do_radar_ref == 1) then
+         do i = its,ite
+           do k = kts,kte
+             t1d(k)  = th(i,k,j)*pii(i,k,j)
+             p1d(k)  = p(i,k,j)
+             qv1d(k) = q(i,k,j)
+             qr1d(k) = qr(i,k,j)
+             nr1d(k) = nr(i,k,j)
+             qs1d(k) = qs(i,k,j)
+             qg1d(k) = qg(i,k,j)
+           enddo
+           call refl10cm_wdm6 (qv1d, qr1d, nr1d, qs1d, qg1d,        &
+                               t1d, p1d, dBZ, kts, kte, i, j)
+           do k = kts, kte
+             refl_10cm(i,k,j) = max(-35., dBZ(k))
+           enddo
+         enddo
+       endif
+     endif
+!
+! calculate effective radius of cloud, ice, and snow 
+!
+     if (has_reqc.ne.0 .and. has_reqi.ne.0 .and. has_reqs.ne.0) then
+       do i = its,ite
+         do k = kts,kte
+           re_qc(k) = 2.51e-6
+           re_qi(k) = 10.01e-6
+           re_qs(k) = 25.e-6
+!
+           t1d(k)  = th(i,k,j)*pii(i,k,j)
+           den1d(k)= den(i,k,j)
+           qc1d(k) = qc(i,k,j)
+           qi1d(k) = qi(i,k,j)
+           qs1d(k) = qs(i,k,j)
+           nc1d(k) = nc(i,k,j)
+         enddo
+!
+         call effectRad_wdm6(t1d, qc1d, nc1d, qi1d, qs1d, den1d,   &
+                             qmin, t0c, re_qc, re_qi, re_qs,       &
+                             kts, kte, i, j)
+!
+         do k = kts,kte
+           re_cloud(i,k,j) = max(2.51e-6,  min(re_qc(k),  50.e-6))
+           re_ice(i,k,j)   = max(10.01e-6, min(re_qi(k), 125.e-6))
+           re_snow(i,k,j)  = max(25.e-6,   min(re_qs(k), 999.e-6))
+         enddo
+       enddo
+     endif
+   enddo        
+! 
+   end subroutine wdm6
+!
+!------------------------------------------------------------------------------
+!
+   subroutine wdm62D(t, q, qci, qrs, ncr, den, p, delz            &
+                   ,delt,g, cpd, cpv, ccn0, rd, rv, t0c           &
+                   ,ep1, ep2, qmin                                &
+                   ,xls, xlv0, xlf0, den0, denr                   &
+                   ,cliq,cice,psat                                &
+                   ,lat                                           &
+                   ,slmsk                                         &
+                   ,rain,rainncv                                  &
+                   ,sr                                            &
+                   ,ids,ide, jds,jde, kds,kde                     &
+                   ,ims,ime, jms,jme, kms,kme                     &
+                   ,its,ite, jts,jte, kts,kte                     &
+                   ,snow,snowncv                                  &
+                   ,graupel,graupelncv                            &
+                                                                  )
+!------------------------------------------------------------------------------
+    implicit none
+!-------------------------------------------------------------------------------
 !
 !  This code is a WRF double-moment 6-class GRAUPEL phase 
-!  microphyiscs scheme (WDM6). The WDM microphysics scheme predicts 
+!  microphyiscs scheme (wdm6). The WDM microphysics scheme predicts 
 !  number concentrations for warm rain species including clouds and 
-!  rain. cloud condensation nuclei (CCN) is also predicted.
+!  rain. cloud condensation nuclei (ccn) is also predicted.
 !  The cold rain species including ice, snow, graupel follow the 
-!  WRF single-moment 6-class microphysics (WSM6, Hong and Lim 2006)
+!  WRF single-moment 6-class microphysics (wsm6, Hong and Lim 2006)
 !  in which theoretical background for WSM ice phase microphysics is 
 !  based on Hong et al. (2004). A new mixed-phase terminal velocity
 !  for precipitating ice is introduced in WSM6 (Dudhia et al. 2008). 
 !  The WDM scheme is described in Lim and Hong (2010).
-!  All units are in m.k.s. and source/sink terms in kgkg-1s-1.
 !
-!  WDM6 cloud scheme
+!  wdm6 cloud scheme
 !
 !  Coded by Kyo-Sun Lim and Song-You Hong (Yonsei Univ.) Fall 2008
 !
 !  Implemented by Kyo-Sun Lim and Jimy Dudhia (NCAR) Winter 2008
+!
+!  further modifications :
+!        semi-lagrangian sedimentation (JH,2010),hong, aug 2009
+!        ==> higher accuracy and efficient at lower resolutions
+!        reflectivity computation from greg thompson, lim, jun 2011
+!        ==> only dignostic, but with removal of too large drops
+!        add hail option from afwa, aug 2014 
+!        ==> switch graupel or hail by changing no, den, fall vel.
+!        effetive radius of hydrometeors, bae from kiaps, jan 2015
+!        ==> consistency in solar insolation of rrtmg radiation
+!        bug fix in melting terms, bae from kiaps, nov 2015
+!        ==> density of air is divided, which has not been
+!        bug fix in sedimentation of rain, bae from kiaps, mar 2017
+!        change autoconversion rate to equation, bae from kiaps, oct 2017
+!        nccn > 100 cm-3, bae from kiaps, oct 2017
+!        bug fix hydrometeros update before condensation process of rain,
+!           bae from kiaps, oct2017
+!
+!  history log :
 !
 !  Reference) Lim and Hong (LH, 2010) Mon. Wea. Rev. 
 !             Juang and Hong (JH, 2010) Mon. Wea. Rev.
@@ -128,423 +399,296 @@ CONTAINS
 !             Rutledge, Hobbs (RH83, 1983) J. Atmos. Sci.
 !             Rutledge, Hobbs (RH84, 1984) J. Atmos. Sci.
 !
-  INTEGER,      INTENT(IN   )    ::   ids,ide, jds,jde, kds,kde , &
-                                      ims,ime, jms,jme, kms,kme , &
-                                      its,ite, jts,jte, kts,kte
-  REAL, DIMENSION( ims:ime , kms:kme , jms:jme ),                 &
-        INTENT(INOUT) ::                                          &
-                                                              th, &
-                                                               q, &
-                                                              qc, &
-                                                              qi, &
-                                                              qr, &
-                                                              qs, &
-                                                              qg, &
-                                                              nn, & 
-                                                              nc, &
-                                                              nr
-  REAL, DIMENSION( ims:ime , kms:kme , jms:jme ),                 &
-        INTENT(IN   ) ::                                          &
-                                                             den, &
-                                                             pii, &
-                                                               p, &
-                                                            delz
-  REAL, INTENT(IN   ) ::                                    delt, &
-                                                               g, &
-                                                              rd, &
-                                                              rv, &
-                                                             t0c, &
-                                                            den0, &
-                                                             cpd, &
-                                                             cpv, &
-                                                            ccn0, &
-                                                             ep1, &
-                                                             ep2, &
-                                                            qmin, &
-                                                             XLS, &
-                                                            XLV0, &
-                                                            XLF0, &
-                                                            cliq, &
-                                                            cice, &
-                                                            psat, &
-                                                            denr
-  INTEGER, INTENT(IN   ) ::                            itimestep
-  REAL, DIMENSION( ims:ime , jms:jme ),                           &
-        INTENT(INOUT) ::                                    rain, &
-                                                         rainncv, &
-                                                              sr
-
-!+---+-----------------------------------------------------------------+
-  REAL, DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT)::     &  ! GT
-                                                       refl_10cm
-!+---+-----------------------------------------------------------------+
-
-  REAL, DIMENSION( ims:ime , jms:jme ), OPTIONAL,                 &
-        INTENT(INOUT) ::                                    snow, &
-                                                         snowncv
-  REAL, DIMENSION( ims:ime , jms:jme ), OPTIONAL,                 &
-        INTENT(INOUT) ::                                 graupel, &
-                                                        graupelncv
-! LOCAL VAR
-  REAL, DIMENSION( its:ite , kts:kte ) ::   t
-  REAL, DIMENSION( its:ite , kts:kte, 2 ) ::   qci
-  REAL, DIMENSION( its:ite , kts:kte, 3 ) ::   qrs, ncr
-  INTEGER ::               i,j,k
-
-!+---+-----------------------------------------------------------------+
-      REAL, DIMENSION(kts:kte):: qv1d, t1d, p1d, qr1d, nr1d, qs1d, qg1d, dBZ
-      LOGICAL, OPTIONAL, INTENT(IN) :: diagflag
-      INTEGER, OPTIONAL, INTENT(IN) :: do_radar_ref
-!+---+-----------------------------------------------------------------+
-
-      IF (itimestep .eq. 1) THEN 
-        DO j=jms,jme
-           DO k=kms,kme    
-           DO i=ims,ime
-              nn(i,k,j) = ccn0   
-           ENDDO
-           ENDDO
-        ENDDO
-      ENDIF
+!-------------------------------------------------------------------------------
+! 
+!  input :
+!    deltim                       - timestep
+!    g, cpd, cpv, t0c, den0,      - constant 
+!    rd, rv, ep1, ep2, qmin, 
+!    xls, xlv0, xlf0, denr,
+!    cliq, cice, psat
+!    ids, ide, jds, jde, kds, kde - dimension
+!    ims, ime, jms, jme, kms, kme 
+!    its, ite, jts, jte, kts, kte 
+!    ncloud                       - number of hydrometeor
+!    p                            - pressure, Pa
+!    delz                         - depth of model layer, m
+!   * with chemistry
+!    slmsk                        - land/sea mask, 0: sea, 1: land
+!    so4                          - mixing ratio of sulfate
+!    ss                           - mixing ratio of sea salt
+!    oc                           - mixing ratio of organic carbon
+!    
+!  inout : 
+!    t1                           - temperautre
+!    q1                           - specific humidity
+!    q2                           - mixing ratio of cloud water, rain, ice, 
+!                                   snow, and graupel
+!                                   qc, qr, qi, qs, qg
+!    n2                           - number concentration of ccn, cloud droplet,
+!                                   and raindrop
+!                                   nn, nc, nr
+!    rain, rainncv                - precipitation
+!    sr                           - ratio of snow to rain
 !
-      DO j=jts,jte
-         DO k=kts,kte
-         DO i=its,ite
-            t(i,k)=th(i,k,j)*pii(i,k,j)
-            qci(i,k,1) = qc(i,k,j)
-            qci(i,k,2) = qi(i,k,j)
-            qrs(i,k,1) = qr(i,k,j)
-            qrs(i,k,2) = qs(i,k,j)
-            qrs(i,k,3) = qg(i,k,j)
-            ncr(i,k,1) = nn(i,k,j)
-            ncr(i,k,2) = nc(i,k,j)
-            ncr(i,k,3) = nr(i,k,j)     
-         ENDDO
-         ENDDO
-         !  Sending array starting locations of optional variables may cause
-         !  troubles, so we explicitly change the call.
-         CALL wdm62D(t, q(ims,kms,j), qci, qrs, ncr               &
-                    ,den(ims,kms,j)                               &
-                    ,p(ims,kms,j), delz(ims,kms,j)                &
-                    ,delt,g, cpd, cpv, ccn0, rd, rv, t0c          &
-                    ,ep1, ep2, qmin                               &
-                    ,XLS, XLV0, XLF0, den0, denr                  &
-                    ,cliq,cice,psat                               &
-                    ,j                                            &
-                    ,rain(ims,j),rainncv(ims,j)                   &
-                    ,sr(ims,j)                                    &
-                    ,ids,ide, jds,jde, kds,kde                    &
-                    ,ims,ime, jms,jme, kms,kme                    &
-                    ,its,ite, jts,jte, kts,kte                    &
-                    ,snow(ims,j),snowncv(ims,j)                   &
-                    ,graupel(ims,j),graupelncv(ims,j)             & 
-                                                                   )
-         DO K=kts,kte
-         DO I=its,ite
-            th(i,k,j)=t(i,k)/pii(i,k,j)
-            qc(i,k,j) = qci(i,k,1)
-            qi(i,k,j) = qci(i,k,2)
-            qr(i,k,j) = qrs(i,k,1)
-            qs(i,k,j) = qrs(i,k,2)
-            qg(i,k,j) = qrs(i,k,3)
-            nn(i,k,j) = ncr(i,k,1)
-            nc(i,k,j) = ncr(i,k,2)
-            nr(i,k,j) = ncr(i,k,3)   
-         ENDDO
-         ENDDO
-
-!+---+-----------------------------------------------------------------+
-         IF ( PRESENT (diagflag) ) THEN
-         if (diagflag .and. do_radar_ref == 1) then
-            DO I=its,ite
-               DO K=kts,kte
-                  t1d(k)=th(i,k,j)*pii(i,k,j)
-                  p1d(k)=p(i,k,j)
-                  qv1d(k)=q(i,k,j)
-                  qr1d(k)=qr(i,k,j)
-                  nr1d(k)=nr(i,k,j)
-                  qs1d(k)=qs(i,k,j)
-                  qg1d(k)=qg(i,k,j)
-               ENDDO
-               call refl10cm_wdm6 (qv1d, qr1d, nr1d, qs1d, qg1d,        &
-                       t1d, p1d, dBZ, kts, kte, i, j)
-               do k = kts, kte
-                  refl_10cm(i,k,j) = MAX(-35., dBZ(k))
-               enddo
-            ENDDO
-         endif
-         ENDIF
-!+---+-----------------------------------------------------------------+
-
-      ENDDO
-  END SUBROUTINE wdm6
-!===================================================================
+!  all units are in m.k.s. and source/sink terms in kg kg-1 s-1.
+!-------------------------------------------------------------------------------
+   integer                                , intent(in   ) ::                  &
+                                                   ids,ide, jds,jde, kds,kde, &
+                                                   ims,ime, jms,jme, kms,kme, &
+                                                   its,ite, jts,jte, kts,kte
+   integer                                , intent(in   ) :: lat
+   real                                   , intent(in   ) :: delt
+   real                                   , intent(in   ) :: g, cpd, cpv, t0c, &
+                                                             den0, rd, rv,     &
+                                                             ep1, ep2, qmin,   &
+                                                             xls, xlv0, xlf0,  &
+                                                             cliq, cice, psat, &
+                                                             denr
+   real                                   , intent(in   ) :: ccn0
+   real, dimension(ims:ime)               , intent(in   ) :: slmsk
+   real, dimension(ims:ime,kms:kme)       , intent(in   ) :: p
+   real, dimension(ims:ime,kms:kme)       , intent(in   ) :: delz
+   real, dimension(ims:ime,kms:kme)       , intent(in   ) :: den
+   real, dimension(its:ite,kts:kte)       , intent(inout) :: t
+   real, dimension(its:ite,kts:kte,2)     , intent(inout) :: qci
+   real, dimension(its:ite,kts:kte,3)     , intent(inout) :: qrs
+   real, dimension(its:ite,kts:kte,3)     , intent(inout) :: ncr
+   real, dimension(ims:ime,kms:kme)       , intent(inout) :: q
+   real, dimension(ims:ime)               , intent(inout) :: rain
+   real, dimension(ims:ime)               , intent(inout) :: rainncv
+   real, dimension(ims:ime)               , intent(inout) :: sr
+   real, dimension(ims:ime), optional     , intent(inout) :: snow
+   real, dimension(ims:ime), optional     , intent(inout) :: snowncv
+   real, dimension(ims:ime), optional     , intent(inout) :: graupel
+   real, dimension(ims:ime), optional     , intent(inout) :: graupelncv
 !
-  SUBROUTINE wdm62D(t, q, qci, qrs, ncr, den, p, delz             &
-                   ,delt,g, cpd, cpv, ccn0, rd, rv, t0c           &
-                   ,ep1, ep2, qmin                                &
-                   ,XLS, XLV0, XLF0, den0, denr                   &
-                   ,cliq,cice,psat                                &
-                   ,lat                                           &
-                   ,rain,rainncv                                  &
-                   ,sr                                            &
-                   ,ids,ide, jds,jde, kds,kde                     &
-                   ,ims,ime, jms,jme, kms,kme                     &
-                   ,its,ite, jts,jte, kts,kte                     &
-                   ,snow,snowncv                                  &
-                   ,graupel,graupelncv                            &
-                                                                  )
-!-------------------------------------------------------------------
-  IMPLICIT NONE
-!-------------------------------------------------------------------
-  INTEGER,      INTENT(IN   )    ::   ids,ide, jds,jde, kds,kde , &
-                                      ims,ime, jms,jme, kms,kme , &
-                                      its,ite, jts,jte, kts,kte , &
-                                      lat
-  REAL, DIMENSION( its:ite , kts:kte ),                           &
-        INTENT(INOUT) ::                                          &
-                                                               t
-  REAL, DIMENSION( its:ite , kts:kte, 2 ),                        &
-        INTENT(INOUT) ::                                          &
-                                                             qci
-  REAL, DIMENSION( its:ite , kts:kte, 3 ),                        &
-        INTENT(INOUT) ::                                          &
-                                                             qrs, &
-                                                             ncr 
-  REAL, DIMENSION( ims:ime , kms:kme ),                           &
-        INTENT(INOUT) ::                                          &
-                                                               q
-  REAL, DIMENSION( ims:ime , kms:kme ),                           &
-        INTENT(IN   ) ::                                          &
-                                                             den, &
-                                                               p, &
-                                                            delz
-  REAL, INTENT(IN   ) ::                                    delt, &
-                                                               g, &
-                                                             cpd, &
-                                                             cpv, &
-                                                            ccn0, &
-                                                             t0c, &
-                                                            den0, &
-                                                              rd, &
-                                                              rv, &
-                                                             ep1, &
-                                                             ep2, &
-                                                            qmin, &
-                                                             XLS, &
-                                                            XLV0, &
-                                                            XLF0, &
-                                                            cliq, &
-                                                            cice, &
-                                                            psat, &
-                                                            denr
-  REAL, DIMENSION( ims:ime ),                                     &
-        INTENT(INOUT) ::                                    rain, &
-                                                         rainncv, &
-                                                              sr
-  REAL, DIMENSION( ims:ime ),     OPTIONAL,                       &
-        INTENT(INOUT) ::                                    snow, &
-                                                         snowncv
-  REAL, DIMENSION( ims:ime ),     OPTIONAL,                       &
-        INTENT(INOUT) ::                                 graupel, &
-                                                      graupelncv
-! LOCAL VAR
-  REAL, DIMENSION( its:ite , kts:kte , 3) ::                      &
-        rh, qs, rslope, rslope2, rslope3, rslopeb,                &
-        falk, fall, work1, qrs_tmp
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         & 
-        rslopec, rslopec2,rslopec3 
-  REAL, DIMENSION( its:ite , kts:kte,  2) ::                      &
-        avedia 
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        workn,falln,falkn
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        worka,workr
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        den_tmp, delz_tmp, ncr_tmp 
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        lamdr_tmp
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        lamdc_tmp
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        falkc, work1c, work2c, fallc
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        pcact, prevp, psdep, pgdep, praut, psaut, pgaut,          &
-        pracw, psacw, pgacw, pgacr, pgacs, psaci, pgmlt, praci,   &
-        piacr, pracs, psacr, pgaci, pseml, pgeml
-  REAL, DIMENSION( its:ite , kts:kte ) :: paacw
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        nraut, nracw, ncevp, nccol, nrcol,                        &
-        nsacw, ngacw, niacr, nsacr, ngacr, naacw,                 &
-        nseml, ngeml, ncact 
-  REAL, DIMENSION( its:ite , kts:kte ) ::                         &
-        pigen, pidep, pcond, xl, cpm, work2, psmlt, psevp,        &
-        denfac, xni, pgevp,n0sfac, qsum,                          &
-        denqrs1, denqr1, denqrs2, denqrs3, denncr3, denqci  
-  REAL, DIMENSION( its:ite ) ::                                   &
-        delqrs1, delqrs2, delqrs3, delncr3, delqi
-  REAL, DIMENSION( its:ite ) :: tstepsnow, tstepgraup
-  REAL :: gfac, sfac
+!  local variables
+! 
+   real, dimension(its:ite,kts:kte)   :: dend
+   real, dimension(its:ite,kts:kte)   :: qcr
+   real, dimension(its:ite,kts:kte,3) :: rh
+   real, dimension(its:ite,kts:kte,3) :: qs
+   real, dimension(its:ite,kts:kte,3) :: rslope, rslope2, rslope3, rslopeb
+   real, dimension(its:ite,kts:kte,3) :: falk, fall
+   real, dimension(its:ite,kts:kte,3) :: work1
+   real, dimension(its:ite,kts:kte,3) :: qrs_tmp
+   real, dimension(its:ite,kts:kte,2) :: avedia
+   real, dimension(its:ite,kts:kte)   :: rslopec, rslopec2,rslopec3
+   real, dimension(its:ite,kts:kte)   :: workn, falln, falkn
+   real, dimension(its:ite,kts:kte)   :: worka, workr
+   real, dimension(its:ite,kts:kte)   :: den_tmp, delz_tmp, ncr_tmp
+   real, dimension(its:ite,kts:kte)   :: lamdr_tmp
+   real, dimension(its:ite,kts:kte)   :: lamdc_tmp
+   real, dimension(its:ite,kts:kte)   :: falkc, work1c, work2c, fallc
+   real, dimension(its:ite,kts:kte)   :: dqr,dnr
+   real, dimension(its:ite,kts:kte)   :: pcact, prevp, psdep, pgdep, praut,    &
+                                         psaut, pgaut, pracw, psacw, pgacw,    &
+                                         pgacr, pgacs, psaci, pgmlt, praci,    &
+                                         piacr, pracs, psacr, pgaci, pseml,    &
+                                         pgeml, paacw, pigen, pidep, pcond,    &
+                                         psmlt, psevp, pgevp
+   real, dimension(its:ite,kts:kte)   :: nraut, nracw, ncevp, nccol, nrcol,    &
+                                         nsacw, ngacw, niacr, nsacr, ngacr,    &
+                                         naacw, nseml, ngeml, ncact
+   real, dimension(its:ite,kts:kte)   :: xl, cpm, work2, denfac, xni, n0sfac,  &
+                                         qsum
+   real, dimension(its:ite,kts:kte)   :: denqrs1, denqrs2, denqrs3
+   real, dimension(its:ite,kts:kte)   :: denqr1, denncr3, denqci
+   real, dimension(its:ite)           :: delqrs1, delqrs2, delqrs3, delncr3
+   real, dimension(its:ite)           :: delqi
+   real, dimension(its:ite)           :: tstepsnow, tstepgraup
+   real                               :: gfac, sfac
+!
+! top level for computing of cloud microphysical process
+!
+   integer                            :: kte_in
+!
 ! variables for optimization
-  REAL, DIMENSION( its:ite )           :: tvec1
-  REAL :: temp
-  INTEGER, DIMENSION( its:ite ) :: mnstep, numndt
-  INTEGER, DIMENSION( its:ite ) :: mstep, numdt
-  LOGICAL, DIMENSION( its:ite ) :: flgcld
-  REAL  ::                                                        &
-            cpmcal, xlcal, lamdac,                                &
-            diffus,                                               &
-            viscos, xka, venfac, conden, diffac,                  &
-            x, y, z, a, b, c, d, e,                               &
-            ndt, qdt, holdrr, holdrs, holdrg, supcol, supcolt,    &
-            pvt, coeres, supsat, dtcld, xmi, eacrs, satdt,        &
-            qimax, diameter, xni0, roqi0,                         &
-            fallsum, fallsum_qsi, fallsum_qg,                     &
-            vt2i,vt2r,vt2s,vt2g,acrfac,egs,egi,                   &
-            xlwork2, factor, source, value, coecol,               &
-            nfrzdtr, nfrzdtc,                                     &
-            taucon, lencon, lenconcr,                       &
-            xlf, pfrzdtc, pfrzdtr, supice, alpha2, delta2, delta3 
-  REAL  :: vt2ave
-  REAL  :: holdc, holdci
 !
-  INTEGER :: i, j, k, mstepmax,                                                &
-            iprt, latd, lond, loop, loops, ifsat, n, idim, kdim
+   real,    dimension(its:ite)        :: tvec1
+   integer, dimension(its:ite)        :: mnstep, numndt
+   integer, dimension(its:ite)        :: mstep, numdt
+   logical, dimension(its:ite)        :: flgcld
+   real                               :: temp
+   real                               :: vt2ave
+   real                               :: holdc, holdci
+   real                               :: cpmcal, xlcal, lamdac, diffus,        &
+                                         viscos, xka, venfac, conden, diffac,  &
+                                         x, y, z, a, b, c, d, e,               &
+                                         ndt, qdt, holdrr, holdrs, holdrg,     &
+                                         supcol, supcolt, pvt, coeres, supsat, &
+                                         dtcld, xmi, eacrs, satdt, qimax,      &
+                                         diameter, xni0, roqi0,                &
+                                         fallsum, fallsum_qsi, fallsum_qg,     &
+                                         vt2i, vt2r, vt2s, vt2g, acrfac,       &
+                                         egs, egi, coecol,                     &
+                                         xlwork2, factor, source, value,       &
+                                         nfrzdtr, nfrzdtc,                     &
+                                         taucon, lencon, lenconcr,             &
+                                         xlf, pfrzdtc, pfrzdtr, supice,        &
+                                         alpha2, delta2, delta3
+!
+   integer                            :: i, j, k, mstepmax,                    &
+                                         iprt, latd, lond, loop, loops, ifsat, &
+                                         n, idim, kdim
+!
 ! Temporaries used for inlining fpvs function
-  REAL  :: dldti, xb, xai, tr, xbi, xa, hvap, cvap, hsub, dldt, ttp
 !
-!=================================================================
-!   compute internal functions
+   real                               :: dldti, xb, xai, tr, xbi, xa, hvap,    &
+                                         cvap, hsub, dldt, ttp
+!-------------------------------------------------------------------------------
 !
-      cpmcal(x) = cpd*(1.-max(x,qmin))+max(x,qmin)*cpv
-      xlcal(x) = xlv0-xlv1*(x-t0c)
-!----------------------------------------------------------------
-!     size distributions: (x=mixing ratio, y=air density):
-!     valid for mixing ratio > 1.e-9 kg/kg.
+! compute internal functions
 !
-! Optimizatin : A**B => exp(log(A)*(B)) 
-      lamdac(x,y,z)= exp(log(((pidnc*z)/(x*y)))*((.33333333)))
-!----------------------------------------------------------------
-!     diffus: diffusion coefficient of the water vapor
-!     viscos: kinematic viscosity(m2s-1)
+   cpmcal(x) = cpd*(1.-max(x,qmin))+max(x,qmin)*cpv
+   xlcal(x) = xlv0-xlv1*(x-t0c)
 !
-      diffus(x,y) = 8.794e-5 * exp(log(x)*(1.81)) / y   ! 8.794e-5*x**1.81/y
-      viscos(x,y) = 1.496e-6 * (x*sqrt(x)) /(x+120.)/y  ! 1.496e-6*x**1.5/(x+120.)/y
-      xka(x,y) = 1.414e3*viscos(x,y)*y
-      diffac(a,b,c,d,e) = d*a*a/(xka(c,d)*rv*c*c)+1./(e*diffus(c,b))
-      venfac(a,b,c) = exp(log((viscos(b,c)/diffus(b,a)))*((.3333333)))         &
-                     /sqrt(viscos(b,c))*sqrt(sqrt(den0/c))
-      conden(a,b,c,d,e) = (max(b,qmin)-c)/(1.+d*d/(rv*e)*c/(a*a))
+! size distributions: (x=mixing ratio, y=air density):
+! valid for mixing ratio > 1.e-9 kg/kg.
 !
-      idim = ite-its+1
-      kdim = kte-kts+1
+! optimizatin : A**B => exp(log(A)*(B)) 
 !
-!----------------------------------------------------------------
-!     paddint 0 for negative values generated by dynamics
+   lamdac(x,y,z)= exp(log(((pidnc*z)/(x*y)))*((.33333333)))
 !
-      do k = kts, kte
-        do i = its, ite
-          qci(i,k,1) = max(qci(i,k,1),0.0)
-          qrs(i,k,1) = max(qrs(i,k,1),0.0)
-          qci(i,k,2) = max(qci(i,k,2),0.0)
-          qrs(i,k,2) = max(qrs(i,k,2),0.0)
-          qrs(i,k,3) = max(qrs(i,k,3),0.0)
-          ncr(i,k,1) = max(ncr(i,k,1),0.0)
-          ncr(i,k,2) = max(ncr(i,k,2),0.0)
-          ncr(i,k,3) = max(ncr(i,k,3),0.0) 
-        enddo
-      enddo
+! diffus: diffusion coefficient of the water vapor
+! viscos: kinematic viscosity(m2s-1)
 !
-!----------------------------------------------------------------
-!     latent heat for phase changes and heat capacity. neglect the
-!     changes during microphysical process calculation
-!     emanuel(1994)
+   diffus(x,y) = 8.794e-5 * exp(log(x)*(1.81)) / y   ! 8.794e-5*x**1.81/y
+   viscos(x,y) = 1.496e-6 * (x*sqrt(x)) /(x+120.)/y  ! 1.496e-6*x**1.5/(x+120.)/y
+   xka(x,y)    = 1.414e3*viscos(x,y)*y
+   diffac(a,b,c,d,e) = d*a*a/(xka(c,d)*rv*c*c)+1./(e*diffus(c,b))
+   venfac(a,b,c) = exp(log((viscos(b,c)/diffus(b,a)))*((.3333333)))            &
+                   /sqrt(viscos(b,c))*sqrt(sqrt(den0/c))
+   conden(a,b,c,d,e) = (max(b,qmin)-c)/(1.+d*d/(rv*e)*c/(a*a))
 !
-      do k = kts, kte
-        do i = its, ite
-          cpm(i,k) = cpmcal(q(i,k))
-          xl(i,k) = xlcal(t(i,k))
-        enddo
-      enddo
-      do k = kts, kte
-        do i = its, ite
-          delz_tmp(i,k) = delz(i,k)
-          den_tmp(i,k) = den(i,k)
-        enddo
-      enddo
+   idim = ite-its+1
+   kdim = kte-kts+1
 !
-!----------------------------------------------------------------
-!    initialize the surface rain, snow, graupel
+   kte_in = kte
 !
-      do i = its, ite
-        rainncv(i) = 0.
-        if(PRESENT (snowncv) .AND. PRESENT (snow)) snowncv(i) = 0.
-        if(PRESENT (graupelncv) .AND. PRESENT (graupel)) graupelncv(i) = 0.
-        sr(i) = 0.
+!  paddint 0 for negative values generated by dynamics
+!
+   do k = kts, kte
+     do i = its, ite
+       qci(i,k,1) = max(qci(i,k,1),0.0)
+       qrs(i,k,1) = max(qrs(i,k,1),0.0)
+       qci(i,k,2) = max(qci(i,k,2),0.0)
+       qrs(i,k,2) = max(qrs(i,k,2),0.0)
+       qrs(i,k,3) = max(qrs(i,k,3),0.0)
+       ncr(i,k,1) = min(max(ncr(i,k,1),1.e8),2.e10)
+       ncr(i,k,2) = max(ncr(i,k,2),0.0)
+       ncr(i,k,3) = max(ncr(i,k,3),0.0)
+     enddo
+   enddo
+! imsi
+   do k = kts,kte
+     do i = its,ite
+       dend(i,k) = den(i,k)
+     enddo
+   enddo
+
+!
+!  latent heat for phase changes and heat capacity. neglect the
+!  changes during microphysical process calculation
+!  emanuel(1994)
+!
+   do k = kts,kte_in
+     do i = its,ite
+       cpm(i,k) = cpmcal(q(i,k))
+       xl(i,k) = xlcal(t(i,k))
+     enddo
+   enddo
+!
+   qcr(:,:) = 0.0
+   do i = its,ite
+     if(slmsk(i).eq.2) then      ! water
+       qcr(i,:) = qc0
+     else
+       qcr(i,:) = qc1
+     endif
+   enddo
+!
+   do k = kts,kte
+     do i = its,ite
+       delz_tmp(i,k) = delz(i,k)
+       den_tmp(i,k) = den(i,k)
+     enddo
+   enddo
+!
+! initialize the surface rain, snow, graupel
+!
+   do i = its,ite
+     rainncv(i) = 0.
+     if(present(snowncv) .and. present(snow)) snowncv(i) = 0.
+     if(present (graupelncv) .and. present(graupel)) graupelncv(i) = 0.
+     sr(i) = 0.
+!
 ! new local array to catch step snow and graupel
-        tstepsnow(i) = 0.
-        tstepgraup(i) = 0.
-      enddo
 !
-!----------------------------------------------------------------
-!     compute the minor time steps.
+     tstepsnow(i) = 0.
+     tstepgraup(i) = 0.
+   enddo
 !
-      loops = max(nint(delt/dtcldcr),1)
-      dtcld = delt/loops
-      if(delt.le.dtcldcr) dtcld = delt
+! compute the minor time steps.
 !
-      do loop = 1,loops
+   loops = max(nint(delt/dtcldcr),1)
+   dtcld = delt/loops
+   if(delt.le.dtcldcr) dtcld = delt
 !
-!----------------------------------------------------------------
-!     initialize the large scale variables
+   do loop = 1,loops
 !
-      do i = its, ite
-        mstep(i) = 1
-        mnstep(i) = 1
-        flgcld(i) = .true.
-      enddo
+! initialize the large scale variables
 !
-      do k = kts, kte
-        CALL VREC( tvec1(its), den(its,k), ite-its+1)
-        do i = its, ite
-          tvec1(i) = tvec1(i)*den0
-        enddo
-        CALL VSQRT( denfac(its,k), tvec1(its), ite-its+1)
-      enddo
+     do i = its,ite
+       mstep(i) = 1
+       mnstep(i) = 1
+       flgcld(i) = .true.
+     enddo
+!
+     do k = kts, kte
+       call VREC( tvec1(its), den(its,k), ite-its+1)
+       do i = its, ite
+         tvec1(i) = tvec1(i)*den0
+       enddo
+       call VSQRT( denfac(its,k), tvec1(its), ite-its+1)
+     enddo
 !
 ! Inline expansion for fpvs
-!         qs(i,k,1) = fpvs(t(i,k),0,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
-!         qs(i,k,2) = fpvs(t(i,k),1,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
-      hsub = xls
-      hvap = xlv0
-      cvap = cpv
-      ttp=t0c+0.01
-      dldt=cvap-cliq
-      xa=-dldt/rv
-      xb=xa+hvap/(rv*ttp)
-      dldti=cvap-cice
-      xai=-dldti/rv
-      xbi=xai+hsub/(rv*ttp)
-      do k = kts, kte
-        do i = its, ite
-          tr=ttp/t(i,k)
-          qs(i,k,1)=psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
-          qs(i,k,1) = min(qs(i,k,1),0.99*p(i,k))
-          qs(i,k,1) = ep2 * qs(i,k,1) / (p(i,k) - qs(i,k,1))
-          qs(i,k,1) = max(qs(i,k,1),qmin)
-          rh(i,k,1) = max(q(i,k) / qs(i,k,1),qmin)
-          tr=ttp/t(i,k)
-          if(t(i,k).lt.ttp) then
-            qs(i,k,2)=psat*exp(log(tr)*(xai))*exp(xbi*(1.-tr))
-          else
-            qs(i,k,2)=psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
-          endif
-          qs(i,k,2) = min(qs(i,k,2),0.99*p(i,k))
-          qs(i,k,2) = ep2 * qs(i,k,2) / (p(i,k) - qs(i,k,2))
-          qs(i,k,2) = max(qs(i,k,2),qmin)
-          rh(i,k,2) = max(q(i,k) / qs(i,k,2),qmin)
-        enddo
-      enddo
+!   qs(i,k,1) = fpvs(t(i,k),0,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
+!   qs(i,k,2) = fpvs(t(i,k),1,rd,rv,cpv,cliq,cice,xlv0,xls,psat,t0c)
+!
+     hsub = xls
+     hvap = xlv0
+     cvap = cpv
+     ttp = t0c+0.01
+     dldt = cvap-cliq
+     xa = -dldt/rv
+     xb = xa+hvap/(rv*ttp)
+     dldti = cvap-cice
+     xai = -dldti/rv
+     xbi = xai+hsub/(rv*ttp)
+!
+     do k = kts,kte_in
+       do i = its,ite
+         tr = ttp/t(i,k)
+         qs(i,k,1) = psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
+         qs(i,k,1) = min(qs(i,k,1),0.99*p(i,k))
+         qs(i,k,1) = ep2*qs(i,k,1)/(p(i,k)-qs(i,k,1))
+         qs(i,k,1) = max(qs(i,k,1),qmin)
+         rh(i,k,1) = max(q(i,k)/qs(i,k,1),qmin)
+         tr=ttp/t(i,k)
+         if(t(i,k).lt.ttp) then
+           qs(i,k,2) = psat*exp(log(tr)*(xai))*exp(xbi*(1.-tr))
+         else
+           qs(i,k,2) = psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
+         endif
+         qs(i,k,2) = min(qs(i,k,2),0.99*p(i,k))
+         qs(i,k,2) = ep2*qs(i,k,2)/(p(i,k)-qs(i,k,2))
+         qs(i,k,2) = max(qs(i,k,2),qmin)
+         rh(i,k,2) = max(q(i,k)/qs(i,k,2),qmin)
+       enddo
+     enddo
 !
 !----------------------------------------------------------------
 !     initialize the variables for microphysical physics
@@ -607,6 +751,7 @@ CONTAINS
           ncevp(i,k) = 0.
         enddo
       enddo
+!
       do k = kts, kte
         do i = its, ite
           if(qci(i,k,1).le.qmin .or. ncr(i,k,2).le.ncmin ) then
@@ -642,6 +787,7 @@ CONTAINS
                      rslope3,work1,workn,its,ite,kts,kte)
 !
 ! vt update for qr and nr
+!
       mstepmax = 1
       numdt = 1
       do k = kte, kts, -1
@@ -659,26 +805,31 @@ CONTAINS
       do n = 1, mstepmax
         k = kte
         do i = its, ite
-          if(n.le.mstep(i)) then
-            falk(i,k,1) = den(i,k)*qrs(i,k,1)*work1(i,k,1)/mstep(i)
-            falkn(i,k) = ncr(i,k,3)*workn(i,k)/mstep(i)
-            fall(i,k,1) = fall(i,k,1)+falk(i,k,1)
-            falln(i,k) = falln(i,k)+falkn(i,k)
-            qrs(i,k,1) = max(qrs(i,k,1)-falk(i,k,1)*dtcld/den(i,k),0.)
-            ncr(i,k,3) = max(ncr(i,k,3)-falkn(i,k)*dtcld,0.)
-          endif
-        enddo
-        do k = kte-1, kts, -1
-          do i = its, ite
-            if(n.le.mstep(i)) then
-              falk(i,k,1) = den(i,k)*qrs(i,k,1)*work1(i,k,1)/mstep(i)
-              falkn(i,k) = ncr(i,k,3)*workn(i,k)/mstep(i)
-              fall(i,k,1) = fall(i,k,1)+falk(i,k,1)
-              falln(i,k) = falln(i,k)+falkn(i,k)
-              qrs(i,k,1) = max(qrs(i,k,1)-(falk(i,k,1)-falk(i,k+1,1)           &
-                          *delz(i,k+1)/delz(i,k))*dtcld/den(i,k),0.)
-              ncr(i,k,3) = max(ncr(i,k,3)-(falkn(i,k)-falkn(i,k+1)*delz(i,k+1) &
-                          /delz(i,k))*dtcld,0.)
+         if(n.le.mstep(i)) then
+           falk(i,k,1) = dend(i,k)*qrs(i,k,1)*work1(i,k,1)/mstep(i)
+           falkn(i,k) = ncr(i,k,3)*workn(i,k)/mstep(i)
+           fall(i,k,1) = fall(i,k,1)+falk(i,k,1)
+           falln(i,k) = falln(i,k)+falkn(i,k)
+           qrs(i,k,1) = max(qrs(i,k,1)-falk(i,k,1)*dtcld/dend(i,k),0.)
+           ncr(i,k,3) = max(ncr(i,k,3)-falkn(i,k)*dtcld,0.)
+         endif
+       enddo
+!
+       do k = kte_in-1,kts,-1
+         do i = its,ite
+           if(n.le.mstep(i)) then
+             falk(i,k,1) = dend(i,k)*qrs(i,k,1)*work1(i,k,1)/mstep(i)
+             falkn(i,k) = ncr(i,k,3)*workn(i,k)/mstep(i)
+             fall(i,k,1) = fall(i,k,1)+falk(i,k,1)
+             falln(i,k) = falln(i,k)+falkn(i,k)
+             dqr(i,k) = min(falk(i,k,1)*dtcld/dend(i,k),qrs(i,k,1))
+             dqr(i,k+1) = min(falk(i,k+1,1)*delz(i,k+1)/delz(i,k)              &
+                          *dtcld/dend(i,k),qrs(i,k+1,1))
+             dnr(i,k) = min(falkn(i,k)*dtcld,ncr(i,k,3))
+             dnr(i,k+1) = min(falkn(i,k+1)*delz(i,k+1)/delz(i,k)*dtcld,        &
+                          ncr(i,k+1,3))
+             qrs(i,k,1) = max(qrs(i,k,1)-dqr(i,k)+dqr(i,k+1),0.)
+             ncr(i,k,3) = max(ncr(i,k,3)-dnr(i,k)+dnr(i,k+1),0.)
             endif
           enddo
         enddo
@@ -697,7 +848,9 @@ CONTAINS
           enddo
         enddo
       enddo
+!
 ! for semi
+!
       do k = kte, kts, -1
         do i = its, ite
           qsum(i,k) = max( (qrs(i,k,2)+qrs(i,k,3)), 1.E-15)
@@ -751,7 +904,7 @@ CONTAINS
               coeres = rslope2(i,k,2)*sqrt(rslope(i,k,2)*rslopeb(i,k,2))
               psmlt(i,k) = xka(t(i,k),den(i,k))/xlf*(t0c-t(i,k))*pi/2.       &
                          *n0sfac(i,k)*(precs1*rslope2(i,k,2)                 &
-                         +precs2*work2(i,k)*coeres)
+                         +precs2*work2(i,k)*coeres)/den(i,k)                  
               psmlt(i,k) = min(max(psmlt(i,k)*dtcld/mstep(i),-qrs(i,k,2)     &
                          /mstep(i)),0.)
               qrs(i,k,2) = qrs(i,k,2) + psmlt(i,k)
@@ -773,7 +926,8 @@ CONTAINS
             if(qrs(i,k,3).gt.0.) then
               coeres = rslope2(i,k,3)*sqrt(rslope(i,k,3)*rslopeb(i,k,3))
               pgmlt(i,k) = xka(t(i,k),den(i,k))/xlf*(t0c-t(i,k))*(precg1     &
-                           *rslope2(i,k,3) + precg2*work2(i,k)*coeres)
+                           *rslope2(i,k,3) + precg2*work2(i,k)*coeres)       &
+                           /den(i,k)                                          
               pgmlt(i,k) = min(max(pgmlt(i,k)*dtcld/mstep(i),                &
                           -qrs(i,k,3)/mstep(i)),0.)
               qrs(i,k,3) = qrs(i,k,3) + pgmlt(i,k)
@@ -851,8 +1005,11 @@ CONTAINS
             graupel(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000. + graupel(i)
           ENDIF
         ENDIF
-        if(fallsum.gt.0.) sr(i) = (tstepsnow(i) + tstepgraup(i))               &
-                                  /(rainncv(i)+1.e-12)
+        IF ( PRESENT (snowncv)) THEN
+          if(fallsum.gt.0.)sr(i)=(snowncv(i) + graupelncv(i))/(rainncv(i)+1.e-12)
+        ELSE
+          if(fallsum.gt.0.)sr(i)=(tstepsnow(i) + tstepgraup(i))/(rainncv(i)+1.e-12)
+        ENDIF
       enddo
 !
 !---------------------------------------------------------------
@@ -1004,23 +1161,21 @@ CONTAINS
 ! praut: auto conversion rate from cloud to rain  [LH 9] [CP 17]
 !        (QC->QR)
 !--------------------------------------------------------------
-          lencon  = 2.7e-2*den(i,k)*qci(i,k,1)*(1.e20/16.*rslopec2(i,k)        &
-                   *rslopec2(i,k)-0.4)
-          lenconcr = max(1.2*lencon, qcrmin)
-          if(avedia(i,k,1).gt.di15) then
-            taucon = 3.7/den(i,k)/qci(i,k,1)/(0.5e6*rslopec(i,k)-7.5)
-            taucon = max(taucon, 1.e-12)
-            praut(i,k) = lencon/(taucon*den(i,k))
-            praut(i,k) = min(max(praut(i,k),0.),qci(i,k,1)/dtcld)
-!---------------------------------------------------------------
+         lencon  = 2.7e-2*den(i,k)*qci(i,k,1)*(1.e20/16.*rslopec2(i,k)         &
+                  *rslopec2(i,k)-0.4)
+         lenconcr = max(1.2*lencon, qcrmin)
+         if(qci(i,k,1).gt.qcr(i,k)) then
+           praut(i,k) = qck1*qci(i,k,1)**(7./3.)*ncr(i,k,2)**(-1./3.)
+           praut(i,k) = min(praut(i,k),qci(i,k,1)/dtcld)
+!----------------------------------------------------------------------
 ! nraut: auto conversion rate from cloud to rain [LH A6] [CP 18 & 19]
 !        (NC->NR)
-!---------------------------------------------------------------
-            nraut(i,k) = 3.5e9*den(i,k)*praut(i,k)
-            if(qrs(i,k,1).gt.lenconcr)                                         &
-            nraut(i,k) = ncr(i,k,3)/qrs(i,k,1)*praut(i,k)
-            nraut(i,k) = min(nraut(i,k),ncr(i,k,2)/dtcld)
-          endif
+!------------------------------------------------------------------------
+           nraut(i,k) = 3.5e9*den(i,k)*praut(i,k)
+           if(qrs(i,k,1).gt.lenconcr)                                           &
+           nraut(i,k) = ncr(i,k,3)/qrs(i,k,1)*praut(i,k)
+           nraut(i,k) = min(nraut(i,k),ncr(i,k,2)/dtcld)
+         endif
 !---------------------------------------------------------------
 ! pracw: accretion of cloud water by rain     [LH 10] [CP 22 & 23]
 !        (QC->QR)
@@ -1227,7 +1382,7 @@ CONTAINS
 ! paacw: Accretion of cloud water by averaged snow/graupel 
 !        (T<T0: QC->QG or QS, and T>=T0: QC->QR) 
 !-------------------------------------------------------------
-          if(qsum(i,k) .gt. 1.e-15) then
+          if(qsum(i,k) .gt. 1.e-15 ) then
             paacw(i,k) = (qrs(i,k,2)*psacw(i,k)+qrs(i,k,3)*pgacw(i,k))/(qsum(i,k))
 !-------------------------------------------------------------
 ! naacw: Accretion of cloud water by averaged snow/graupel
@@ -1253,7 +1408,7 @@ CONTAINS
 !         (T<T0:QR->QS or QR->QG) (T>=T0: enhance melting of snow)
 !-------------------------------------------------------------
             acrfac = 30.*rslope3(i,k,1)*rslope2(i,k,1)*rslope(i,k,2)           &
-                     + 5.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,2)         &
+                     +10.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,2)         & 
                      + 2.*rslope3(i,k,1)*rslope3(i,k,2)
             psacr(i,k) = pi*pi*ncr(i,k,3)*n0s*n0sfac(i,k)*abs(vt2ave-vt2r)     &
                         *(denr/den(i,k))*acrfac
@@ -1276,7 +1431,7 @@ CONTAINS
 !-------------------------------------------------------------
           if(qrs(i,k,3).gt.qcrmin .and. qrs(i,k,1).gt.qcrmin) then
             acrfac = 30.*rslope3(i,k,1)*rslope2(i,k,1)*rslope(i,k,3)           &
-                    + 5.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,3)          &
+                    +10.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,3)          & 
                     + 2.*rslope3(i,k,1)*rslope3(i,k,3)
             pgacr(i,k) = pi*pi*ncr(i,k,3)*n0g*abs(vt2ave-vt2r)*(denr/den(i,k)) &
                         *acrfac
@@ -1444,7 +1599,7 @@ CONTAINS
 !
 !----------------------------------------------------------------
 !     check mass conservation of generation terms and feedback to the
-!     large scale
+!     large scale
 !
       do k = kts, kte
         do i = its, ite
@@ -1730,6 +1885,15 @@ CONTAINS
         enddo
       enddo
 !
+     do k = kts,kte_in
+       do i = its,ite
+         qrs_tmp(i,k,1) = qrs(i,k,1)
+         qrs_tmp(i,k,2) = qrs(i,k,2)
+         qrs_tmp(i,k,3) = qrs(i,k,3)
+         ncr_tmp(i,k)   = ncr(i,k,3)
+       enddo
+     enddo
+!
       call slope_wdm6(qrs_tmp,ncr_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2, &
                      rslope3,work1,workn,its,ite,kts,kte)
       do k = kts, kte
@@ -1836,35 +2000,38 @@ CONTAINS
             endif
           endif
         enddo
-      enddo
-      enddo                  ! big loops
-  END SUBROUTINE wdm62d
-! ...................................................................
-      REAL FUNCTION rgmma(x)
-!-------------------------------------------------------------------
-  IMPLICIT NONE
-!-------------------------------------------------------------------
-!     rgmma function:  use infinite product form
-      REAL :: euler
-      PARAMETER (euler=0.577215664901532)
-      REAL :: x, y
-      INTEGER :: i
-      if(x.eq.1.)then
-        rgmma=0.
-          else
-        rgmma=x*exp(euler*x)
-        do i=1,10000
-          y=float(i)
-          rgmma=rgmma*(1.000+x/y)*exp(-x/y)
-        enddo
-        rgmma=1./rgmma
-      endif
-      END FUNCTION rgmma
+      enddo 
+   enddo                  ! big loops
+! 
+   end subroutine wdm62d
+!------------------------------------------------------------------------------
+   real function rgmma(x)
+!------------------------------------------------------------------------------
+   implicit none
+!-----------------------------------------------------------------------------
+!  rgmma function:  use infinite product form
+!
+   real, parameter :: euler = 0.577215664901532
+   real    :: x, y
+   integer :: i
+!------------------------------------------------------------------------------
+   if(x.eq.1.) then
+     rgmma=0.
+   else
+     rgmma = x*exp(euler*x)
+     do i = 1,10000
+       y = float(i)
+       rgmma = rgmma*(1.000+x/y)*exp(-x/y)
+     enddo
+     rgmma = 1./rgmma
+   endif
+! 
+   end function rgmma
 !
 !--------------------------------------------------------------------------
-      REAL FUNCTION fpvs(t,ice,rd,rv,cvap,cliq,cice,hvap,hsub,psat,t0c)
+   real function fpvs(t,ice,rd,rv,cvap,cliq,cice,hvap,hsub,psat,t0c)
 !--------------------------------------------------------------------------
-      IMPLICIT NONE
+   implicit none
 !--------------------------------------------------------------------------
       REAL t,rd,rv,cvap,cliq,cice,hvap,hsub,psat,t0c,dldt,xa,xb,dldti,         &
            xai,xbi,ttp,tr
@@ -1886,18 +2053,36 @@ CONTAINS
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END FUNCTION fpvs
 !-------------------------------------------------------------------
-  SUBROUTINE wdm6init(den0,denr,dens,cl,cpv, ccn0, allowed_to_read)
+  SUBROUTINE wdm6init(den0,denr,dens,cl,cpv, ccn0, hail_opt, allowed_to_read) ! RAS
 !-------------------------------------------------------------------
   IMPLICIT NONE
 !-------------------------------------------------------------------
 !.... constants which may not be tunable
    REAL, INTENT(IN) :: den0,denr,dens,cl,cpv,ccn0
+   INTEGER, INTENT(IN) :: hail_opt  ! RAS
    LOGICAL, INTENT(IN) :: allowed_to_read
+ 
+! RAS13.1 define graupel parameters as graupel-like or hail-like,
+!         depending on namelist option
+      IF (hail_opt .eq. 1) THEN !Hail!
+         n0g       = 4.e4
+         deng      = 700.
+         avtg      = 285.0
+         bvtg      = 0.8
+         lamdagmax = 2.e4
+      ELSE !Graupel!
+         n0g       = 4.e6
+         deng      = 500
+         avtg      = 330.0
+         bvtg      = 0.8
+         lamdagmax = 6.e4
+      ENDIF
 !
    pi = 4.*atan(1.)
    xlv1 = cl-cpv
 !
-   qc0  = 4./3.*pi*denr*r0**3*xncr/den0  ! 0.419e-3 -- .61e-3
+   qc0  = 4./3.*pi*denr*r0**3.*xncr0/den0
+   qc1  = 4./3.*pi*denr*r0**3.*xncr1/den0
    qck1 = .104*9.8*peaut/(xncr*denr)**(1./3.)/xmyu*den0**(4./3.) ! 7.03
    pidnc = pi*denr/6.
 !
@@ -1993,7 +2178,6 @@ CONTAINS
 
    call radar_init
 !+---+-----------------------------------------------------------------+
-
 !
   END SUBROUTINE wdm6init
 !------------------------------------------------------------------------------
@@ -2917,5 +3101,108 @@ CONTAINS
 
       end subroutine refl10cm_wdm6
 !+---+-----------------------------------------------------------------+
+
+!-----------------------------------------------------------------------
+     subroutine effectRad_wdm6 (t, qc, nc, qi, qs, rho, qmin, t0c,        &
+                                re_qc, re_qi, re_qs, kts, kte, ii, jj)
+
+!-----------------------------------------------------------------------
+!  Compute radiation effective radii of cloud water, ice, and snow for 
+!  double-moment microphysics..
+!  These are entirely consistent with microphysics assumptions, not
+!  constant or otherwise ad hoc as is internal to most radiation
+!  schemes.  
+!  Coded and implemented by Soo Ya Bae, KIAPS, January 2015.
+!-----------------------------------------------------------------------
+
+      implicit none
+
+!..Sub arguments
+      integer, intent(in) :: kts, kte, ii, jj
+      real, intent(in) :: qmin
+      real, intent(in) :: t0c
+      real, dimension( kts:kte ), intent(in)::  t
+      real, dimension( kts:kte ), intent(in)::  qc
+      real, dimension( kts:kte ), intent(in)::  nc
+      real, dimension( kts:kte ), intent(in)::  qi
+      real, dimension( kts:kte ), intent(in)::  qs
+      real, dimension( kts:kte ), intent(in)::  rho
+      real, dimension( kts:kte ), intent(inout):: re_qc
+      real, dimension( kts:kte ), intent(inout):: re_qi
+      real, dimension( kts:kte ), intent(inout):: re_qs
+!..Local variables
+      integer:: i,k
+      integer :: inu_c
+      real, dimension( kts:kte ):: ni
+      real, dimension( kts:kte ):: rqc
+      real, dimension( kts:kte ):: rnc
+      real, dimension( kts:kte ):: rqi
+      real, dimension( kts:kte ):: rni
+      real, dimension( kts:kte ):: rqs
+      real :: cdm2
+      real :: temp
+      real :: supcol, n0sfac, lamdas
+      real :: diai      ! diameter of ice in m
+      double precision :: lamc
+      logical :: has_qc, has_qi, has_qs
+!..Minimum microphys values
+      real, parameter :: R1 = 1.E-12
+      real, parameter :: R2 = 1.E-6
+      real, parameter :: pi = 3.1415926536
+      real, parameter :: bm_r = 3.0
+      real, parameter :: obmr = 1.0/bm_r
+      real, parameter :: cdm  = 5./3.
+!-----------------------------------------------------------------------
+      has_qc = .false.
+      has_qi = .false.
+      has_qs = .false.
+
+      cdm2 = rgmma(cdm)
+
+      do k=kts,kte
+        ! for cloud
+        rqc(k) = max(R1, qc(k)*rho(k))
+        rnc(k) = max(R2, nc(k)*rho(k))
+        if (rqc(k).gt.R1 .and. rnc(k).gt.R2) has_qc = .true.
+        ! for ice
+        rqi(k) = max(R1, qi(k)*rho(k))
+        temp = (rho(k)*max(qi(k),qmin))
+        temp = sqrt(sqrt(temp*temp*temp))
+        ni(k) = min(max(5.38e7*temp,1.e3),1.e6)
+        rni(k)= max(R2, ni(k)*rho(k))
+        if (rqi(k).gt.R1 .and. rni(k).gt.R2) has_qi = .true.
+        ! for snow
+        rqs(k) = max(R1, qs(k)*rho(k))
+        if (rqs(k).gt.R1) has_qs = .true.
+      enddo
+
+      if (has_qc) then
+        do k=kts,kte
+          if (rqc(k).le.R1 .or. rnc(k).le.R2) CYCLE
+          lamc = 2.*cdm2*(pidnc*nc(k)/rqc(k))**obmr
+          re_qc(k) =  max(2.51e-6,min(sngl(1.0d0/lamc),50.e-6))
+        enddo
+      endif
+
+      if (has_qi) then
+        do k=kts,kte
+          if (rqi(k).le.R1 .or. rni(k).le.R2) CYCLE
+          diai = 11.9*sqrt(rqi(k)/ni(k))
+          re_qi(k) = max(10.01e-6,min(0.75*0.163*diai,125.e-6))
+        enddo
+      endif
+
+      if (has_qs) then
+        do k=kts,kte
+          if (rqs(k).le.R1) CYCLE
+          supcol = t0c-t(k)
+          n0sfac = max(min(exp(alpha*supcol),n0smax/n0s),1.)
+          lamdas = sqrt(sqrt(pidn0s*n0sfac/rqs(k))) 
+          re_qs(k) = max(25.e-6,min(0.5*(1./lamdas),999.e-6))
+        enddo
+      endif
+
+      end subroutine effectRad_wdm6
+!-----------------------------------------------------------------------
 
 END MODULE module_mp_wdm6

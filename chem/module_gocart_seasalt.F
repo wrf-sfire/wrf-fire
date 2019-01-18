@@ -63,7 +63,7 @@ CONTAINS
   do j=jts,jte
   do i=its,ite
 !
-! donṫ do dust over water!!!
+! don't do dust over water!!!
 !
      if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.1.e-3)then
      ilwi(1,1)=0
@@ -78,7 +78,7 @@ CONTAINS
      w10m(1,1)=sqrt(u10(i,j)*u10(i,j)+v10(i,j)*v10(i,j))
      airmas(1,1)=-(p8w(i,kts+1,j)-p8w(i,kts,j))*dx*dx/g
 !
-! we donṫ trust the u10,v10 values, is model layers are very thin near surface
+! we don't trust the u10,v10 values, is model layers are very thin near surface
 !
      if(dz8w(i,kts,j).lt.12.)w10m=sqrt(u_phy(i,kts,j)*u_phy(i,kts,j)+v_phy(i,kts,j)*v_phy(i,kts,j))
 !
@@ -258,12 +258,12 @@ SUBROUTINE source_ss(imx,jmx,lmx,nmx, dt1, tc, &
                  src = dfm*dxy(j)*w10m(i,j)**c0(2)
 !                 src = ch_ss(n,dt(1)%mn)*dfm*dxy(j)*w10m(i,j)**c0(2)
                  if(src < 0.0 ) src=0.
-                 tc(i,j,1,n) = tc(i,j,1,n) + .25*src/airmas(i,j,1)
+                 tc(i,j,1,n) = tc(i,j,1,n) + src/airmas(i,j,1)
 !                if(ipr.eq.1)write(0,*)n,dfm,c0(2),dxy(j),w10m(i,j),src,airmas(i,j,1)
               ELSE
                  src = 0.0
               END IF
-              bems(i,j,n) = bems(i,j,n) + .25*src
+              bems(i,j,n) = bems(i,j,n) + src
            END DO  ! i
         END DO ! j
      END DO ! ir

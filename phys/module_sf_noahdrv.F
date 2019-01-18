@@ -9,13 +9,15 @@ MODULE module_sf_noahdrv
       &                         NSLTYPE, SLPCATS, SLOPE_DATA, SBETA_DATA, FXEXP_DATA, CSOIL_DATA,           &
       &                         SALP_DATA, REFDK_DATA, REFKDT_DATA, FRZK_DATA, ZBOT_DATA, CZIL_DATA,        &
       &                         SMLOW_DATA, SMHIGH_DATA, LVCOEF_DATA, NSLOPE, &
-      &                         FRH2O,ZTOPVTBL,ZBOTVTBL
+      &                         FRH2O,ZTOPVTBL,ZBOTVTBL, &
+      &                         LOW_DENSITY_RESIDENTIAL, HIGH_DENSITY_RESIDENTIAL, HIGH_INTENSITY_INDUSTRIAL
 
-  USE module_sf_urban,    only: urban
+  USE module_sf_urban,    only: urban, oasis, IRI_SCHEME
   USE module_sf_noahlsm_glacial_only, only: sflx_glacial
   USE module_sf_bep,      only: bep
   USE module_sf_bep_bem,  only: bep_bem
-#ifdef WRF_CHEM
+  USE module_ra_gfdleta,  only: cal_mon_day
+#if ( WRF_CHEM == 1 )
   USE module_data_gocart_dust
 #endif
 !-------------------------------
@@ -46,7 +48,7 @@ CONTAINS
                   XICE_THRESHOLD,                               &
                   RDLAI2D,USEMONALB,                            &
                   RIB,                                          & !?
-                  NOAHRES,                                      &
+                  NOAHRES,opt_thcnd,                            &
 ! Noah UA changes
                   ua_phys,flx4_2d,fvb_2d,fbur_2d,fgsn_2d,       &
                   ids,ide, jds,jde, kds,kde,                    &
@@ -54,6 +56,7 @@ CONTAINS
                   its,ite, jts,jte, kts,kte,                    &
                   sf_urban_physics,                             &
                   CMR_SFCDIF,CHR_SFCDIF,CMC_SFCDIF,CHC_SFCDIF,  &
+                  CMGR_SFCDIF,CHGR_SFCDIF,                      &
 !Optional Urban
                   TR_URB2D,TB_URB2D,TG_URB2D,TC_URB2D,QC_URB2D, & !H urban
                   UC_URB2D,                                     & !H urban
@@ -67,9 +70,14 @@ CONTAINS
                   XLAT_URB2D,                                   & !I urban
                   num_roof_layers, num_wall_layers,             & !I urban
                   num_road_layers, DZR, DZB, DZG,               & !I urban
+                  CMCR_URB2D,TGR_URB2D,TGRL_URB3D,SMR_URB3D,    & !H urban
+                  DRELR_URB2D,DRELB_URB2D,DRELG_URB2D,          & !H urban
+                  FLXHUMR_URB2D,FLXHUMB_URB2D,FLXHUMG_URB2D,    & !H urban
+                  julian, julyr,                                & !H urban
                   FRC_URB2D,UTYPE_URB2D,                        & !O
                   num_urban_layers,                             & !I multi-layer urban
                   num_urban_hi,                                 & !I multi-layer urban
+                  tsk_rural_bep,                                & !H multi-layer urban
                   trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d,      & !H multi-layer urban
                   tlev_urb3d,qlev_urb3d,                        & !H multi-layer urban
                   tw1lev_urb3d,tw2lev_urb3d,                    & !H multi-layer urban
@@ -85,7 +93,10 @@ CONTAINS
                   a_u_bep,a_v_bep,a_t_bep,a_q_bep,              & !O multi-layer urban
                   a_e_bep,b_u_bep,b_v_bep,                      & !O multi-layer urban
                   b_t_bep,b_q_bep,b_e_bep,dlg_bep,              & !O multi-layer urban
-                  dl_u_bep,sf_bep,vl_bep,sfcheadrt,INFXSRT, soldrain      )   !O multi-layer urban         
+                  dl_u_bep,sf_bep,vl_bep,sfcheadrt,INFXSRT, soldrain      &   !O multi-layer urban         
+                 ,SDA_HFX, SDA_QFX, HFX_BOTH, QFX_BOTH, QNORM, fasdas     &   !fasdas
+                 ,RC2,XLAI2                                               &
+                  )
 
 !----------------------------------------------------------------
     IMPLICIT NONE
@@ -142,6 +153,7 @@ CONTAINS
 !-- SHDMIN      minimum areal fractional coverage of annual green vegetation
 !-- SHDMAX      maximum areal fractional coverage of annual green vegetation
 !-- XLAI        leaf area index (dimensionless)
+!-- XLAI2       leaf area index (same as XLAI) passed to output (dimensionless)
 !-- Z0BRD       Background fixed roughness length (M)
 !-- Z0          Background vroughness length (M) as function
 !-- ZNT         Time varying roughness length (M) as function
@@ -187,6 +199,7 @@ CONTAINS
 !UDRUNOFF      Total Underground Runoff (mm), which is the sum of RUNOFF2 and RUNOFF3
 ! ----------------------------------------------------------------------
 !-- RC          canopy resistance (s m-1)
+!-- RC2         canopy resistance (same as RC) passed to output
 !-- PC          plant coefficient (unitless fraction, 0-1) where PC*ETP = actual transp
 !-- RSMIN       minimum canopy resistance (s m-1)
 !-- RCS         incoming solar rc factor (dimensionless)
@@ -230,6 +243,7 @@ CONTAINS
    INTEGER,  INTENT(IN   )   ::  sf_urban_physics               !urban
    INTEGER,  INTENT(IN   )   ::  isurban
    INTEGER,  INTENT(IN   )   ::  isice
+   INTEGER,  INTENT(IN   )   ::  julian, julyr                  !urban
 
 !added by Wei Yu  for routing
     REAL,    DIMENSION( ims:ime, jms:jme )                     , &
@@ -317,6 +331,7 @@ CONTAINS
                                                            ZNT
    REAL,    DIMENSION( ims:ime, jms:jme )                     , &
             INTENT(OUT)      ::                         NOAHRES
+   INTEGER, INTENT(IN)       ::                         OPT_THCND
 
 ! Noah UA changes
    LOGICAL,                                INTENT(IN)  :: UA_PHYS
@@ -327,9 +342,12 @@ CONTAINS
                INTENT(OUT)    ::                        CHKLOWQ
    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: LAI
    REAL,DIMENSION(IMS:IME,JMS:JME),INTENT(IN) ::        QZ0
+   REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(OUT) ::  RC2, XLAI2
 
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMR_SFCDIF
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CHR_SFCDIF
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMGR_SFCDIF
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CHGR_SFCDIF
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMC_SFCDIF
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CHC_SFCDIF
 ! Local variables (moved here from driver to make routine thread safe, 20031007 jm)
@@ -453,6 +471,34 @@ CONTAINS
      REAL, DIMENSION(1:num_wall_layers) :: TBL_URB  ! wall layer temp [K]
      REAL, DIMENSION(1:num_road_layers) :: TGL_URB  ! road layer temp [K]
      LOGICAL  :: LSOLAR_URB
+
+!===Yang,2014/10/08,hydrological variable for single layer UCM===
+     INTEGER :: jmonth, jday, tloc
+     INTEGER :: IRIOPTION, USOIL, DSOIL
+     REAL :: AOASIS, OMG
+     REAL :: DRELR_URB
+     REAL :: DRELB_URB
+     REAL :: DRELG_URB
+     REAL :: FLXHUMR_URB
+     REAL :: FLXHUMB_URB
+     REAL :: FLXHUMG_URB
+     REAL :: CMCR_URB
+     REAL :: TGR_URB
+     REAL, DIMENSION(1:num_roof_layers) :: SMR_URB  ! green roof layer moisture
+     REAL, DIMENSION(1:num_roof_layers) :: TGRL_URB ! green roof layer temp [K]
+
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: DRELR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: DRELB_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: DRELG_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FLXHUMR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FLXHUMB_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FLXHUMG_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMCR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: TGR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_roof_layers, jms:jme ), INTENT(INOUT) :: TGRL_URB3D
+     REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_roof_layers, jms:jme ), INTENT(INOUT) :: SMR_URB3D
+
+
 ! state variable surface_driver <--> lsm <--> urban
      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: TR_URB2D
      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: TB_URB2D
@@ -524,6 +570,7 @@ CONTAINS
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(IN   )        ::XLAT, XLONG
    INTEGER, INTENT(IN  ) ::                               NUM_URBAN_LAYERS
    INTEGER, INTENT(IN  ) ::                               NUM_URBAN_HI
+   REAL, OPTIONAL, DIMENSION( ims:ime,                     jms:jme ), INTENT(INOUT) :: tsk_rural_bep
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_urban_layers, jms:jme ), INTENT(INOUT) :: trb_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_urban_layers, jms:jme ), INTENT(INOUT) :: tw1_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_urban_layers, jms:jme ), INTENT(INOUT) :: tw2_urb4d
@@ -580,8 +627,7 @@ CONTAINS
    REAL, DIMENSION(its:ite,jts:jte) ::RS_ABS_URB
    REAL, DIMENSION(its:ite,jts:jte) ::GRDFLX_URB
    REAL :: SIGMA_SB,RL_UP_RURAL,RL_UP_TOT,RS_ABS_TOT,UMOM,VMOM
-   REAL :: r1,r2,r3
-   REAL :: CMR_URB, CHR_URB, CMC_URB, CHC_URB
+   REAL :: CMR_URB, CHR_URB, CMC_URB, CHC_URB, CMGR_URB, CHGR_URB
    REAL :: frc_urb,lb_urb
    REAL :: check 
 ! ----------------------------------------------------------------------
@@ -592,13 +638,33 @@ CONTAINS
   REAL :: APELM,APES,SFCTH2,PSFC
   real, intent(in) :: xice_threshold
   character(len=80) :: message_text
+!
+!  FASDAS
+!
+   REAL,    DIMENSION( ims:ime, jms:jme ),  OPTIONAL,                     &
+            INTENT(INOUT)  ::   SDA_HFX, SDA_QFX, HFX_BOTH, QFX_BOTH, QNORM
+   INTEGER, INTENT(IN   )  ::  fasdas
+!  local vars
+   REAL                    ::  XSDA_HFX, XSDA_QFX, XQNORM
+   REAL                    ::  HFX_PHY, QFX_PHY
+   REAL                    ::  DZQ
+   REAL                    ::  HCPCT_FASDAS
 
-
+   HFX_PHY = 0.0   ! initialize
+   QFX_PHY = 0.0
+   XQNORM  = 0.0
+   XSDA_HFX = 0.0
+   XSDA_QFX = 0.0
+!
+!  END FASDAS
+!
   FLX4  = 0.0 !BSINGH - Initialized to 0.0
   FVB   = 0.0 !BSINGH - Initialized to 0.0
   FBUR  = 0.0 !BSINGH - Initialized to 0.0
   FGSN  = 0.0 !BSINGH - Initialized to 0.0
   SOILW = 0.0 !BSINGH - Initialized to 0.0
+
+  sigma_sb=5.67e-08
 
 ! MEK MAY 2007
       FDTLIW=DT/ROWLIW
@@ -735,6 +801,7 @@ CONTAINS
           LH_RURAL(I,J)=LH(I,J)
           EMISS_RURAL(I,J)=EMISS(I,J)
           GRDFLX_RURAL(I,J)=GRDFLX(I,J)
+
         ELSE
 ! Land or sea-ice case
 
@@ -766,15 +833,19 @@ CONTAINS
               DQSDT2=Q2SATI*6174./(SFCTSNO**2)
             ENDIF
 ! for snow cover fraction at 0 C, ground temp will not change, so DQSDT2 effectively zero
-            IF(T1 .GT. 273. .AND. SNOWC(I,J) .GT. 0.)DQSDT2=DQSDT2*(1.-SNOWC(I,J))
+! V3.8 add condition for SWDOWN to restrict condition to positive forcing (JD)
+            IF(T1 .GT. 273. .AND. SNOWC(I,J) .GT. 0. .AND. SWDOWN(I,J) .GT. 10.)DQSDT2=DQSDT2*(1.-SNOWC(I,J))
           ENDIF
 
           ! Land-ice or land points use the usual deep-soil temperature.
           TBOT=TMN(I,J)
 
+          IF(ISURBAN.EQ.1) THEN
+! assumes these only need to be set for USGS land data
           IF(VEGTYP.EQ.25) SHDFAC=0.0000
           IF(VEGTYP.EQ.26) SHDFAC=0.0000
           IF(VEGTYP.EQ.27) SHDFAC=0.0000
+          ENDIF
           IF(SOILTYP.EQ.14.AND.XICE(I,J).EQ.0.)THEN
 #if 0
          IF(IPRINT)PRINT*,' SOIL TYPE FOUND TO BE WATER AT A LAND-POINT'
@@ -783,7 +854,8 @@ CONTAINS
             SOILTYP=7
           ENDIF
           SNOALB1 = SNOALB(I,J)
-          CMC=CANWAT(I,J)
+! converts canwat in mm to CMC in meters
+          CMC=CANWAT(I,J)/1000.
 
 !-------------------------------------------
 !*** convert snow depth from mm to meter
@@ -818,8 +890,8 @@ CONTAINS
 ! the "NATURAL" category in the VEGPARM.TBL
 	
 	   IF(SF_URBAN_PHYSICS == 1.OR. SF_URBAN_PHYSICS==2.OR.SF_URBAN_PHYSICS==3 ) THEN
-                IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                  IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+                IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                  IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
 		 VEGTYP = NATURAL
                  SHDFAC = SHDTBL(NATURAL)
                  ALBEDOK =0.2         !  0.2
@@ -827,23 +899,56 @@ CONTAINS
                  EMISSI = 0.98                                 !for VEGTYP=5
 		 IF ( FRC_URB2D(I,J) < 0.99 ) THEN
                    if(sf_urban_physics.eq.1)then
-           T1= ( TSK(I,J) -FRC_URB2D(I,J) * TS_URB2D (I,J) )/ (1-FRC_URB2D(I,J))
+                     T1= ( TSK(I,J) -FRC_URB2D(I,J) * TS_URB2D (I,J) )/ (1-FRC_URB2D(I,J))
                    elseif((sf_urban_physics.eq.2).OR.(sf_urban_physics.eq.3))then
-                r1= (tsk(i,j)**4.)
-                r2= frc_urb2d(i,j)*(ts_urb2d(i,j)**4.)
-                r3= (1.-frc_urb2d(i,j))
-                t1= ((r1-r2)/r3)**.25
+                     T1=tsk_rural_bep(i,j)
                    endif
 	         ELSE
 		 T1 = TSK(I,J)
                  ENDIF
                 ENDIF
            ELSE
-                 IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                  IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+                 IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                  IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
                   VEGTYP = ISURBAN
            	 ENDIF
            ENDIF
+
+!===Yang, 2014/10/08, hydrological processes for urban vegetation in single layer UCM===
+           AOASIS = 1.0
+           USOIL = 1
+           DSOIL = 2
+           IRIOPTION=IRI_SCHEME
+	  IF(SF_URBAN_PHYSICS == 1) THEN
+           OMG= OMG_URB2D(I,J)   
+           tloc=mod(int(OMG/3.14159*180./15.+12.+0.5 ),24)
+           if (tloc.lt.0) tloc=tloc+24
+           if (tloc==0) tloc=24
+           CALL cal_mon_day(julian,julyr,jmonth,jday) 
+           IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
+            AOASIS = oasis  ! urban oasis effect
+                   IF (IRIOPTION ==1) THEN
+                   IF (tloc==21 .or. tloc==22) THEN  !irrigation on vegetaion in urban area, MAY-SEP, 9-10pm
+                   IF (jmonth==5 .or. jmonth==6 .or. jmonth==7 .or. jmonth==8 .or. jmonth==9) THEN
+!                      IF (SMC(USOIL) .LT. SMCREF) SMC(USOIL)= SMCREF
+!                      IF (SMC(DSOIL) .LT. SMCREF) SMC(DSOIL)= SMCREF
+                      IF (SMC(USOIL) .LT. SMCREF) SMC(USOIL)= REFSMC(ISLTYP(I,J))                      
+                      IF (SMC(DSOIL) .LT. SMCREF) SMC(DSOIL)= REFSMC(ISLTYP(I,J))                    
+                   ENDIF
+                   ENDIF
+                   ENDIF
+                ENDIF
+           ENDIF
+
+	  IF(SF_URBAN_PHYSICS == 2 .or. SF_URBAN_PHYSICS == 3) THEN
+          IF(AOASIS > 1.0) THEN
+          CALL wrf_error_fatal('Urban oasis option is for SF_URBAN_PHYSICS == 1 only')
+          ENDIF
+          IF(IRIOPTION == 1) THEN
+          CALL wrf_error_fatal('Urban irrigation option is for SF_URBAN_PHYSICS == 1 only')
+          ENDIF
+          ENDIF
 
 #if 0
           IF(IPRINT) THEN
@@ -889,32 +994,48 @@ CONTAINS
     ELSEIF (ICE == 0) THEN
 
        ! Non-glacial land
+!
+!  FASDAS
+!
+       IF( fasdas == 1 ) THEN
 
-       CALL SFLX (I,J,FFROZP, ISURBAN, DT,ZLVL,NSOIL,SLDPTH,      &    !C
-                 LOCAL,                                           &    !L
-                 LUTYPE, SLTYPE,                                  &    !CL
-                 LWDN,SOLDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,DUMMY,         &    !F
-                 DUMMY,DUMMY, DUMMY,                              &    !F PRCPRAIN not used
-                 TH2,Q2SAT,DQSDT2,                                &    !I
-                 VEGTYP,SOILTYP,SLOPETYP,SHDFAC,SHMIN,SHMAX,      &    !I
-                 ALBBRD, SNOALB1,TBOT, Z0BRD, Z0K, EMISSI, EMBRD, &    !S
+         DZQ = DZ8W(I,1,J)
+         XSDA_HFX= SDA_HFX(I,J)*RHO(I,1,J)*CPM(I,J)*DZQ  ! W/m^2
+         ! TWG2015 Bugfix remove factor of 1000.0 for correct units
+         XSDA_QFX= SDA_QFX(I,J)*RHO(I,1,J)*DZQ          ! Kg/m2/s of water
+         XQNORM = QNORM(I,J)
+
+       ENDIF
+!
+!  END FASDAS
+!
+       CALL SFLX (I,J,FFROZP, ISURBAN, DT,ZLVL,NSOIL,SLDPTH,       &    !C
+                 LOCAL,                                            &    !L
+                 LUTYPE, SLTYPE,                                   &    !CL
+                 LWDN,SOLDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,DUMMY,   &    !F
+                 DUMMY,DUMMY, DUMMY,                               &    !F PRCPRAIN not used
+                 TH2,Q2SAT,DQSDT2,                                 &    !I
+                 VEGTYP,SOILTYP,SLOPETYP,SHDFAC,SHMIN,SHMAX,       &    !I
+                 ALBBRD, SNOALB1,TBOT, Z0BRD, Z0K, EMISSI, EMBRD,  &    !S
                  CMC,T1,STC,SMC,SWC,SNOWHK,SNEQV,ALBEDOK,CHK,dummy,&    !H
-                 ETA,SHEAT, ETA_KINEMATIC,FDOWN,                  &    !O
-                 EC,EDIR,ET,ETT,ESNOW,DRIP,DEW,                   &    !O
-                 BETA,ETP,SSOIL,                                  &    !O
-                 FLX1,FLX2,FLX3,                                  &    !O
-		 FLX4,FVB,FBUR,FGSN,UA_PHYS,                      &    !UA 
-                 SNOMLT,SNCOVR,                                   &    !O
-                 RUNOFF1,RUNOFF2,RUNOFF3,                         &    !O
-                 RC,PC,RSMIN,XLAI,RCS,RCT,RCQ,RCSOIL,             &    !O
-                 SOILW,SOILM,Q1,SMAV,                             &    !D
-                 RDLAI2D,USEMONALB,                               &
-                 SNOTIME1,                                        &
-                 RIBB,                                            &
-                 SMCWLT,SMCDRY,SMCREF,SMCMAX,NROOT,               &
+                 ETA,SHEAT, ETA_KINEMATIC,FDOWN,                   &    !O
+                 EC,EDIR,ET,ETT,ESNOW,DRIP,DEW,                    &    !O
+                 BETA,ETP,SSOIL,                                   &    !O
+                 FLX1,FLX2,FLX3,                                   &    !O
+		 FLX4,FVB,FBUR,FGSN,UA_PHYS,                       &    !UA 
+                 SNOMLT,SNCOVR,                                    &    !O
+                 RUNOFF1,RUNOFF2,RUNOFF3,                          &    !O
+                 RC,PC,RSMIN,XLAI,RCS,RCT,RCQ,RCSOIL,              &    !O
+                 SOILW,SOILM,Q1,SMAV,                              &    !D
+                 RDLAI2D,USEMONALB,                                &
+                 SNOTIME1,                                         &
+                 RIBB,                                             &
+                 SMCWLT,SMCDRY,SMCREF,SMCMAX,NROOT,                &
                  sfcheadrt(i,j),                                   &    !I
-                 INFXSRT(i,j),ETPND1                          &    !O
+                 INFXSRT(i,j),ETPND1,OPT_THCND,AOASIS              &    !O
+                ,XSDA_QFX, HFX_PHY, QFX_PHY, XQNORM, fasdas, HCPCT_FASDAS    &   ! fasdas
                  )
+
 
 #ifdef WRF_HYDRO
                  soldrain(i,j) = RUNOFF2*DT*1000.0
@@ -934,6 +1055,21 @@ CONTAINS
           SMC(NS) = 1.0
           SMAV(NS) = 1.0
        ENDDO
+!
+!  FASDAS
+!
+       IF( fasdas == 1 ) THEN
+
+         DZQ = DZ8W(I,1,J)
+         XSDA_HFX= SDA_HFX(I,J)*RHO(I,1,J)*CPM(I,J)*DZQ  ! W/m^2
+         XSDA_QFX= 0.0          ! Kg/m2/s of water
+         XQNORM = 0.0
+
+       ENDIF
+!
+!  END FASDAS
+!
+
        CALL SFLX_GLACIAL(I,J,ISICE,FFROZP,DT,ZLVL,NSOIL,SLDPTH,   &    !C
             &    LWDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,              &    !F
             &    TH2,Q2SAT,DQSDT2,                                &    !I
@@ -952,6 +1088,8 @@ CONTAINS
     ENDIF
 
        lai(i,j) = xlai
+       rc2(I,J) = RC                                              ! for output
+       xlai2(I,J) = XLAI
 
 #if 0
           IF(IPRINT) THEN
@@ -980,7 +1118,7 @@ CONTAINS
 #endif
 
 !***  UPDATE STATE VARIABLES
-          CANWAT(I,J)=CMC
+          CANWAT(I,J)=CMC*1000.
           SNOW(I,J)=SNEQV*1000.
 !          SNOWH(I,J)=SNOWHK*1000.
           SNOWH(I,J)=SNOWHK                   ! SNOWHK in meters
@@ -992,8 +1130,27 @@ CONTAINS
           EMISS_RURAL(I,J) = EMISSI
 ! Noah: activate time-varying roughness length (V3.3 Feb 2011)
           ZNT(I,J)=Z0K
+!
+! FASDAS
+!
+! Update Skin Temperature
+       IF( fasdas == 1 ) THEN
+           XSDA_QFX= XSDA_QFX*ELWV*XQNORM
+
+        !TWG2015 Bugfix to multiply Heat Capacity by Soil Depth for correct
+        !units 
+
+           T1 = T1 + (XSDA_HFX-XSDA_QFX)*DT/(HCPCT_FASDAS*DZS(1))
+
+       END IF
+!
+! END FASDAS
+!
           TSK(I,J)=T1
           TSK_RURAL(I,J)=T1
+          IF(SF_URBAN_PHYSICS == 2 .or. SF_URBAN_PHYSICS == 3) THEN
+            TSK_RURAL_BEP(I,J)=T1
+          END IF
           HFX(I,J)=SHEAT
           HFX_RURAL(I,J)=SHEAT
 ! MEk Jul07 add potential evap accum
@@ -1063,8 +1220,8 @@ CONTAINS
 ! Input variables lsm --> urban
 
 
-          IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-              IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33 ) THEN
+          IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+              IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL ) THEN
 
 ! Call urban
 
@@ -1099,8 +1256,19 @@ CONTAINS
             QC_URB = QC_URB2D(I,J)
             UC_URB = UC_URB2D(I,J)
 
+            TGR_URB   = TGR_URB2D(I,J)
+            CMCR_URB  = CMCR_URB2D(I,J)
+            FLXHUMR_URB = FLXHUMR_URB2D(I,J)
+            FLXHUMB_URB = FLXHUMB_URB2D(I,J)
+            FLXHUMG_URB = FLXHUMG_URB2D(I,J)
+            DRELR_URB = DRELR_URB2D(I,J)
+            DRELB_URB = DRELB_URB2D(I,J)
+            DRELG_URB = DRELG_URB2D(I,J)
+
             DO K = 1,num_roof_layers
               TRL_URB(K) = TRL_URB3D(I,K,J)
+              SMR_URB(K) = SMR_URB3D(I,K,J)
+              TGRL_URB(K)= TGRL_URB3D(I,K,J)
             END DO
             DO K = 1,num_wall_layers
               TBL_URB(K) = TBL_URB3D(I,K,J)
@@ -1131,6 +1299,8 @@ CONTAINS
             IF (PRESENT(CMR_SFCDIF)) THEN
                CMR_URB = CMR_SFCDIF(I,J)
                CHR_URB = CHR_SFCDIF(I,J)
+               CMGR_URB = CMGR_SFCDIF(I,J)
+               CHGR_URB = CHGR_SFCDIF(I,J)
                CMC_URB = CMC_SFCDIF(I,J)
                CHC_URB = CHC_SFCDIF(I,J)
             ENDIF
@@ -1152,7 +1322,7 @@ CONTAINS
             end if
 !
 ! Call urban
-
+            CALL cal_mon_day(julian,julyr,jmonth,jday)
             CALL urban(LSOLAR_URB,                                      & ! I
                        num_roof_layers,num_wall_layers,num_road_layers, & ! C
                        DZR,DZB,DZG,                                     & ! C
@@ -1170,7 +1340,10 @@ CONTAINS
                        CMR_URB, CHR_URB, CMC_URB, CHC_URB,              &
                        U10_URB, V10_URB, TH2_URB, Q2_URB,               & ! O
                        UST_URB,mh_urb, stdh_urb, lf_urb, lp_urb,        & ! 0
-                       hgt_urb,frc_urb,lb_urb, check)                            !O
+                       hgt_urb,frc_urb,lb_urb, check,CMCR_URB,TGR_URB,  & ! H
+                       TGRL_URB,SMR_URB,CMGR_URB,CHGR_URB,jmonth,       & ! H
+                       DRELR_URB,DRELB_URB,                             & ! H
+                       DRELG_URB,FLXHUMR_URB,FLXHUMB_URB,FLXHUMG_URB)                            
 
 #if 0
           IF(IPRINT) THEN
@@ -1240,8 +1413,19 @@ CONTAINS
             QC_URB2D(I,J) = QC_URB
             UC_URB2D(I,J) = UC_URB
 
+            TGR_URB2D(I,J) =TGR_URB 
+            CMCR_URB2D(I,J)=CMCR_URB
+            FLXHUMR_URB2D(I,J)=FLXHUMR_URB 
+            FLXHUMB_URB2D(I,J)=FLXHUMB_URB
+            FLXHUMG_URB2D(I,J)=FLXHUMG_URB
+            DRELR_URB2D(I,J) = DRELR_URB 
+            DRELB_URB2D(I,J) = DRELB_URB 
+            DRELG_URB2D(I,J) = DRELG_URB
+
             DO K = 1,num_roof_layers
               TRL_URB3D(I,K,J) = TRL_URB(K)
+              SMR_URB3D(I,K,J) = SMR_URB(K)
+              TGRL_URB3D(I,K,J)= TGRL_URB(K)
             END DO
             DO K = 1,num_wall_layers
               TBL_URB3D(I,K,J) = TBL_URB(K)
@@ -1270,6 +1454,8 @@ CONTAINS
             IF (PRESENT(CMR_SFCDIF)) THEN
                CMR_SFCDIF(I,J) = CMR_URB
                CHR_SFCDIF(I,J) = CHR_URB
+               CMGR_SFCDIF(I,J) = CMGR_URB
+               CHGR_SFCDIF(I,J) = CHGR_URB
                CMC_SFCDIF(I,J) = CMC_URB
                CHC_SFCDIF(I,J) = CHC_URB
             ENDIF
@@ -1374,8 +1560,6 @@ CONTAINS
        ENDIF
 
     if((sf_urban_physics.eq.2).OR.(sf_urban_physics.eq.3))then         !Bep begin
-! fix the value of the Stefan-Boltzmann constant
-         sigma_sb=5.67e-08
          do j=jts,jte
          do i=its,ite
             UMOM_URB(I,J)=0.
@@ -1423,7 +1607,7 @@ CONTAINS
 !           emiss(i,j)=(1.-frc_urb2d(i,j))*emiss_rural(i,j)+frc_urb2d(i,j)*emiss_urb(i,j)
 ! using the emissivity and the total longwave upward radiation estimate the averaged skin temperature
            IF (FRC_URB2D(I,J).GT.0.) THEN
-              rl_up_rural=-emiss_rural(i,j)*sigma_sb*(tsk_rural(i,j)**4.)-(1.-emiss_rural(i,j))*glw(i,j)
+              rl_up_rural=-emiss_rural(i,j)*sigma_sb*(tsk_rural(i,j)**4.)-(1.-emissi)*glw(i,j)
               rl_up_tot=(1.-frc_urb2d(i,j))*rl_up_rural+frc_urb2d(i,j)*rl_up_urb(i,j)   
               emiss(i,j)=(1.-frc_urb2d(i,j))*emiss_rural(i,j)+frc_urb2d(i,j)*emiss_urb(i,j)
               ts_urb2d(i,j)=(max(0.,(-rl_up_urb(i,j)-(1.-emiss_urb(i,j))*glw(i,j))/emiss_urb(i,j)/sigma_sb))**0.25
@@ -1469,8 +1653,8 @@ CONTAINS
               G_URB2D(I,J)     = 0.
               RN_URB2D(I,J)    = 0.
             endif
-!          IF( IVGTYP(I,J) == 1 .or. IVGTYP(I,J) == 31 .or. &
-!                  IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+!          IF( IVGTYP(I,J) == 1 .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+!                  IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
 !                    print*,'ivgtyp, qfx, hfx',ivgtyp(i,j),hfx_rural(i,j),qfx_rural(i,j)
 !                    print*,'ivgtyp,hfx,hfx_urb,hfx_rural',hfx(i,j),hfx_urb(i,j),hfx_rural(i,j)
 !                    print*,'lh,lh_rural',lh(i,j),lh_rural(i,j)
@@ -1555,15 +1739,18 @@ CONTAINS
      CALL  SOIL_VEG_GEN_PARM( MMINLU, MMINSL )
    ENDIF
 
-#ifdef WRF_CHEM
-!
-! need this parameter for dust parameterization in wrf/chem
-!
-   do I=1,NSLTYPE
-      porosity(i)=maxsmc(i)
-      drypoint(i)=drysmc(i)
-   enddo
-#endif
+! GAC-->
+! 20130219 - No longer need these - see module_data_gocart_dust
+!#if ( WRF_CHEM == 1 )
+!!
+!! need this parameter for dust parameterization in wrf/chem
+!!
+!   do I=1,NSLTYPE
+!      porosity(i)=maxsmc(i)
+!      drypoint(i)=drysmc(i)
+!   enddo
+!#endif
+! <--GAC
 
    IF(.not.restart)THEN
 
@@ -1575,7 +1762,7 @@ CONTAINS
      DO i = its,itf
        IF ( ISLTYP( i,j ) .LT. 1 ) THEN
          errflag = 1
-         WRITE(err_message,*)"module_sf_noahlsm.F: lsminit: out of range ISLTYP ",i,j,ISLTYP( i,j )
+         WRITE(err_message,*)"module_sf_noahdrv.F: lsminit: out of range ISLTYP ",i,j,ISLTYP( i,j )
          CALL wrf_message(err_message)
        ENDIF
        IF(.not.RDMAXALB) THEN
@@ -1584,8 +1771,13 @@ CONTAINS
      ENDDO
    ENDDO
    IF ( errflag .EQ. 1 ) THEN
-      CALL wrf_error_fatal( "module_sf_noahlsm.F: lsminit: out of range value "// &
+#if ( HWRF == 1 ) 
+      CALL wrf_message( "WARNING: message only; was fatal. module_sf_noahdrv.F: lsminit: out of range value "// &
                             "of ISLTYP. Is this field in the input?" )
+#else
+      CALL wrf_error_fatal( "module_sf_noahdrv.F: lsminit: out of range value "// &
+                            "of ISLTYP. Is this field in the input?" )
+#endif
    ENDIF
 
 ! initialize soil liquid water content SH2O
@@ -1682,7 +1874,10 @@ CONTAINS
         INTEGER , PARAMETER :: OPEN_OK = 0
 
         character*128 :: mess , message
+        character*256 :: a_string
         logical, external :: wrf_dm_on_monitor
+        integer , parameter :: loop_max   = 10
+        integer             :: loop_count
 
 
 !-----SPECIFY VEGETATION RELATED CHARACTERISTICS :
@@ -1721,8 +1916,9 @@ CONTAINS
 
         LUMATCH=0
 
+        loop_count = 0
+        READ (19,FMT='(A)',END=2002) a_string
         FIND_LUTYPE : DO WHILE (LUMATCH == 0)
-           READ (19,*,END=2002)
            READ (19,*,END=2002)LUTYPE
            READ (19,*)LUCATS,IINDEX
 
@@ -1731,10 +1927,16 @@ CONTAINS
               CALL wrf_message( mess )
               LUMATCH=1
            ELSE
+              loop_count = loop_count+1
               call wrf_message ( "Skipping over LUTYPE = " // TRIM ( LUTYPE ) )
-              DO LC = 1, LUCATS+12
-                 read(19,*)
-              ENDDO
+              FIND_VEGETATION_PARAMETER_FLAG : DO
+                 READ (19,FMT='(A)', END=2002) a_string
+                 IF ( a_string(1:21) .EQ. 'Vegetation Parameters' ) THEN
+                    EXIT FIND_VEGETATION_PARAMETER_FLAG
+                 ELSE IF ( loop_count .GE. loop_max ) THEN
+                    CALL wrf_error_fatal ( 'Too many loops in VEGPARM.TBL')
+                 ENDIF
+              ENDDO FIND_VEGETATION_PARAMETER_FLAG
            ENDIF
         ENDDO FIND_LUTYPE
 ! prevent possible array overwrite, Bill Bovermann, IBM, May 6, 2008
@@ -1781,6 +1983,18 @@ CONTAINS
           READ (19,*)BARE
           READ (19,*)
           READ (19,*)NATURAL
+          READ (19,*)
+          READ (19,*)
+          READ (19,FMT='(A)') a_string
+          IF ( a_string(1:21) .EQ. 'Vegetation Parameters' ) THEN
+             CALL wrf_message     ("Expected low and high density residential, and high density industrial information in VEGPARM.TBL")
+             CALL wrf_error_fatal ("This could be caused by using an older VEGPARM.TBL file with a newer WRF source code.")
+          ENDIF
+          READ (19,*)LOW_DENSITY_RESIDENTIAL
+          READ (19,*)
+          READ (19,*)HIGH_DENSITY_RESIDENTIAL
+          READ (19,*)
+          READ (19,*)HIGH_INTENSITY_INDUSTRIAL
         ENDIF
 !
  2002   CONTINUE
@@ -1818,6 +2032,9 @@ CONTAINS
       CALL wrf_dm_bcast_real    ( RSMAX_DATA  , 1 )
       CALL wrf_dm_bcast_integer ( BARE    , 1 )
       CALL wrf_dm_bcast_integer ( NATURAL , 1 )
+      CALL wrf_dm_bcast_integer ( LOW_DENSITY_RESIDENTIAL , 1 )
+      CALL wrf_dm_bcast_integer ( HIGH_DENSITY_RESIDENTIAL , 1 )
+      CALL wrf_dm_bcast_integer ( HIGH_INTENSITY_INDUSTRIAL , 1 )
 
 !
 !-----READ IN SOIL PROPERTIES FROM SOILPARM.TBL
@@ -1992,7 +2209,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   XICE_THRESHOLD,                               &
                   RDLAI2D,USEMONALB,                            &
                   RIB,                                          & !?
-                  NOAHRES,                                      &
+                  NOAHRES,OPT_THCND,                            &
                  NLCAT,landusef,landusef2,                       & ! danli mosaic
                  sf_surface_mosaic,mosaic_cat,mosaic_cat_index,  & ! danli mosaic 
                  TSK_mosaic,QSFC_mosaic,                         & ! danli mosaic 
@@ -2004,6 +2221,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                  ZNT_mosaic, Z0_mosaic,                          & ! danli mosaic 
                  HFX_mosaic,QFX_mosaic,                          & ! danli mosaic
                  LH_mosaic, GRDFLX_mosaic, SNOTIME_mosaic,       & ! danli mosaic                   
+                 RC_mosaic, LAI_mosaic,                          &
 ! Noah UA changes
                   ua_phys,flx4_2d,fvb_2d,fbur_2d,fgsn_2d,       &
                   ids,ide, jds,jde, kds,kde,                    &
@@ -2011,6 +2229,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   its,ite, jts,jte, kts,kte,                    &
                   sf_urban_physics,                             &
                   CMR_SFCDIF,CHR_SFCDIF,CMC_SFCDIF,CHC_SFCDIF,  &
+                  CMGR_SFCDIF,CHGR_SFCDIF,                      &
 !Optional Urban
                   TR_URB2D,TB_URB2D,TG_URB2D,TC_URB2D,QC_URB2D, & !H urban
                   UC_URB2D,                                     & !H urban
@@ -2033,9 +2252,14 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   XLAT_URB2D,                                   & !I urban
                   num_roof_layers, num_wall_layers,             & !I urban
                   num_road_layers, DZR, DZB, DZG,               & !I urban
+                  CMCR_URB2D,TGR_URB2D,TGRL_URB3D,SMR_URB3D,    & !H urban
+                  julian,julyr,                                 & !H urban
+                  DRELR_URB2D,DRELB_URB2D,DRELG_URB2D,          & !H urban
+                  FLXHUMR_URB2D,FLXHUMB_URB2D,FLXHUMG_URB2D,    & !H urban
                   FRC_URB2D,UTYPE_URB2D,                        & !O
                   num_urban_layers,                             & !I multi-layer urban
                   num_urban_hi,                                 & !I multi-layer urban
+                  tsk_rural_bep,                                & !H multi-layer urban
                   trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d,      & !H multi-layer urban
                   tlev_urb3d,qlev_urb3d,                        & !H multi-layer urban
                   tw1lev_urb3d,tw2lev_urb3d,                    & !H multi-layer urban
@@ -2051,7 +2275,11 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   a_u_bep,a_v_bep,a_t_bep,a_q_bep,              & !O multi-layer urban
                   a_e_bep,b_u_bep,b_v_bep,                      & !O multi-layer urban
                   b_t_bep,b_q_bep,b_e_bep,dlg_bep,              & !O multi-layer urban
-                  dl_u_bep,sf_bep,vl_bep,sfcheadrt,INFXSRT, soldrain      )   !O multi-layer urban         
+                  dl_u_bep,sf_bep,vl_bep                        & !O multi-layer urban
+                 ,sfcheadrt,INFXSRT, soldrain                   & !hydro
+                 ,SDA_HFX, SDA_QFX, HFX_BOTH, QFX_BOTH, QNORM, fasdas     &   !fasdas
+                 ,RC2,XLAI2                                     & !O
+                  )
 
 !----------------------------------------------------------------
     IMPLICIT NONE
@@ -2196,6 +2424,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
    INTEGER,  INTENT(IN   )   ::  sf_urban_physics               !urban
    INTEGER,  INTENT(IN   )   ::  isurban
    INTEGER,  INTENT(IN   )   ::  isice
+   INTEGER,  INTENT(IN   )   ::  julian,julyr
 
 !added by Wei Yu  for routing
     REAL,    DIMENSION( ims:ime, jms:jme )                     , &
@@ -2284,6 +2513,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                                                            ZNT
    REAL,    DIMENSION( ims:ime, jms:jme )                     , &
             INTENT(OUT)      ::                         NOAHRES
+   INTEGER,                                INTENT(IN)  :: OPT_THCND
 
 ! Noah UA changes
    LOGICAL,                                INTENT(IN)  :: UA_PHYS
@@ -2294,9 +2524,12 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                INTENT(OUT)    ::                        CHKLOWQ
    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: LAI
    REAL,DIMENSION(IMS:IME,JMS:JME),INTENT(IN) ::        QZ0
+   REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(OUT)   :: RC2, XLAI2
 
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMR_SFCDIF
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CHR_SFCDIF
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMGR_SFCDIF
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CHGR_SFCDIF
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMC_SFCDIF
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CHC_SFCDIF
 ! Local variables (moved here from driver to make routine thread safe, 20031007 jm)
@@ -2420,6 +2653,33 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
      REAL, DIMENSION(1:num_wall_layers) :: TBL_URB  ! wall layer temp [K]
      REAL, DIMENSION(1:num_road_layers) :: TGL_URB  ! road layer temp [K]
      LOGICAL  :: LSOLAR_URB
+
+!===Yang,2014/10/08,hydrological variable for single layer UCM===
+     INTEGER :: jmonth, jday, tloc
+     INTEGER :: IRIOPTION, USOIL, DSOIL
+     REAL :: AOASIS, OMG
+     REAL :: DRELR_URB
+     REAL :: DRELB_URB
+     REAL :: DRELG_URB
+     REAL :: FLXHUMR_URB
+     REAL :: FLXHUMB_URB
+     REAL :: FLXHUMG_URB
+     REAL :: CMCR_URB
+     REAL :: TGR_URB
+     REAL, DIMENSION(1:num_roof_layers) :: SMR_URB  ! green roof layer moisture
+     REAL, DIMENSION(1:num_roof_layers) :: TGRL_URB ! green roof layer temp [K]
+
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: DRELR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: DRELB_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: DRELG_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FLXHUMR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FLXHUMB_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FLXHUMG_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: CMCR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: TGR_URB2D
+     REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_roof_layers, jms:jme ), INTENT(INOUT) :: TGRL_URB3D
+     REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_roof_layers, jms:jme ), INTENT(INOUT) :: SMR_URB3D
+
 ! state variable surface_driver <--> lsm <--> urban
      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: TR_URB2D
      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: TB_URB2D
@@ -2490,6 +2750,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
    REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(IN   )        ::XLAT, XLONG
    INTEGER, INTENT(IN  ) ::                               NUM_URBAN_LAYERS
    INTEGER, INTENT(IN  ) ::                               NUM_URBAN_HI
+   REAL, OPTIONAL, DIMENSION( ims:ime,                     jms:jme ), INTENT(INOUT) :: tsk_rural_bep
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_urban_layers, jms:jme ), INTENT(INOUT) :: trb_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_urban_layers, jms:jme ), INTENT(INOUT) :: tw1_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:num_urban_layers, jms:jme ), INTENT(INOUT) :: tw2_urb4d
@@ -2546,8 +2807,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
    REAL, DIMENSION(its:ite,jts:jte) ::RS_ABS_URB
    REAL, DIMENSION(its:ite,jts:jte) ::GRDFLX_URB
    REAL :: SIGMA_SB,RL_UP_RURAL,RL_UP_TOT,RS_ABS_TOT,UMOM,VMOM
-   REAL :: r1,r2,r3
-   REAL :: CMR_URB, CHR_URB, CMC_URB, CHC_URB
+   REAL :: CMR_URB, CHR_URB, CMC_URB, CHC_URB, CMGR_URB, CHGR_URB
    REAL :: frc_urb,lb_urb
    REAL :: check 
 ! ----------------------------------------------------------------------
@@ -2570,10 +2830,13 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
         HFX_mosaic,QFX_mosaic, LH_mosaic, GRDFLX_mosaic,SNOTIME_mosaic    
   REAL, DIMENSION( ims:ime, 1:num_soil_layers*mosaic_cat, jms:jme ), OPTIONAL, INTENT(INOUT)::   &
         TSLB_mosaic,SMOIS_mosaic,SH2O_mosaic
+  REAL, DIMENSION( ims:ime, 1:mosaic_cat, jms:jme ), OPTIONAL, INTENT(INOUT):: LAI_mosaic, RC_mosaic
+
   REAL, DIMENSION( ims:ime, jms:jme ) :: TSK_mosaic_avg, QSFC_mosaic_avg, CANWAT_mosaic_avg,SNOW_mosaic_avg,SNOWH_mosaic_avg, &
                                          SNOWC_mosaic_avg, HFX_mosaic_avg, QFX_mosaic_avg, LH_mosaic_avg, GRDFLX_mosaic_avg,  &
                                          ALBEDO_mosaic_avg, ALBBCK_mosaic_avg, EMISS_mosaic_avg, EMBCK_mosaic_avg,            &
-                                         ZNT_mosaic_avg, Z0_mosaic_avg, SNOTIME_mosaic_avg, FAREA_mosaic_avg  
+                                         ZNT_mosaic_avg, Z0_mosaic_avg, LAI_mosaic_avg, RC_mosaic_avg, SNOTIME_mosaic_avg,    &
+                                         FAREA_mosaic_avg
   REAL, DIMENSION( ims:ime, 1:num_soil_layers, jms:jme )                     ::   &
         TSLB_mosaic_avg,SMOIS_mosaic_avg,SH2O_mosaic_avg
   
@@ -2597,7 +2860,25 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
   REAL :: APELM,APES,SFCTH2,PSFC
   real, intent(in) :: xice_threshold
   character(len=80) :: message_text
+!
+!  FASDAS: it doesn't work for mosaic, but we need the variables to call sflx
+!
+   REAL,    DIMENSION( ims:ime, jms:jme )                     , &
+            INTENT(INOUT)  ::   SDA_HFX, SDA_QFX, HFX_BOTH, QFX_BOTH, QNORM
+   INTEGER, INTENT(IN   )  ::  fasdas
+   REAL                    ::  XSDA_HFX, XSDA_QFX, XQNORM
+   REAL                    ::  HFX_PHY, QFX_PHY
+   REAL                    ::  DZQ
+   REAL                    ::  HCPCT_FASDAS
 
+   HFX_PHY = 0.0   ! initialize
+   QFX_PHY = 0.0
+   XQNORM  = 0.0
+   XSDA_HFX = 0.0
+   XSDA_QFX = 0.0
+!
+!  END FASDAS
+!
 ! MEK MAY 2007
       FDTLIW=DT/ROWLIW
 ! MEK JUL2007
@@ -2668,32 +2949,34 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
             ! INITIALIZE THE AREA-AVERAGED FLUXES 
                
-                 TSK_mosaic_avg(i,j)= 0                              ! from 3D to 2D
-                 QSFC_mosaic_avg(i,j)= 0
-                 CANWAT_mosaic_avg(i,j)= 0
-                 SNOW_mosaic_avg(i,j)= 0
-                 SNOWH_mosaic_avg(i,j)= 0
-                 SNOWC_mosaic_avg(i,j)= 0
+                 TSK_mosaic_avg(i,j)= 0.0                              ! from 3D to 2D
+                 QSFC_mosaic_avg(i,j)= 0.0
+                 CANWAT_mosaic_avg(i,j)= 0.0
+                 SNOW_mosaic_avg(i,j)= 0.0
+                 SNOWH_mosaic_avg(i,j)= 0.0
+                 SNOWC_mosaic_avg(i,j)= 0.0
             
                           DO NS=1,NSOIL
             
-                     TSLB_mosaic_avg(i,NS,j)=0
-                     SMOIS_mosaic_avg(i,NS,j)=0
-                     SH2O_mosaic_avg(i,NS,j)=0
+                     TSLB_mosaic_avg(i,NS,j)=0.0
+                     SMOIS_mosaic_avg(i,NS,j)=0.0
+                     SH2O_mosaic_avg(i,NS,j)=0.0
             
                          ENDDO
             
-                 HFX_mosaic_avg(i,j)= 0
-                 QFX_mosaic_avg(i,j)= 0  
-                 LH_mosaic_avg(i,j)=  0 
-                 GRDFLX_mosaic_avg(i,j)= 0
-                 ALBEDO_mosaic_avg(i,j)=0
-                 ALBBCK_mosaic_avg(i,j)=0
-                 EMISS_mosaic_avg(i,j)=0
-                 EMBCK_mosaic_avg(i,j)=0
-                 ZNT_mosaic_avg(i,j)=0
-                 Z0_mosaic_avg(i,j)=0  
-                 FAREA_mosaic_avg(i,j)=0  
+                 HFX_mosaic_avg(i,j)= 0.0
+                 QFX_mosaic_avg(i,j)= 0.0
+                 LH_mosaic_avg(i,j)=  0.0
+                 GRDFLX_mosaic_avg(i,j)= 0.0
+                 ALBEDO_mosaic_avg(i,j)=0.0
+                 ALBBCK_mosaic_avg(i,j)=0.0
+                 EMISS_mosaic_avg(i,j)=0.0
+                 EMBCK_mosaic_avg(i,j)=0.0
+                 ZNT_mosaic_avg(i,j)=0.0
+                 Z0_mosaic_avg(i,j)=0.0
+                 LAI_mosaic_avg(i,j)=0.0
+                 RC_mosaic_avg(i,j)=0.0
+                 FAREA_mosaic_avg(i,j)=0.0
             
             ! add a new loop for the mosaic_cat
             
@@ -2861,7 +3144,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   SOILTYP=7
                 ENDIF
                 SNOALB1 = SNOALB(I,J)
-                CMC=CANWAT(I,J)
+! converts canwat in mm to CMC in meters
+                CMC=CANWAT(I,J)/1000.
       
       !-------------------------------------------
       !*** convert snow depth from mm to meter
@@ -2898,8 +3182,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       	!   IF(SF_URBAN_PHYSICS == 1.OR. SF_URBAN_PHYSICS==2.OR.SF_URBAN_PHYSICS==3 ) THEN
                        
       
-           !           IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-           !            IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+           !           IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+           !            IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
            !	 VEGTYP = NATURAL
            !            SHDFAC = SHDTBL(NATURAL)
            !            ALBEDOK =0.2         !  0.2
@@ -2919,8 +3203,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
          !              ENDIF
          !             ENDIF
           !       ELSE
-           !            IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-          !              IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+           !            IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+          !              IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
            !             VEGTYP = ISURBAN
            !      	 ENDIF
            !      ENDIF
@@ -2929,8 +3213,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
             If ( SF_URBAN_PHYSICS == 0 ) THEN   ! ONLY NOAH
       
-                 IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                       IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+                 IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                       IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
                        Noah_call = .TRUE.                 
                        VEGTYP = ISURBAN
                  ENDIF
@@ -2939,8 +3223,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
             
             IF(SF_URBAN_PHYSICS == 1) THEN
       
-                 IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                       IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN   
+                 IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                       IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN   
               	
                        Noah_call = .TRUE.                       
               	       VEGTYP = NATURAL                                              
@@ -2953,7 +3237,41 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                        
                  ENDIF
       
-            ENDIF 
+            ENDIF
+
+!===Yang, 2014/10/08, hydrological processes for urban vegetation in single layer UCM===
+           AOASIS = 1.0
+           USOIL = 1
+           DSOIL = 2
+           IRIOPTION=IRI_SCHEME
+           OMG= OMG_URB2D(I,J)   
+           tloc=mod(int(OMG/3.14159*180./15.+12.+0.5 ),24)
+           if (tloc.lt.0) tloc=tloc+24
+           if (tloc==0) tloc=24
+           CALL cal_mon_day(julian,julyr,jmonth,jday) 
+	  IF(SF_URBAN_PHYSICS == 1) THEN
+           IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
+            AOASIS = oasis  ! urban oasis effect
+                   IF (IRIOPTION ==1) THEN
+                   IF (tloc==21 .or. tloc==22) THEN  !irrigation on vegetaion in urban area, MAY-SEP, 9-10pm
+                   IF (jmonth==5 .or. jmonth==6 .or. jmonth==7 .or. jmonth==8 .or. jmonth==9) THEN
+                      IF (SMC(USOIL) .LT. SMCREF) SMC(USOIL)= REFSMC(ISLTYP(I,J))
+                      IF (SMC(DSOIL) .LT. SMCREF) SMC(DSOIL)= REFSMC(ISLTYP(I,J))
+                   ENDIF
+                   ENDIF
+                   ENDIF
+                ENDIF
+           ENDIF
+
+	  IF(SF_URBAN_PHYSICS == 2 .or. SF_URBAN_PHYSICS == 3) THEN
+          IF(AOASIS > 1.0) THEN
+          CALL wrf_error_fatal('Urban oasis option is for SF_URBAN_PHYSICS == 1 only')
+          ENDIF
+          IF(IRIOPTION == 1) THEN
+          CALL wrf_error_fatal('Urban irrigation option is for SF_URBAN_PHYSICS == 1 only')
+          ENDIF
+          ENDIF
             
             IF( SF_URBAN_PHYSICS==2.OR.SF_URBAN_PHYSICS==3 ) THEN
 !             print*, 'MOSAIC is not designed to work with SF_URBAN_PHYSICS=2 or SF_URBAN_PHYSICS=3'
@@ -3005,30 +3323,31 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
              ! Non-glacial land
       
-             CALL SFLX (I,J,FFROZP, ISURBAN, DT,ZLVL,NSOIL,SLDPTH,      &    !C
-                       LOCAL,                                           &    !L
-                       LUTYPE, SLTYPE,                                  &    !CL
-                       LWDN,SOLDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,DUMMY,         &    !F
-                       DUMMY,DUMMY, DUMMY,                              &    !F PRCPRAIN not used
-                       TH2,Q2SAT,DQSDT2,                                &    !I
-                       VEGTYP,SOILTYP,SLOPETYP,SHDFAC,SHMIN,SHMAX,      &    !I
-                       ALBBRD, SNOALB1,TBOT, Z0BRD, Z0K, EMISSI, EMBRD, &    !S
+             CALL SFLX (I,J,FFROZP, ISURBAN, DT,ZLVL,NSOIL,SLDPTH,       &    !C
+                       LOCAL,                                            &    !L
+                       LUTYPE, SLTYPE,                                   &    !CL
+                       LWDN,SOLDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,DUMMY,   &    !F
+                       DUMMY,DUMMY, DUMMY,                               &    !F PRCPRAIN not used
+                       TH2,Q2SAT,DQSDT2,                                 &    !I
+                       VEGTYP,SOILTYP,SLOPETYP,SHDFAC,SHMIN,SHMAX,       &    !I
+                       ALBBRD, SNOALB1,TBOT, Z0BRD, Z0K, EMISSI, EMBRD,  &    !S
                        CMC,T1,STC,SMC,SWC,SNOWHK,SNEQV,ALBEDOK,CHK,dummy,&    !H
-                       ETA,SHEAT, ETA_KINEMATIC,FDOWN,                  &    !O
-                       EC,EDIR,ET,ETT,ESNOW,DRIP,DEW,                   &    !O
-                       BETA,ETP,SSOIL,                                  &    !O
-                       FLX1,FLX2,FLX3,                                  &    !O
-      		 FLX4,FVB,FBUR,FGSN,UA_PHYS,                      &    !UA 
-                       SNOMLT,SNCOVR,                                   &    !O
-                       RUNOFF1,RUNOFF2,RUNOFF3,                         &    !O
-                       RC,PC,RSMIN,XLAI,RCS,RCT,RCQ,RCSOIL,             &    !O
-                       SOILW,SOILM,Q1,SMAV,                             &    !D
-                       RDLAI2D,USEMONALB,                               &
-                       SNOTIME1,                                        &
-                       RIBB,                                            &
-                       SMCWLT,SMCDRY,SMCREF,SMCMAX,NROOT,               &
+                       ETA,SHEAT, ETA_KINEMATIC,FDOWN,                   &    !O
+                       EC,EDIR,ET,ETT,ESNOW,DRIP,DEW,                    &    !O
+                       BETA,ETP,SSOIL,                                   &    !O
+                       FLX1,FLX2,FLX3,                                   &    !O
+      		 FLX4,FVB,FBUR,FGSN,UA_PHYS,                             &    !UA 
+                       SNOMLT,SNCOVR,                                    &    !O
+                       RUNOFF1,RUNOFF2,RUNOFF3,                          &    !O
+                       RC,PC,RSMIN,XLAI,RCS,RCT,RCQ,RCSOIL,              &    !O
+                       SOILW,SOILM,Q1,SMAV,                              &    !D
+                       RDLAI2D,USEMONALB,                                &
+                       SNOTIME1,                                         &
+                       RIBB,                                             &
+                       SMCWLT,SMCDRY,SMCREF,SMCMAX,NROOT,                &
                        sfcheadrt(i,j),                                   &    !I
-                       INFXSRT(i,j),ETPND1                          &    !O
+                       INFXSRT(i,j),ETPND1,OPT_THCND,AOASIS              &    !O
+                ,XSDA_QFX, HFX_PHY, QFX_PHY, XQNORM, fasdas, HCPCT_FASDAS    & ! fasdas vars
                        )
       
 #ifdef WRF_HYDRO
@@ -3065,9 +3384,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   &    RIBB)
       
           ENDIF
-      
              lai(i,j) = xlai
-      
 #if 0
                 IF(IPRINT) THEN
       
@@ -3095,7 +3412,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
 #endif
       
       !***  UPDATE STATE VARIABLES
-                CANWAT(I,J)=CMC
+                CANWAT(I,J)=CMC*1000.
                 SNOW(I,J)=SNEQV*1000.
       !          SNOWH(I,J)=SNOWHK*1000.
                 SNOWH(I,J)=SNOWHK                   ! SNOWHK in meters
@@ -3176,20 +3493,20 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       !--------------------------------------
       ! Input variables lsm --> urban
       
-                IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                    IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33 ) THEN            
+                IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                    IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL ) THEN            
       
                 !  UTYPE_URB = UTYPE_URB2D(I,J) !urban type (low, high or industrial)
                 !  this need to be changed in the mosaic danli
       
                 IF(IVGTYP(I,J)==ISURBAN) UTYPE_URB=2
-                IF(IVGTYP(I,J)==31) UTYPE_URB=3
-                IF(IVGTYP(I,J)==32) UTYPE_URB=2
-                IF(IVGTYP(I,J)==33) UTYPE_URB=1
+                IF(IVGTYP(I,J)==LOW_DENSITY_RESIDENTIAL) UTYPE_URB=1
+                IF(IVGTYP(I,J)==HIGH_DENSITY_RESIDENTIAL) UTYPE_URB=2
+                IF(IVGTYP(I,J)==HIGH_INTENSITY_INDUSTRIAL) UTYPE_URB=3
                         
-                IF(UTYPE_URB==3) FRC_URB2D(I,J)=0.5
+                IF(UTYPE_URB==1) FRC_URB2D(I,J)=0.5
                 IF(UTYPE_URB==2) FRC_URB2D(I,J)=0.9
-                IF(UTYPE_URB==1) FRC_URB2D(I,J)=0.95
+                IF(UTYPE_URB==3) FRC_URB2D(I,J)=0.95
       
                   TA_URB    = SFCTMP           ! [K]
                   QA_URB    = Q2K              ! [kg/kg]
@@ -3243,6 +3560,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
                   DO K = 1,num_roof_layers
                     TRL_URB(K) = TRL_URB3D(I,K,J)
+                    SMR_URB(K) = SMR_URB3D(I,K,J)
+                    TGRL_URB(K)= TGRL_URB3D(I,K,J)
                   END DO
                   DO K = 1,num_wall_layers
                     TBL_URB(K) = TBL_URB3D(I,K,J)
@@ -3250,6 +3569,15 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   DO K = 1,num_road_layers
                     TGL_URB(K) = TGL_URB3D(I,K,J)
                   END DO
+                  
+                  TGR_URB   = TGR_URB2D(I,J)
+                  CMCR_URB  = CMCR_URB2D(I,J)
+                  FLXHUMR_URB = FLXHUMR_URB2D(I,J)
+                  FLXHUMB_URB = FLXHUMB_URB2D(I,J)
+                  FLXHUMG_URB = FLXHUMG_URB2D(I,J)
+                  DRELR_URB = DRELR_URB2D(I,J)
+                  DRELB_URB = DRELB_URB2D(I,J)
+                  DRELG_URB = DRELG_URB2D(I,J)
       
                   XXXR_URB = XXXR_URB2D(I,J)
                   XXXB_URB = XXXB_URB2D(I,J)
@@ -3272,6 +3600,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   IF (PRESENT(CMR_SFCDIF)) THEN
                      CMR_URB = CMR_SFCDIF(I,J)
                      CHR_URB = CHR_SFCDIF(I,J)
+                     CMGR_URB = CMGR_SFCDIF(I,J)
+                     CHGR_URB = CHGR_SFCDIF(I,J)
                      CMC_URB = CMC_SFCDIF(I,J)
                      CHC_URB = CHC_SFCDIF(I,J)
                   ENDIF
@@ -3293,7 +3623,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   end if
       !
       ! Call urban
-      
+                  CALL cal_mon_day(julian,julyr,jmonth,jday)      
                   CALL urban(LSOLAR_URB,                                      & ! I
                              num_roof_layers,num_wall_layers,num_road_layers, & ! C
                              DZR,DZB,DZG,                                     & ! C
@@ -3311,7 +3641,10 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                              CMR_URB, CHR_URB, CMC_URB, CHC_URB,              &
                              U10_URB, V10_URB, TH2_URB, Q2_URB,               & ! O
                              UST_URB,mh_urb, stdh_urb, lf_urb, lp_urb,        & ! 0
-                             hgt_urb,frc_urb,lb_urb, check)                            !O
+                             hgt_urb,frc_urb,lb_urb, check,CMCR_URB,TGR_URB,  & ! H
+                             TGRL_URB,SMR_URB,CMGR_URB,CHGR_URB,jmonth,       & ! H
+                             DRELR_URB,DRELB_URB,                             & ! H
+                             DRELG_URB,FLXHUMR_URB,FLXHUMB_URB,FLXHUMG_URB)     
       
 #if 0
                 IF(IPRINT) THEN
@@ -3382,6 +3715,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
                   DO K = 1,num_roof_layers
                     TRL_URB3D(I,K,J) = TRL_URB(K)
+                    SMR_URB3D(I,K,J) = SMR_URB(K)
+                    TGRL_URB3D(I,K,J)= TGRL_URB(K)
                   END DO
                   DO K = 1,num_wall_layers
                     TBL_URB3D(I,K,J) = TBL_URB(K)
@@ -3389,6 +3724,16 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   DO K = 1,num_road_layers
                     TGL_URB3D(I,K,J) = TGL_URB(K)
                   END DO
+
+                  TGR_URB2D(I,J) =TGR_URB 
+                  CMCR_URB2D(I,J)=CMCR_URB
+            	    FLXHUMR_URB2D(I,J)=FLXHUMR_URB 
+                  FLXHUMB_URB2D(I,J)=FLXHUMB_URB
+                  FLXHUMG_URB2D(I,J)=FLXHUMG_URB
+                  DRELR_URB2D(I,J) = DRELR_URB 
+                  DRELB_URB2D(I,J) = DRELB_URB 
+                  DRELG_URB2D(I,J) = DRELG_URB
+           
                   XXXR_URB2D(I,J) = XXXR_URB
                   XXXB_URB2D(I,J) = XXXB_URB
                   XXXG_URB2D(I,J) = XXXG_URB
@@ -3410,6 +3755,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   IF (PRESENT(CMR_SFCDIF)) THEN
                      CMR_SFCDIF(I,J) = CMR_URB
                      CHR_SFCDIF(I,J) = CHR_URB
+                     CMGR_SFCDIF(I,J) = CMGR_URB
+                     CHGR_SFCDIF(I,J) = CHGR_URB
                      CMC_SFCDIF(I,J) = CMC_URB
                      CHC_SFCDIF(I,J) = CHC_URB
                   ENDIF
@@ -3486,6 +3833,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   EMBCK_mosaic(i,mosaic_i,j)=EMBCK(i,j)  
                   ZNT_mosaic(i,mosaic_i,j)=ZNT(i,j)  
                   Z0_mosaic(i,mosaic_i,j)=Z0(i,j)    
+                  LAI_mosaic(i,mosaic_i,j)=XLAI
+                  RC_mosaic(i,mosaic_i,j)=RC
                                                                                        
                   HFX_mosaic(i,mosaic_i,j)=HFX(i,j) 
                   QFX_mosaic(i,mosaic_i,j)=QFX(i,j)  
@@ -3507,7 +3856,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   print*, 'mosaic_cat_index',mosaic_cat_index(I,mosaic_i,J), 'landusef2',landusef2(i,mosaic_i,j)
                   print*, 'TSK_mosaic', TSK_mosaic(i,mosaic_i,j), 'HFX_mosaic', HFX_mosaic(i,mosaic_i,j), &
                           'LH_mosaic',LH_mosaic(i,mosaic_i,j),'GRDFLX_mosaic',GRDFLX_mosaic(i,mosaic_i,j)
-                  print*, 'ZNT_mosaic', ZNT_mosaic(i, mosaic_i,j), 'Z0_mosaic', Z0_mosaic(i,mosaic_i,j) 
+                  print*, 'ZNT_mosaic', ZNT_mosaic(i, mosaic_i,j), 'Z0_mosaic', Z0_mosaic(i,mosaic_i,j)
+                  print*, 'LAI_mosaic', LAI_mosaic(i, mosaic_i,j)
                   print*, 'FRC_URB2D',FRC_URB2D(I,J)
                   print*, 'TS_URB',TS_URB2D(I,J),'T1',T1
                   print*, 'SH_URB2D',SH_URB2D(I,J),'SHEAT',SHEAT
@@ -3551,9 +3901,14 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   EMBCK_mosaic_avg(i,j)=EMBCK_mosaic_avg(i,j)+EMBCK_mosaic(i,mosaic_i,j)*FAREA
                   ZNT_mosaic_avg(i,j)=ZNT_mosaic_avg(i,j)+ALOG(ZNT_mosaic(i,mosaic_i,j))*FAREA
                   Z0_mosaic_avg(i,j)=Z0_mosaic_avg(i,j)+ALOG(Z0_mosaic(i,mosaic_i,j))*FAREA
-       
-         ENDDO                     ! ENDDO FOR mosaic_i = 1, mosaic_cat
-      
+                  LAI_mosaic_avg(i,j)=LAI_mosaic_avg(i,j)+LAI_mosaic(i,mosaic_i,j)*FAREA
+                  if(RC_mosaic(i,mosaic_i,j) .Gt. 0.0) Then
+                     RC_mosaic_avg(i,j) = RC_mosaic_avg(i,j)+1.0/RC_mosaic(i,mosaic_i,j)*FAREA
+                  else 
+                     RC_mosaic_avg(i,j) = RC_mosaic_avg(i,j) + RC_mosaic(i,mosaic_i,j)*FAREA
+                  End If
+                  ENDDO                     ! ENDDO FOR mosaic_i = 1, mosaic_cat
+
       !-----------------------------------------------------------------------
       ! Now let's send the 3D values to the 2D variables that might be needed in other routines
       !-----------------------------------------------------------------------
@@ -3565,7 +3920,13 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
           EMBCK(i,j)= EMBCK_mosaic_avg(i,j)  
           ZNT(i,j)= EXP(ZNT_mosaic_avg(i,j)/FAREA_mosaic_avg(i,j))
           Z0(i,j)= EXP(Z0_mosaic_avg(i,j)/FAREA_mosaic_avg(i,j))
-                                                                                       
+          XLAI2(i,j)= LAI_mosaic_avg(i,j)
+          IF (RC_mosaic_avg(i,j) .Gt. 0.0) THEN
+              rc2(i,j) = 1.0/(RC_mosaic_avg(i,j))
+          ELSE
+!RC_mosaic_avg was zero for all tiles (cell over water), thus RC2 set to zero to avoid infinity
+              rc2(i,j) = RC_mosaic_avg(i,j)
+          END IF
           TSK(i,j)=(TSK_mosaic_avg(I,J)/EMISS_mosaic_avg(I,J))**(0.25)                                  ! from 3D to 2D
           QSFC(i,j)=QSFC_mosaic_avg(I,J)
           CANWAT(i,j) = CANWAT_mosaic_avg(i,j)
@@ -3708,7 +4069,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   SOILTYP=7
                 ENDIF
                 SNOALB1 = SNOALB(I,J)
-                CMC=CANWAT(I,J)
+                CMC=CANWAT(I,J)/1000.
       
       !-------------------------------------------
       !*** convert snow depth from mm to meter
@@ -3743,32 +4104,65 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       ! the "NATURAL" category in the VEGPARM.TBL
       	
       	   IF(SF_URBAN_PHYSICS == 1.OR. SF_URBAN_PHYSICS==2.OR.SF_URBAN_PHYSICS==3 ) THEN
-                      IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                        IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+                      IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                        IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
       		 VEGTYP = NATURAL
                        SHDFAC = SHDTBL(NATURAL)
                        ALBEDOK =0.2         !  0.2
                        ALBBRD  =0.2         !0.2
                        EMISSI = 0.98                                 !for VEGTYP=5
       		 IF ( FRC_URB2D(I,J) < 0.99 ) THEN
-                         if(sf_urban_physics.eq.1)then
-                 T1= ( TSK(I,J) -FRC_URB2D(I,J) * TS_URB2D (I,J) )/ (1-FRC_URB2D(I,J))
-                         elseif((sf_urban_physics.eq.2).OR.(sf_urban_physics.eq.3))then
-                      r1= (tsk(i,j)**4.)
-                      r2= frc_urb2d(i,j)*(ts_urb2d(i,j)**4.)
-                      r3= (1.-frc_urb2d(i,j))
-                      t1= ((r1-r2)/r3)**.25
-                         endif
-      	         ELSE
+                   if(sf_urban_physics.eq.1)then
+                     T1= ( TSK(I,J) -FRC_URB2D(I,J) * TS_URB2D (I,J) )/ (1-FRC_URB2D(I,J))
+                   elseif((sf_urban_physics.eq.2).OR.(sf_urban_physics.eq.3))then
+                     T1=tsk_rural_bep(i,j)
+                   endif
+     	         ELSE
       		 T1 = TSK(I,J)
                        ENDIF
                       ENDIF
                  ELSE
-                       IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                        IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33) THEN
+                       IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                        IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
                         VEGTYP = ISURBAN
                  	 ENDIF
                  ENDIF
+
+
+!===Yang, 2014/10/08, hydrological processes for urban vegetation in single layer UCM===
+           AOASIS = 1.0
+           USOIL = 1
+           DSOIL = 2
+           IRIOPTION=IRI_SCHEME
+           OMG= OMG_URB2D(I,J)   
+           tloc=mod(int(OMG/3.14159*180./15.+12.+0.5 ),24)
+           if (tloc.lt.0) tloc=tloc+24
+           if (tloc==0) tloc=24
+           CALL cal_mon_day(julian,julyr,jmonth,jday) 
+	  IF(SF_URBAN_PHYSICS == 1) THEN
+           IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL) THEN
+            AOASIS = oasis  ! urban oasis effect
+                   IF (IRIOPTION ==1) THEN
+                   IF (tloc==21 .or. tloc==22) THEN  !irrigation on vegetaion in urban area, MAY-SEP, 9-10pm
+                   IF (jmonth==5 .or. jmonth==6 .or. jmonth==7 .or. jmonth==8 .or. jmonth==9) THEN
+                      IF (SMC(USOIL) .LT. SMCREF) SMC(USOIL)= REFSMC(ISLTYP(I,J))
+                      IF (SMC(DSOIL) .LT. SMCREF) SMC(DSOIL)= REFSMC(ISLTYP(I,J))
+                   ENDIF
+                   ENDIF
+                   ENDIF
+                ENDIF
+           ENDIF
+
+	  IF(SF_URBAN_PHYSICS == 2 .or. SF_URBAN_PHYSICS == 3) THEN
+          IF(AOASIS > 1.0) THEN
+          CALL wrf_error_fatal('Urban oasis option is for SF_URBAN_PHYSICS == 1 only')
+          ENDIF
+          IF(IRIOPTION == 1) THEN
+          CALL wrf_error_fatal('Urban irrigation option is for SF_URBAN_PHYSICS == 1 only')
+          ENDIF
+          ENDIF
+
 #if 0
                 IF(IPRINT) THEN
       !
@@ -3814,30 +4208,31 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
              ! Non-glacial land
       
-             CALL SFLX (I,J,FFROZP, ISURBAN, DT,ZLVL,NSOIL,SLDPTH,      &    !C
-                       LOCAL,                                           &    !L
-                       LUTYPE, SLTYPE,                                  &    !CL
-                       LWDN,SOLDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,DUMMY,         &    !F
-                       DUMMY,DUMMY, DUMMY,                              &    !F PRCPRAIN not used
-                       TH2,Q2SAT,DQSDT2,                                &    !I
-                       VEGTYP,SOILTYP,SLOPETYP,SHDFAC,SHMIN,SHMAX,      &    !I
-                       ALBBRD, SNOALB1,TBOT, Z0BRD, Z0K, EMISSI, EMBRD, &    !S
+             CALL SFLX (I,J,FFROZP, ISURBAN, DT,ZLVL,NSOIL,SLDPTH,       &    !C
+                       LOCAL,                                            &    !L
+                       LUTYPE, SLTYPE,                                   &    !CL
+                       LWDN,SOLDN,SOLNET,SFCPRS,PRCP,SFCTMP,Q2K,DUMMY,   &    !F
+                       DUMMY,DUMMY, DUMMY,                               &    !F PRCPRAIN not used
+                       TH2,Q2SAT,DQSDT2,                                 &    !I
+                       VEGTYP,SOILTYP,SLOPETYP,SHDFAC,SHMIN,SHMAX,       &    !I
+                       ALBBRD, SNOALB1,TBOT, Z0BRD, Z0K, EMISSI, EMBRD,  &    !S
                        CMC,T1,STC,SMC,SWC,SNOWHK,SNEQV,ALBEDOK,CHK,dummy,&    !H
-                       ETA,SHEAT, ETA_KINEMATIC,FDOWN,                  &    !O
-                       EC,EDIR,ET,ETT,ESNOW,DRIP,DEW,                   &    !O
-                       BETA,ETP,SSOIL,                                  &    !O
-                       FLX1,FLX2,FLX3,                                  &    !O
-      		 FLX4,FVB,FBUR,FGSN,UA_PHYS,                      &    !UA 
-                       SNOMLT,SNCOVR,                                   &    !O
-                       RUNOFF1,RUNOFF2,RUNOFF3,                         &    !O
-                       RC,PC,RSMIN,XLAI,RCS,RCT,RCQ,RCSOIL,             &    !O
-                       SOILW,SOILM,Q1,SMAV,                             &    !D
-                       RDLAI2D,USEMONALB,                               &
-                       SNOTIME1,                                        &
-                       RIBB,                                            &
-                       SMCWLT,SMCDRY,SMCREF,SMCMAX,NROOT,               &
+                       ETA,SHEAT, ETA_KINEMATIC,FDOWN,                   &    !O
+                       EC,EDIR,ET,ETT,ESNOW,DRIP,DEW,                    &    !O
+                       BETA,ETP,SSOIL,                                   &    !O
+                       FLX1,FLX2,FLX3,                                   &    !O
+      		 FLX4,FVB,FBUR,FGSN,UA_PHYS,                             &    !UA 
+                       SNOMLT,SNCOVR,                                    &    !O
+                       RUNOFF1,RUNOFF2,RUNOFF3,                          &    !O
+                       RC,PC,RSMIN,XLAI,RCS,RCT,RCQ,RCSOIL,              &    !O
+                       SOILW,SOILM,Q1,SMAV,                              &    !D
+                       RDLAI2D,USEMONALB,                                &
+                       SNOTIME1,                                         &
+                       RIBB,                                             &
+                       SMCWLT,SMCDRY,SMCREF,SMCMAX,NROOT,                &
                        sfcheadrt(i,j),                                   &    !I
-                       INFXSRT(i,j),ETPND1                          &    !O
+                       INFXSRT(i,j),ETPND1,OPT_THCND,AOASIS              &    !O
+                ,XSDA_QFX, HFX_PHY, QFX_PHY, XQNORM, fasdas, HCPCT_FASDAS    & ! fasdas vars
                        )
       
 #ifdef WRF_HYDRO
@@ -3876,7 +4271,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
           ENDIF
       
              lai(i,j) = xlai
-      
+
 #if 0
                 IF(IPRINT) THEN
       
@@ -3904,7 +4299,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
 #endif
       
       !***  UPDATE STATE VARIABLES
-                CANWAT(I,J)=CMC
+                CANWAT(I,J)=CMC*1000.
                 SNOW(I,J)=SNEQV*1000.
       !          SNOWH(I,J)=SNOWHK*1000.
                 SNOWH(I,J)=SNOWHK                   ! SNOWHK in meters
@@ -3982,8 +4377,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       !--------------------------------------
       ! Input variables lsm --> urban
       
-                IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == 31 .or. &
-                    IVGTYP(I,J) == 32 .or. IVGTYP(I,J) == 33 ) THEN
+                IF( IVGTYP(I,J) == ISURBAN .or. IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL .or. &
+                    IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL .or. IVGTYP(I,J) ==  HIGH_INTENSITY_INDUSTRIAL) THEN
       
       ! Call urban
       !
@@ -4019,6 +4414,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
                   DO K = 1,num_roof_layers
                     TRL_URB(K) = TRL_URB3D(I,K,J)
+                    SMR_URB(K) = SMR_URB3D(I,K,J)
+             	      TGRL_URB(K)= TGRL_URB3D(I,K,J)
                   END DO
                   DO K = 1,num_wall_layers
                     TBL_URB(K) = TBL_URB3D(I,K,J)
@@ -4026,6 +4423,15 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   DO K = 1,num_road_layers
                     TGL_URB(K) = TGL_URB3D(I,K,J)
                   END DO
+
+                  TGR_URB   = TGR_URB2D(I,J)
+                  CMCR_URB  = CMCR_URB2D(I,J)
+                  FLXHUMR_URB = FLXHUMR_URB2D(I,J)
+                  FLXHUMB_URB = FLXHUMB_URB2D(I,J)
+                  FLXHUMG_URB = FLXHUMG_URB2D(I,J)
+                  DRELR_URB = DRELR_URB2D(I,J)
+                  DRELB_URB = DRELB_URB2D(I,J)
+                  DRELG_URB = DRELG_URB2D(I,J)
       
                   XXXR_URB = XXXR_URB2D(I,J)
                   XXXB_URB = XXXB_URB2D(I,J)
@@ -4048,6 +4454,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   IF (PRESENT(CMR_SFCDIF)) THEN
                      CMR_URB = CMR_SFCDIF(I,J)
                      CHR_URB = CHR_SFCDIF(I,J)
+                     CMGR_URB = CMGR_SFCDIF(I,J)
+                     CHGR_URB = CHGR_SFCDIF(I,J)
                      CMC_URB = CMC_SFCDIF(I,J)
                      CHC_URB = CHC_SFCDIF(I,J)
                   ENDIF
@@ -4069,7 +4477,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   end if
       !
       ! Call urban
-      
+                  CALL cal_mon_day(julian,julyr,jmonth,jday)        
                   CALL urban(LSOLAR_URB,                                      & ! I
                              num_roof_layers,num_wall_layers,num_road_layers, & ! C
                              DZR,DZB,DZG,                                     & ! C
@@ -4087,7 +4495,10 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                              CMR_URB, CHR_URB, CMC_URB, CHC_URB,              &
                              U10_URB, V10_URB, TH2_URB, Q2_URB,               & ! O
                              UST_URB,mh_urb, stdh_urb, lf_urb, lp_urb,        & ! 0
-                             hgt_urb,frc_urb,lb_urb, check)                            !O
+                             hgt_urb,frc_urb,lb_urb, check,CMCR_URB,TGR_URB,  & ! H
+                             TGRL_URB,SMR_URB,CMGR_URB,CHGR_URB,jmonth,       & ! H
+                             DRELR_URB,DRELB_URB,                             & ! H
+                             DRELG_URB,FLXHUMR_URB,FLXHUMB_URB,FLXHUMG_URB)  
       
 #if 0
                 IF(IPRINT) THEN
@@ -4157,6 +4568,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
       
                   DO K = 1,num_roof_layers
                     TRL_URB3D(I,K,J) = TRL_URB(K)
+                    SMR_URB3D(I,K,J) = SMR_URB(K)
+                    TGRL_URB3D(I,K,J)= TGRL_URB(K)
                   END DO
                   DO K = 1,num_wall_layers
                     TBL_URB3D(I,K,J) = TBL_URB(K)
@@ -4164,6 +4577,16 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   DO K = 1,num_road_layers
                     TGL_URB3D(I,K,J) = TGL_URB(K)
                   END DO
+                 
+                  TGR_URB2D(I,J) =TGR_URB 
+                  CMCR_URB2D(I,J)=CMCR_URB
+                  FLXHUMR_URB2D(I,J)=FLXHUMR_URB 
+                  FLXHUMB_URB2D(I,J)=FLXHUMB_URB
+                  FLXHUMG_URB2D(I,J)=FLXHUMG_URB
+                  DRELR_URB2D(I,J) = DRELR_URB 
+                  DRELB_URB2D(I,J) = DRELB_URB 
+                  DRELG_URB2D(I,J) = DRELG_URB
+
                   XXXR_URB2D(I,J) = XXXR_URB
                   XXXB_URB2D(I,J) = XXXB_URB
                   XXXG_URB2D(I,J) = XXXG_URB
@@ -4185,6 +4608,8 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
                   IF (PRESENT(CMR_SFCDIF)) THEN
                      CMR_SFCDIF(I,J) = CMR_URB
                      CHR_SFCDIF(I,J) = CHR_URB
+                     CMGR_SFCDIF(I,J) = CMGR_URB
+                     CHGR_SFCDIF(I,J) = CHGR_URB
                      CMC_SFCDIF(I,J) = CMC_URB
                      CHC_SFCDIF(I,J) = CHC_URB
                   ENDIF
@@ -4574,7 +4999,7 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
             EMISS_mosaic(i,mosaic_i,j)=EMISS(i,j) 
             EMBCK_mosaic(i,mosaic_i,j)=EMBCK(i,j) 
             ZNT_mosaic(i,mosaic_i,j)=Z0(i,j)
-            Z0_mosaic(i,mosaic_i,j)=Z0(i,j)              
+            Z0_mosaic(i,mosaic_i,j)=Z0(i,j)
   
               DO soil_k=1,num_soil_layers 
   

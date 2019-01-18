@@ -18,7 +18,7 @@ MODULE module_driver_constants
    INTEGER , PARAMETER :: DATA_ORDER_YX = DATA_ORDER_YXZ
 
 
-#include <model_data_order.inc>
+#include "model_data_order.inc"
 
    !  1. Following are constants for use in defining maximal values for array
    !     definitions.  
@@ -46,8 +46,13 @@ MODULE module_driver_constants
    INTEGER , PARAMETER :: max_moves       =   50
 
    !  The maximum number of eta levels
+   !DJW 140701 Increased from 501 to 1001 since I can imagine using more than
+   !501 total vertical levels across multiple nested domains. Now that the
+   !code is modified to allow specification of all domains eta_levels using a
+   !array of length max_eta, this will need to be larger.  I'll also add a check
+   !in module_initialize_real to ensure we don't exceed this value.
 
-   INTEGER , PARAMETER :: max_eta         =   501
+   INTEGER , PARAMETER :: max_eta         =   1001
 
    !  The maximum number of ocean levels in the 3d U Miami ocean.
 
@@ -57,13 +62,21 @@ MODULE module_driver_constants
 
    INTEGER , PARAMETER :: max_plevs       =   100
 
+   !  The maximum number of height levels to interpolate to, for diagnostics
+
+   INTEGER , PARAMETER :: max_zlevs       =   100
+
    !  The maximum number of trackchem
 
    INTEGER , PARAMETER :: max_trackchem   =   100
 
    !  The maximum number of outer iterations (for DA minimisation)
 
-   INTEGER , PARAMETER :: max_outer_iterations = 10
+   INTEGER , PARAMETER :: max_outer_iterations = 100
+
+   !  The maximum number of cost functions to find sensitivity w.r.t (for custom sensitivity)
+
+   INTEGER , PARAMETER :: max_sens = 100
 
    !  The maximum number of instruments (for radiance DA)
 
@@ -71,8 +84,7 @@ MODULE module_driver_constants
 
    !  The maximum number of obs indexes (for conventional DA obs) 
 
-   INTEGER , PARAMETER :: num_ob_indexes  =   28
-
+   INTEGER , PARAMETER :: num_ob_indexes  =   29
 
    !  The maximum number of bogus storms
 

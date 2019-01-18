@@ -15,7 +15,6 @@ USE module_mp_radar
 !-----------------------------------------------------------------------
 ! BARRY
       INTEGER,PRIVATE,PARAMETER :: REMSAT = 0
-!     LOGICAL, PRIVATE,PARAMETER : : ICEPROCS=.FALSE.,BULKNUC=.TRUE.  
       INTEGER, PRIVATE,PARAMETER :: IBREAKUP=1
       INTEGER, PRIVATE,PARAMETER :: p_ff1i01=2, p_ff1i33=34,p_ff5i01=35,p_ff5i33=67,p_ff6i01=68,&
      & p_ff6i33=100,p_ff8i01=101,p_ff8i33=133
@@ -174,7 +173,7 @@ USE module_mp_radar
      &                      ims,ime, jms,jme, kms,kme,		        &
      &                      its,ite, jts,jte, kts,kte,                  &
      &                      refl_10cm, diagflag, do_radar_ref,      & ! GT added for reflectivity calcs
-     &                      RAINNC                             )
+     &                      RAINNC,RAINNCV,SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV,SR )
 !-----------------------------------------------------------------------
       IMPLICIT NONE
 !-----------------------------------------------------------------------
@@ -227,7 +226,7 @@ USE module_mp_radar
       REAL, INTENT(INOUT),  DIMENSION(ims:ime, kms:kme, jms:jme)::      &
      &                      th_phy
       REAL, INTENT(INOUT),  DIMENSION(ims:ime,jms:jme), OPTIONAL ::     &
-     &                                                   RAINNC
+     &      RAINNC,RAINNCV,SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV,SR
 !     REAL, INTENT(INOUT),  DIMENSION(ims:ime,jms:jme), OPTIONAL ::     &
 !     REAL,                 DIMENSION(ims:ime,jms:jme), OPTIONAL ::     &
 !    &              LIQUEXP,ICEEXP,SNOWEXP,GRAUEXP,HAILEXP
@@ -489,7 +488,7 @@ USE module_mp_radar
          KRR=0
          DO KR=p_ff8i01,p_ff8i33
           KRR=KRR+1
-          if (xland(i,j).eq.1.and.(ivgtyp(i,j).eq.19.or.ivgtyp(i,j).eq.1))then
+          if (xland(i,j).lt.1.5)then
              chem_new(I,K,J,KR)=FCCNR_CON(KRR)*FACTZ
           else
              chem_new(I,K,J,KR)=FCCNR_MAR(KRR)*FACTZ
@@ -519,7 +518,7 @@ USE module_mp_radar
          KRR=0
          DO kr=p_ff8i01,p_ff8i33
           KRR=KRR+1
-          if (xland(i,j).eq.1.and.(ivgtyp(i,j).eq.19.or.ivgtyp(i,j).eq.1))then
+          if (xland(i,j).lt.1.5)then
              chem_new(I,K,J,KR)=FCCNR_CON(KRR)*FACTZ
           else
              chem_new(I,K,J,KR)=FCCNR_MAR(KRR)*FACTZ
@@ -776,6 +775,15 @@ USE module_mp_radar
      &      T_NEW(I,K,J),DT,rhocgs(I,K,J), &
      &      COL,AFREEZMY,BFREEZMY,BFREEZMAX, &
      &      KRFREEZ,ICEMAX,NKR)
+          DO KR=1,NKR
+            DO ICE=1,ICEMAX
+             FF3R(KR)=FF2IN(KR,ICE)+FF3R(KR)
+             FF2IN(KR,ICE)=0
+             FF2R(KR,ICE)=0
+             FF4R(KR)=FF5R(KR)+FF4R(KR)
+             FF5R(KR)=0
+            ENDDO
+          END DO
          IF (ORIGINAL_MELT)THEN
          CALL ORIG_MELT  &
      &    (FF1R,XL,FF2R,XI,FF3R,XS,FF4R,XG,FF5R,XH, &
@@ -1262,10 +1270,16 @@ USE module_mp_radar
       DO j = jts,jte
       DO i = its,ite
        krr=0
+       RAINNCV(I,J)=0.
+       SNOWNCV(I,J)=0.
+       GRAUPELNCV(I,J)=0.
        DO KR=p_ff1i01,p_ff1i33
         krr=krr+1
         DELTAW=VR1(KRR)
         RAINNC(I,J)=RAINNC(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XL(KRR)*XL(KRR)
+        RAINNCV(I,J)= RAINNCV(I,J) &
      &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
      &           chem_new(I,1,J,KR)*XL(KRR)*XL(KRR)
        END DO
@@ -1276,12 +1290,30 @@ USE module_mp_radar
         RAINNC(I,J)=RAINNC(I,J) &
      &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
      &           chem_new(I,1,J,KR)*XS(KRR)*XS(KRR)
+        RAINNCV(I,J)=RAINNCV(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XS(KRR)*XS(KRR)
+        SNOWNC(I,J)=SNOWNC(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XS(KRR)*XS(KRR)
+        SNOWNCV(I,J)= SNOWNCV(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XS(KRR)*XS(KRR)
        END DO
        KRR=0
        DO KR=p_ff6i01,p_ff6i33
         KRR=KRR+1
         DELTAW=VR4(KRR)
         RAINNC(I,J)=RAINNC(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XG(KRR)*XG(KRR)
+        RAINNCV(I,J)=RAINNCV(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XG(KRR)*XG(KRR)
+        GRAUPELNC(I,J)=GRAUPELNC(I,J) &
+     &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
+     &           chem_new(I,1,J,KR)*XG(KRR)*XG(KRR)
+        GRAUPELNCV(I,J)= GRAUPELNCV(I,J) &
      &  +10*(3./RO1BL(KRR))*COL*DT*DELTAW* &
      &           chem_new(I,1,J,KR)*XG(KRR)*XG(KRR)
        END DO
@@ -1310,6 +1342,7 @@ USE module_mp_radar
           enddo
          endif
          ENDIF
+         SR(I,J) = (SNOWNCV(I,J)+GRAUPELNCV(I,J))/(RAINNCV(I,J)+1.e-12)
 
 !     print*, i,j,rainnc(i,j)
       END DO
@@ -3894,65 +3927,65 @@ USE module_mp_radar
 	IF(DEL_T.GE.0.AND.FF_MAX.NE.0) THEN
 ! Fan's "MASS LOOP"
           DO KR = 1,NKR
-             ARG_M = 0.
+          ARG_M = 0.
             DO ICE = 1,ICEMAX
              IF (ICE ==1) THEN
                  IF (KR .le. 10) THEN
-                     FF2(KR,ICE)=0.
                      ARG_M = ARG_M+FF2(KR,ICE)
+                     FF2(KR,ICE)=0.
                  ELSEIF (KR .gt. 10 .and. KR .lt. 18) THEN
                      meltrate = 0.5/50.
-                     FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                      ARG_M=ARG_M+FF2(KR,ICE)*(meltrate*dt)
+                     FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                  ELSE
                      meltrate = 0.683/120.
-                     FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                      ARG_M=ARG_M+FF2(KR,ICE)*(meltrate*dt)
+                     FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                  ENDIF
              ENDIF
              IF (ICE ==2 .or. ICE ==3) THEN
                 IF (kr .le. 12) THEN
-                    FF2(KR,ICE)=0.
                     ARG_M = ARG_M+FF2(KR,ICE)
+                    FF2(KR,ICE)=0.
                 ELSEIF (kr .gt. 12 .and. kr .lt. 20) THEN
                     meltrate = 0.5/50.
-                    FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                     ARG_M=ARG_M+FF2(KR,ICE)*(meltrate*dt)
+                    FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                  ELSE
-                     meltrate = 0.683/120.
-                    FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
+                    meltrate = 0.683/120.
                     ARG_M=ARG_M+FF2(KR,ICE)*(meltrate*dt)
+                    FF2(KR,ICE)=FF2(KR,ICE)-FF2(KR,ICE)*(meltrate*dt)
                  ENDIF
              ENDIF
             ENDDO  ! Do ice
 ! snow
                  IF (kr .le. 14) THEN
-                    FF3(KR)=0.
                     ARG_M = ARG_M+FF3(KR)
+                    FF3(KR)=0.
                  ELSEIF (kr .gt. 14 .and. kr .lt. 22) THEN
                     meltrate = 0.5/50.
-                    FF3(KR)=FF3(KR)-FF3(KR)*(meltrate*dt)
                     ARG_M=ARG_M+FF3(KR)*(meltrate*dt)
+                    FF3(KR)=FF3(KR)-FF3(KR)*(meltrate*dt)
                  ELSE
                     meltrate = 0.683/120.
-                    FF3(KR)=FF3(KR)-FF3(KR)*(meltrate*dt)
                     ARG_M=ARG_M+FF3(KR)*(meltrate*dt)
+                    FF3(KR)=FF3(KR)-FF3(KR)*(meltrate*dt)
                  ENDIF
 ! graupel/hail
                  IF (kr .le. 13) then
+                     ARG_M = ARG_M+FF4(KR)+FF5(KR)
                      FF4(KR)=0.
                      FF5(KR)=0.
-                     ARG_M = ARG_M+FF4(KR)+FF5(KR)
                  ELSEIF (kr .gt. 13 .and. kr .lt. 23) THEN
                      meltrate = 0.5/50.
+                     ARG_M=ARG_M+(FF4(KR)+FF5(KR))*(meltrate*dt)
                      FF4(KR)=FF4(KR)-FF4(KR)*(meltrate*dt)
                      FF5(KR)=FF5(KR)-FF5(KR)*(meltrate*dt)
-                     ARG_M=ARG_M+(FF4(KR)+FF5(KR))*(meltrate*dt)
                  ELSE
-                     meltrate = 0.683/120.
+                    meltrate = 0.683/120.
+                    ARG_M=ARG_M+(FF4(KR)+FF5(KR))*(meltrate*dt)
                     FF4(KR)=FF4(KR)-FF4(KR)*(meltrate*dt)
                     FF5(KR)=FF5(KR)-FF5(KR)*(meltrate*dt)
-                    ARG_M=ARG_M+(FF4(KR)+FF5(KR))*(meltrate*dt)
                  ENDIF
 
                    FF1(KR)=FF1(KR)+ARG_M
@@ -3969,6 +4002,7 @@ USE module_mp_radar
 	ENDIF
    	RETURN                                                           
       	END SUBROUTINE J_W_MELT                                                             
+!===================================================================
       SUBROUTINE JERNUCL01(PSI1,PSI2,FCCNR &
      &                    ,X1,X2,DTT,DQQ,ROR,PP,DSUP1,DSUP2 &
      &  ,COL,AA1_MY, BB1_MY, AA2_MY, BB2_MY &
@@ -7610,9 +7644,9 @@ USE module_mp_radar
 !          if(alwc.lt.alcr_g) then
 ! water-graupel
 ! TEST
-            call coll_xyy (g1,g4,cwlg,xl_mg,xg_mg, &
+            call coll_xyy (g1,g4,cwlh,xl_mg,xg_mg, &
      &               chucm,ima,prdkrn1,nkr,0)
-            call coll_xyx (g4,g1,cwgl,xg_mg,xl_mg, &
+            call coll_xyx (g4,g1,cwhl,xg_mg,xl_mg, &
      &          chucm,ima,prdkrn1,nkr,1)
 ! TEST
 !          else

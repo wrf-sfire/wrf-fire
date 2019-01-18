@@ -64,7 +64,8 @@
    REAL    , PARAMETER :: rhosnow      = 100.
    REAL    , PARAMETER :: rhoair0      = 1.28
 !
-   REAL    , PARAMETER :: n_ccn0       = 1.0E8
+! Now namelist-specified parameter: ccn_conc - RAS
+!   REAL    , PARAMETER :: n_ccn0       = 1.0E8
 !
    REAL    , PARAMETER :: piconst      = 3.1415926535897932384626433
    REAL    , PARAMETER :: DEGRAD       = piconst/180.
@@ -104,7 +105,7 @@
        REAL , PARAMETER ::  epsfc=1./1.05
        REAL , PARAMETER ::  epswet=0.0
        REAL , PARAMETER ::  fcdif=1./3.
-#ifdef HWRF
+#if ( HWRF == 1 )
        REAL , PARAMETER ::  fcm=0.0
 #else
        REAL , PARAMETER ::  fcm=0.00003
@@ -129,7 +130,7 @@
        REAL , PARAMETER ::  wght=0.35
        REAL , PARAMETER ::  wpc=0.075
        REAL , PARAMETER ::  z0land=0.10
-#ifdef HWRF 
+#if ( HWRF == 1 ) 
        REAL , PARAMETER ::  z0max=0.01
 #else
        REAL , PARAMETER ::  z0max=0.008

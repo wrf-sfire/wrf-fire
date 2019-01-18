@@ -40,7 +40,7 @@ MODULE module_wrf_error
   ! Defaults: Non-MPI configurations and HWRF turn OFF stderr.
   !    MPI configurations other than HWRF turn ON stderr.
 
-#if defined( DM_PARALLEL ) && ! defined( STUBMPI ) && !defined(HWRF)
+#if defined( DM_PARALLEL ) && ! defined( STUBMPI ) && !(HWRF == 1)
   integer :: stderrlog=1 ! 1/T = send to write(0,...) if buffered=0
 #else
   integer :: stderrlog=0! 1/T = send to write(0,...) if buffered=0
@@ -81,31 +81,31 @@ CONTAINS
 #if defined(DM_PARALLEL)
     LOGICAL, EXTERNAL :: wrf_dm_on_monitor
 #endif
-    LOGICAL :: compute_slaves_silent
+    LOGICAL :: compute_tasks_silent
     LOGICAL :: io_servers_silent
     INTEGER :: buffer_size,iostat,stderr_logging
-    namelist /logging/ buffer_size,compute_slaves_silent, &
+    namelist /logging/ buffer_size,compute_tasks_silent, &
                        io_servers_silent,stderr_logging
 
     ! MAKE SURE THE NAMELIST DEFAULTS MATCH THE DEFAULT VALUES
     ! AT THE MODULE LEVEL
 
     ! Default: original behavior.  No buffering, all ranks talk
-    compute_slaves_silent=.false.
+    compute_tasks_silent=.false.
     io_servers_silent=.false.
     buffer_size=0
 
     ! MPI configurations default to stderr logging, except for HWRF.
     ! Non-MPI does not log to stderr.  (Note that fatal errors always
     ! are sent to both stdout and stderr regardless of config.)
-#if defined( DM_PARALLEL ) && ! defined( STUBMPI ) && !defined(HWRF)
+#if defined( DM_PARALLEL ) && ! defined( STUBMPI ) && !(HWRF == 1)
     stderr_logging=1
 #else
     stderr_logging=0
 #endif
-
+500 format(A)
     ! Open namelist.input using the same unit used by module_io_wrf 
-    ! since we know nobody will screw up that unit:
+    ! since we know nobody else will use that unit:
     OPEN(unit=27, file="namelist.input", form="formatted", status="old")
     READ(27,nml=logging,iostat=iostat)
     if(iostat /= 0) then
@@ -134,15 +134,15 @@ CONTAINS
     endif
 #else
     if(buffer_size>=min_allowed_buffer_size) then
-       write(0,*) 'Forcing disabling of buffering due to compile-time configuration.'
-       write(6,*) 'Forcing disabling of buffering due to compile-time configuration.'
+       write(0,500) 'Forcing disabling of buffering due to compile-time configuration.'
+       write(6,500) 'Forcing disabling of buffering due to compile-time configuration.'
     endif
 #endif
 
     stderrlog=stderr_logging
     if(buffered/=0 .and. stderrlog/=0) then
-       write(0,*) 'Disabling stderr logging since buffering is enabled.'
-       write(6,*) 'Disabling stderr logging since buffering is enabled.'
+       write(0,500) 'Disabling stderr logging since buffering is enabled.'
+       write(6,500) 'Disabling stderr logging since buffering is enabled.'
 #      ifdef _WIN32
           FLUSH(0)
 #      endif
@@ -158,7 +158,7 @@ CONTAINS
           return
        endif
     endif
-    if(compute_slaves_silent) then
+    if(compute_tasks_silent) then
        if(wrf_dm_on_monitor()) then
           silence=0
        else
@@ -216,12 +216,13 @@ SUBROUTINE wrf_message( str )
   else
 !$OMP MASTER
      if(stderrlog/=0) then
-        write(0,*) trim(str)
+300     format(A)
+        write(0,300) trim(str)
 # ifdef _WIN32
   FLUSH(0)
 # endif
      endif
-     print *,trim(str)
+     print 300,trim(str)
 !$OMP END MASTER
   endif
 
@@ -244,7 +245,8 @@ SUBROUTINE wrf_message2( str )
   IMPLICIT NONE
   CHARACTER*(*) str
 !$OMP MASTER
-  write(0,*) str
+400 format(A)
+  write(0,400) str
 # ifdef _WIN32
   FLUSH(0)
 # endif
@@ -303,6 +305,9 @@ SUBROUTINE wrf_error_fatal3( file_str, line, str )
   CALL esmf_finalize(endflag=ESMF_END_ABORT)
 #endif
 
+#ifdef TRACEBACKQQ
+  CALL tracebackqq
+#endif
   CALL wrf_abort
 END SUBROUTINE wrf_error_fatal3
 
@@ -336,5 +341,30 @@ SUBROUTINE wrf_check_error( expected, actual, str, file_str, line )
     CALL wrf_error_fatal3 ( file_str, line, str_with_rc )
   ENDIF
 END SUBROUTINE wrf_check_error
+
+! ------------------------------------------------------------------------------
+
+!  Some compilers do not yet support the entirety of the Fortran 2003 standard.
+!  This is a small patch to pick up the two most common events.  Most xlf 
+!  compilers have an extension fflush.  That is available here.  For other older
+!  compilers with no flush capability at all, we just stub it out completely.
+!  These CPP ifdefs are defined in the configure file.
+
+#ifdef USE_FFLUSH
+SUBROUTINE flush ( iunit )
+  IMPLICIT NONE
+  INTEGER :: iunit
+  CALL fflush ( iunit ) 
+END SUBROUTINE flush
+#endif
+
+#ifdef NO_FLUSH_SUPPORT
+SUBROUTINE flush ( iunit )
+  IMPLICIT NONE
+  INTEGER :: iunit
+  RETURN
+END SUBROUTINE flush
+#endif
+
 
 

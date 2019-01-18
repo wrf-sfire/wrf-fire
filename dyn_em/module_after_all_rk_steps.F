@@ -15,7 +15,7 @@ CONTAINS
                                    moist, chem, tracer, scalar,         &
                                    th_phy, pi_phy, p_phy, rho_phy,      & 
                                    p8w, t8w, dz8w,                      &
-                                   curr_secs2,                          &
+                                   curr_secs, curr_secs2,               &
                                    diag_flag,                           &
                                    ids,  ide,  jds,  jde,  kds,  kde,   &
                                    ims,  ime,  jms,  jme,  kms,  kme,   &
@@ -43,6 +43,17 @@ CONTAINS
 
       USE module_configure, ONLY : grid_config_rec_type
 
+#ifdef DM_PARALLEL
+      !  Ensure some of the fancy diagnostics variables that need to
+      !  talk to other patches can do so.
+
+      USE module_dm, ONLY : &
+                  local_communicator, mytask, ntasks, ntasks_x, ntasks_y                   &
+                 ,local_communicator_periodic, wrf_dm_maxval
+
+      USE module_comm_dm, ONLY : &
+                  halo_em_phys_w_sub, halo_em_phys_hcw_sub
+#endif
 
       !=============================================================
       !  USE Association for the Diagnostic Packages
@@ -88,6 +99,7 @@ CONTAINS
 
       !  Time (s) since the beginning of the restart.
 
+      REAL(8) :: curr_secs
       REAL :: curr_secs2
 
       !  Is this to be a history output time?  If so, compute the diagnostics.
@@ -122,6 +134,13 @@ CONTAINS
                               imsy,imey,jmsy,jmey,kmsy,kmey,    &
                               ipsy,ipey,jpsy,jpey,kpsy,kpey
 
+#ifdef DM_PARALLEL
+      !=============================================================
+      !  Include patch communications
+      !=============================================================
+#     include "HALO_EM_PHYS_W.inc"
+#     include "HALO_EM_PHYS_HCW.inc"
+#endif
 
       !=============================================================
       !  Start of executable code
@@ -134,7 +153,7 @@ CONTAINS
                                 moist, chem, tracer, scalar,         &
                                 th_phy, pi_phy, p_phy, rho_phy,      & 
                                 p8w, t8w, dz8w,                      &
-                                curr_secs2,                          &
+                                curr_secs, curr_secs2,               &
                                 diag_flag,                           &
                                 ids,  ide,  jds,  jde,  kds,  kde,   &
                                 ims,  ime,  jms,  jme,  kms,  kme,   &

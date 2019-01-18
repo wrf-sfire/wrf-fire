@@ -24,7 +24,7 @@ contains
                            ITS,ITE,JTS,JTE,KTS,KTE)
     USE MODULE_CONFIGURE, ONLY : grid_config_rec_type
     USE MODULE_DOMAIN, ONLY : domain
-#ifdef HWRF
+#if ( HWRF == 1 )
     USE module_tracker, only: ncep_tracker_init
 #endif
     IMPLICIT NONE
@@ -43,11 +43,57 @@ contains
     integer :: xshift ! for handling grid staggering
     integer :: i,j
     
-#ifdef HWRF
+#if ( HWRF == 1 )
     vortex_tracker=grid%vortex_tracker
-    if(vortex_tracker<1 .or. vortex_tracker>6) then
-       write(message,*)' domain ',grid%id,' has an invalid value ',vortex_tracker,' for vortex_tracker.  It must be 1, 2, 3, 4 or 5.'
+    if(vortex_tracker<1 .or. vortex_tracker>7) then
+31     format('Domain ',I0,' has invalid value ',I0,' for vortex_tracker: it must be an integer from 1-7')
+       write(message,31) grid%id,vortex_tracker
        call wrf_error_fatal(message)
+    endif
+
+    if(grid%swath_mode==1) then
+      ! Check swath area of interest configuration, correct errors and
+      ! give meaningful error messages:
+       if(grid%interest_storms/=0 .and. vortex_tracker/=6 .and. vortex_tracker/=7) then
+          grid%interest_storms=0
+          if(vortex_tracker==2) then
+             if(grid%interest_kids/=0) then
+                ! User set up vortex_tracker 2 and is requesting a storm
+                ! area of interest, and not a kid area of interest.
+                ! Switch to kid interest and warn them:
+                grid%interest_kids=1
+39              format('Grid ',I0,' switching from interest_storms to interest_kids due to vortex_tracker==2 (nest following)')
+                write(message,39) grid%id
+                call wrf_message(message)
+             else
+                ! User set things up correctly: vortex_tracker==2, and
+                ! it has interest_kids, but they also turned on
+                ! interest_storms, probably because it is on by
+                ! default in the registry.  Disable interest_storms
+                ! and warn them in a level 2 debug message:
+37              format('Grid ',I0,' using nest area of interest (already enabled) instead of storm area of interest due to vortex_tracker==2 (nest following).')
+                write(message,37) grid%id
+                call wrf_debug(2,message)
+             endif
+          elseif(grid%interest_self==0) then
+             ! User requested a tracker other than 2, 6 and 7, but wants
+             ! a storm area of interest.  Not possible.  Switch to
+             ! interest_kids if there are nests, and interest_self
+             ! otherwise.
+             if(grid%num_nests<1) then
+                grid%interest_self=1
+                grid%interest_rad_self=grid%interest_rad_storm
+38              format('Grid ',I0,' switching from interest_storm to interest_self due to lack of vortex information.  You must use vortex tracker 6 or 7 to get a storm area of interest.')
+                write(message,38) grid%id
+                call wrf_message(message)
+             else
+                grid%interest_kids=1
+35              format('Grid ',I0,' switching from interest_storm to interest_kids due to lack of vortex information, and presence of nests.  You must use vortex tracker 6 and 7 to get a storm area of interest.')
+                write(message,35) grid%id
+                call wrf_message(message)
+             endif
+          endif
+       endif
     endif
 
     ! Signify that the pdyn smooth and parent smooth are invalid in
@@ -108,15 +154,15 @@ contains
     endif distsq
 #endif
 
-#ifdef HWRF
-    if(init .and. vortex_tracker==6) then
+#if ( HWRF == 1 )
+    if(init .and. (vortex_tracker==6 .or. vortex_tracker==7) ) then
        call ncep_tracker_init(grid)
     endif
 #endif
 
   END SUBROUTINE VORTTRAK_INIT
 
-#ifdef HWRF
+#if ( HWRF == 1 )
   !----------------------------------------------------------------------
   !
   SUBROUTINE UPDATE_PDYN_MSLP(grid,config_flags, &
@@ -215,6 +261,12 @@ contains
     !       noise removal.  Plus, it only searches within X km of the nest
     !       center to avoid other nearby systems.
     !   vortex_tracker=5 -- track average of parent and grandparent PDYN
+    !   vortex_tracker=6 -- simplified version of Tim Marchok's tracker
+    !
+    !   vortex_tracker=7 -- nearly the full storm tracking algorithm
+    !       from Tim Marchok's tracker.  The only part that is missing
+    !       is the part that gives up when the storm dissipates.  That
+    !       is left out intentionally.
     !
     ! HISTORY:
     !   2004?       - initial implementation by gopal
@@ -223,14 +275,17 @@ contains
     !   late  2010  - sam added a new child tracker (vortex_tracker=2)
     !   Nov 08 2011 - sam split implementation into several functions and
     !                 added the vortex_tracker=4 option
-#ifdef HWRF
+    !   Mar 2013    - sam added options 5 & 6
+    !   Sep 2013    - sam added option 7
+    !   Feb 2014    - sam added hooks for area of interest
+#if ( HWRF == 1 )
     USE module_tracker, only: ncep_tracker_center
 #endif
     USE MODULE_CONFIGURE, ONLY : grid_config_rec_type
     USE MODULE_DOMAIN, ONLY : domain,get_ijk_from_grid
     use module_membrane_mslp
 #ifdef DM_PARALLEL
-# ifdef HWRF
+# if ( HWRF == 1 )
     USE MODULE_COMM_DM, ONLY : HALO_NMM_VT4_NOISE_sub, HALO_NMM_VT4_MSLP_sub
     USE MODULE_DM, ONLY: ntasks_x, ntasks_y, mytask, ntasks, local_communicator
 # endif
@@ -250,8 +305,8 @@ contains
     !     KEEP NEST MOTION IN SINK WITH PHYSICS TIME STEPS
 
 #if ( NMM_NEST == 1 )
-#ifdef HWRF
-    MOVEFREQ=grid%movemin*grid%nphs
+#if ( HWRF == 1 )
+    MOVEFREQ=grid%ntrack*grid%nphs
     vortex_tracker=grid%vortex_tracker
 #else
     MOVEFREQ=grid%nphs
@@ -259,7 +314,7 @@ contains
 #endif
     skip_nest_motion=.false.
     IF(MOD(grid%NTSD+1,MOVEFREQ)/=0 .or. grid%id==1)THEN
-#ifdef HWRF
+#if ( HWRF == 1 )
        IF(grid%MOVED .and. grid%id/=1) then
           grid%NTIME0=grid%NTSD             !FOR UPDATING NTIM0
        ENDIF
@@ -268,7 +323,7 @@ contains
        skip_nest_motion=.true.
     ENDIF
 
-#ifdef HWRF
+#if ( HWRF == 1 )
     if(skip_nest_motion .and. ( grid%pdyn_smooth_age/=0 .or. size(grid%pdyn_smooth)<=1)) then
        ! Pdyn_smooth is up to date and it is not yet time to move the
        ! nest, so we can return now.
@@ -302,15 +357,15 @@ contains
        ! PDYN causes noise in the presence of strong vorticity variations,
        ! so it is not used by HWRF for nest tracking.
        CALL STATS_FOR_MOVE_123 (grid%XLOC_2,grid%YLOC_2                   &
-#ifdef HWRF
+#if ( HWRF == 1 )
                                 ,grid%MSLP                                &
 #else
                                 ,grid%PDYN                                &
 #endif
             ,grid%sm							  &
-#ifdef HWRF
+#if ( HWRF == 1 )
             ,GRID%RESTART,grid%NTIME0                                     &
-            ,GRID%MOVED,grid%MVNEST,grid%ntsd,GRID%NPHS,GRID%MOVEMIN      &
+            ,GRID%MOVED,grid%MVNEST,grid%ntsd,GRID%NPHS,GRID%NTRACK      &
 #else
             ,GRID%MOVED,grid%MVNEST,grid%ntsd,GRID%NPHS                   &
 #endif
@@ -319,17 +374,30 @@ contains
             ,IMS,IME,JMS,JME,KMS,KME                                      &
             ,ITS,ITE,JTS,JTE,KTS,KTE)
        RETURN
-#ifdef HWRF
-    elseif(vortex_tracker==6) then
-       ! Tracker #6: do whatever the inline NCEP Tracker says
+#if ( HWRF == 1 )
+    elseif(vortex_tracker==6 .or. vortex_tracker==7) then
+       ! Tracker #6 and #7: do whatever the inline NCEP Tracker says
        call ncep_tracker_center(grid)
-       call vt6_move(grid%tracker_ifix,grid%tracker_jfix,  &
+       call vt67_move(grid%tracker_ifix,grid%tracker_jfix,  &
                      grid%tracker_gave_up,grid%tracker_havefix, &
                      grid%xloc_2,grid%yloc_2, grid%id,     &
                      grid%xloc_1,grid%yloc_1, grid%mvnest, &
                      IDS,IDE,JDS,JDE,KDS,KDE,              &
                      IMS,IME,JMS,JME,KMS,KME,              &
                      ITS,ITE,JTS,JTE,KTS,KTE)
+
+       ! Update area of interest after storm moves if the storm is an
+       ! area of interest:
+       if(grid%interest_storms/=0) then
+38        format('grid ',I2,' updating area of interest due to storm motion')
+          write(message,38) grid%id
+          call wrf_message(trim(message))
+          grid%update_interest=.true.
+       else
+39        format('grid ',I2,' not updating area of interest after storm motion because grid%interest_storms is 0')
+          write(message,39) grid%id
+          call wrf_message(trim(message))
+       endif
     elseif(vortex_tracker==5) then
        ! Tracker #5: follow average of grandparent and parent PDYN
        call vt5_move(grid%pdyn_parent,grid%distsq,grid%vt5searchrad, &
@@ -417,7 +485,7 @@ contains
                            ITS,ITE,JTS,JTE,KTS,KTE
     integer :: i,j,iadd
     
-#ifdef HWRF
+#if ( HWRF == 1 )
     do j = max(jds+1,jts), min(jte,jde-2)
        iadd=mod(j,2)-1
        do i = max(ids+1,its), min(ite,ide-2)
@@ -467,7 +535,7 @@ contains
     nprint=10
 #endif
     
-#ifdef HWRF
+#if ( HWRF == 1 )
     dy2=dy_nmm*dy_nmm*4
     dp2max=dpdr*dpdr
 
@@ -541,7 +609,7 @@ contains
 #endif
   END SUBROUTINE vt4_noise_detect
 
-#ifdef HWRF
+#if ( HWRF == 1 )
   SUBROUTINE vt5_move(PDYN,distsq,searchrad,xloc,yloc,gridid,cx,cy,mvnest, &
                       IDS,IDE,JDS,JDE,KDS,KDE,                   &
                       IMS,IME,JMS,JME,KMS,KME,                   &
@@ -619,11 +687,13 @@ contains
        call wrf_debug(1,'Not moving: PDYN minimum is near nest center')
     endif
   END SUBROUTINE vt5_move
-  SUBROUTINE vt6_move(ifix,jfix,gaveup,havefix, &
+  SUBROUTINE vt67_move(ifix,jfix,gaveup,havefix, &
                       xloc,yloc,gridid,cx,cy,mvnest, &
                       IDS,IDE,JDS,JDE,KDS,KDE,                   &
                       IMS,IME,JMS,JME,KMS,KME,                   &
                       ITS,ITE,JTS,JTE,KTS,KTE)
+    ! This is for trackers 6 & 7, which just do what the NCEP tracker
+    ! (module_tracker) tell us to do.
     use module_dm, only: wrf_dm_minval_real
     implicit none
     integer, intent(in) :: ifix,jfix
@@ -674,7 +744,7 @@ contains
        yloc=cy
        call wrf_debug(1,'Not moving: tracker center is near nest center')
     endif
-  END SUBROUTINE vt6_move
+  END SUBROUTINE vt67_move
   SUBROUTINE vt4_move(MSLP,WEIGHTOUT,DISTSQ,NOISY,DX_NMM,DY_NMM, &
                       xloc,yloc,cx,cy,mvnest,                    &
                       searchrad,searchpow,searchpmax,            &
@@ -1059,7 +1129,7 @@ contains
   !----------------------------------------------------------------------
   !
   SUBROUTINE STATS_FOR_MOVE_123 (XLOC,YLOC,PRES,SM &
-#ifdef HWRF
+#if ( HWRF == 1 )
        ,RESTART,NTIME0                        & ! zhang's doing
        ,MOVED,MVNEST,NTSD,NPHS,CFREQ          & ! CFREQ*DT*NPHS=540s
 #else
@@ -1111,7 +1181,7 @@ contains
     INTEGER,INTENT(IN)                                    :: IDS,IDE,JDS,JDE,KDS,KDE   &
          ,IMS,IME,JMS,JME,KMS,KME   &
          ,ITS,ITE,JTS,JTE,KTS,KTE   &
-#ifdef HWRF
+#if ( HWRF == 1 )
     ,NTSD,NPHS,CFREQ
 #else
     ,NTSD,NPHS
@@ -1126,7 +1196,7 @@ contains
     !     LOCAL
 
     character*256                                         :: message
-#ifdef HWRF
+#if ( HWRF == 1 )
     !zhang's doing
     INTEGER,INTENT(INOUT)                                 :: NTIME0
     LOGICAL,INTENT(IN)                                    :: RESTART
@@ -1271,7 +1341,7 @@ contains
 
     XDIFF=ABS(XLOC - IDE/2)
     YDIFF=ABS(YLOC - JDE/2)
-#ifdef HWRF
+#if ( HWRF == 1 )
     !zhang's doing
     IF((.NOT.RESTART .AND. NTSD==0) .OR. MOVED)NTIME0=NTSD
 #else

@@ -338,6 +338,7 @@ loop_psfc:   DO WHILE ( ASSOCIATED ( current ) )
 !
 !      Write out the stations with (h < elevation):
 !
+            if ( print_dry ) then
             if (current%meas%height%data < obs%info%elevation) &
               write(iunit,'(/A,A,2X,A,2X,A/A,2I6,3f12.2)')           & 
                 "Platform, ID, NAME: ",                              &
@@ -347,6 +348,7 @@ loop_psfc:   DO WHILE ( ASSOCIATED ( current ) )
                 "PSFC found ==> I, nlevel, psfc, height, elevation:",&
               counter, nlevel, psfc, current % meas % height%data,   &
                                      obs % info % elevation
+            end if !print
 
             EXIT loop_psfc
 
@@ -690,7 +692,6 @@ SUBROUTINE vert_cons_check ( obs , counter , print_vert, iunit, failed )
    REAL                                   :: p1 , p2 , h1 , h2
    LOGICAL                                :: found
    LOGICAL                                :: failed
-   LOGICAL                                :: fatal, listing
    INTEGER                                :: iunit
 
 !  INCLUDE 'error.inc'
@@ -736,15 +737,14 @@ SUBROUTINE vert_cons_check ( obs , counter , print_vert, iunit, failed )
           IF ((      eps_equal (h1 , h2 , 0.1 )) .AND. &
               (.NOT. eps_equal (p1 , p2 , 0.1 ))) THEN
 
+             if ( print_vert ) then
                WRITE (message, FMT = '(" Duplicate surface found at ",A8,A8)') &
                TRIM  (obs%location%id),  TRIM (obs%location%name)
-               fatal = .true.
-               listing = .false.
+               WRITE (iunit, '(A)') TRIM (message)
+             end if
 
 ! To discard the OBS:                
                obs%info % discard = .TRUE.
-
-               CALL error_handler (proc_name, message, "",fatal)
 
                current%meas%pressure%data     = missing_r
                current%meas%height%data       = missing_r
@@ -795,6 +795,7 @@ loop_psfc: DO WHILE (ASSOCIATED (current))
 !
 !      Write out the stations with (h < elevation):
 !
+            if ( print_vert ) then
             if (current%meas%height%data < obs%info%elevation) &
               write(iunit,'(/A,A,2X,A,2X,A/A,2I6,3f12.2)')           & 
                 "Platform, ID, NAME: ",                              &
@@ -805,6 +806,7 @@ loop_psfc: DO WHILE (ASSOCIATED (current))
               counter, nlevel, psfc, current % meas % height%data,   &
                                      obs % info % elevation
 
+            end if !print
             EXIT loop_psfc
       ELSE
            ! Do nothing
@@ -1501,10 +1503,12 @@ all_levels:&
 
                 current % meas % pressure % qc    = above_model_lid
 
+                if ( print_height_qc ) then
                 WRITE (UNIT = iunit , FMT = TRIM (fmt_level), ADVANCE = 'no') &
                "Model ptop & obs pressure = ", ptop,  &
                                             current % meas % pressure % data, &
                                  "  qc = ", current % meas % pressure % qc
+                end if !print
 
                 found = .TRUE.
 

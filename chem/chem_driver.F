@@ -3,6 +3,7 @@
 !                   Further developments, bugfixes and improvements  by
 !                   William Gustafson (PNNL), Marc Salzmann (GFDL), and Georg Grell
 ! 10/12/2011 - Ravan Ahmadov (NOAA) updated to include the RACM_SOA_VBS option
+! 10/08/2014 - Kai Wang and Yang Zhang (NCSU) updated to include the CB05_MADE/SORGAM and CB05_MADE/VBS options
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subroutine chem_driver ( grid , config_flags   &
@@ -25,6 +26,7 @@
   USE module_dep_simple
   USE module_bioemi_simple
   USE module_phot_mad
+  USE module_phot_tuv,    only : tuv_timestep_init
   USE module_ftuv_driver, only : ftuv_timestep_init
   USE module_aerosols_sorgam
   USE module_chem_utilities
@@ -33,16 +35,19 @@
   USE module_ctrans_grell
   USE module_data_soa_vbs, only: ldrog_vbs
   USE module_dust_load
+  USE module_chem_cup, only: chem_cup_driver !BSINGH - For WRFCuP scheme
   USE module_dry_dep_driver
   USE module_emissions_driver
   USE module_input_tracer, only: set_tracer
   USE module_wetscav_driver, only: wetscav_driver
   USE module_wetdep_ls, only:wetdep_ls
+  USE module_uoc_dustwd ! Claudia, 3 April 2014  [mklose 03082015]
   USE module_input_chem_data, only: last_chem_time, &
 #if (defined(CHEM_DBG_I) && defined(CHEM_DBG_J) && defined(CHEM_DBG_K))
                                      chem_dbg,      &
 #endif
-                                     get_last_gas,mozcart_lbc_set
+                                     get_last_gas,mozcart_lbc_set, &
+                                     bdy_chem_value_top_pv,PVS
   USE module_upper_bc_driver, only: upper_bc_driver
   USE module_tropopause,      only: tropopause_driver
   USE modal_aero_data, only: ntot_amode_cam_mam => ntot_amode
@@ -50,31 +55,62 @@
        pcnst =>pcnst_runtime, numgas_mam, cam_mam_aerosols
   USE module_cu_camzm_driver, only: zm_conv_tend_2
   USE module_cam_mam_gas_wetdep_driver, only: cam_mam_gas_wetdep_driver
+  USE module_trajectory, only: trajectory_dchm_tstep_init, trajectory_dchm_tstep_set
 
   IMPLICIT NONE
 
 
   !BSINGH(PNNL)- Lahey compiler forces to declare the following interface
   interface
-     SUBROUTINE sum_pm_driver ( config_flags,                            &
-          alt, chem, h2oaj, h2oai,                                   &
-          pm2_5_dry, pm2_5_water, pm2_5_dry_ec, pm10,                &
+     SUBROUTINE sum_pm_driver ( config_flags,                       &
+          alt, chem, h2oaj, h2oai,                                  &
+          pm2_5_dry, pm2_5_water, pm2_5_dry_ec, pm10,               &
+          tsoa,asoa,bsoa,                                             &
           hoa_a01,hoa_a02,hoa_a03,hoa_a04,                          &
+          hoa_a05,hoa_a06,hoa_a07,hoa_a08,                          & !BSINGH Added 4 more bins for each species for SAPRC 8 bin version
           bboa_a01,bboa_a02,bboa_a03,bboa_a04,                      &
+          bboa_a05,bboa_a06,bboa_a07,bboa_a08,                      &
           soa_a01,soa_a02,soa_a03,soa_a04,                          &
+          soa_a05,soa_a06,soa_a07,soa_a08,                          &
           bbsoa_a01,bbsoa_a02,bbsoa_a03,bbsoa_a04,                  &
+          bbsoa_a05,bbsoa_a06,bbsoa_a07,bbsoa_a08,                  &
           hsoa_a01,hsoa_a02,hsoa_a03,hsoa_a04,                      &
+          hsoa_a05,hsoa_a06,hsoa_a07,hsoa_a08,                      &
           biog_a01,biog_a02,biog_a03,biog_a04,                      &
-          asmpsoa_a01,asmpsoa_a02,asmpsoa_a03,asmpsoa_a04,              &
+          biog_a05,biog_a06,biog_a07,biog_a08,                      &
+          asmpsoa_a01,asmpsoa_a02,asmpsoa_a03,asmpsoa_a04,          &
           arosoa_a01,arosoa_a02,arosoa_a03,arosoa_a04,              &
+          arosoa_a05,arosoa_a06,arosoa_a07,arosoa_a08,              &
           totoa_a01,totoa_a02,totoa_a03,totoa_a04,                  &
+          totoa_a05,totoa_a06,totoa_a07,totoa_a08,                  & 
           hsoa_c,hsoa_o,bbsoa_c,bbsoa_o,                            &
           biog_v1,biog_v2,biog_v3,biog_v4,                          &
           ant_v1,ant_v2,ant_v3,ant_v4,                              &
-          smpa_v1,smpbb_v1,                              &
+          smpa_v1,smpbb_v1,                                         &
+          !BSINGH - Added cw aerosols(for VBS)
+          hoa_cw01,    hoa_cw02,    hoa_cw03,    hoa_cw04,          &
+          hoa_cw05,    hoa_cw06,    hoa_cw07,    hoa_cw08,          &
+          bboa_cw01,   bboa_cw02,   bboa_cw03,   bboa_cw04,         &
+          bboa_cw05,   bboa_cw06,   bboa_cw07,   bboa_cw08,         &
+          soa_cw01,    soa_cw02,    soa_cw03,    soa_cw04,          &
+          soa_cw05,    soa_cw06,    soa_cw07,    soa_cw08,          &
+          bbsoa_cw01,  bbsoa_cw02,  bbsoa_cw03,  bbsoa_cw04,        &
+          bbsoa_cw05,  bbsoa_cw06,  bbsoa_cw07,  bbsoa_cw08,        &
+          biog_cw01,   biog_cw02,   biog_cw03,   biog_cw04,         &
+          biog_cw05,   biog_cw06,   biog_cw07,   biog_cw08,         &
+          hsoa_cw01,   hsoa_cw02,   hsoa_cw03,   hsoa_cw04,         &
+          hsoa_cw05,   hsoa_cw06,   hsoa_cw07,   hsoa_cw08,         &
+          arosoa_cw01, arosoa_cw02, arosoa_cw03, arosoa_cw04,       &
+          arosoa_cw05, arosoa_cw06, arosoa_cw07, arosoa_cw08,       &
+          totoa_cw01,  totoa_cw02,  totoa_cw03,  totoa_cw04,        &
+          totoa_cw05,  totoa_cw06,  totoa_cw07,  totoa_cw08,        &        
+          hsoa_cw_c,   hsoa_cw_o,   bbsoa_cw_c,  bbsoa_cw_o,        &
+          biog_cw_v1,                                               &
+          ant_cw_v1,                                                &
+          !BSINGH -ENDS
           ids,ide, jds,jde, kds,kde,                                &
           ims,ime, jms,jme, kms,kme,                                &
-          its,ite, jts,jte, kts,kte                                  )
+          its,ite, jts,jte, kts,kte                                 )
        
        
        USE module_configure
@@ -82,6 +118,7 @@
        USE module_mosaic_driver, only: sum_pm_mosaic,sum_pm_mosaic_vbs2,sum_pm_mosaic_vbs0,sum_vbs9,sum_vbs2,sum_vbs0
        USE module_gocart_aerosols, only: sum_pm_gocart
        USE module_aerosols_soa_vbs, only: sum_pm_soa_vbs
+       USE module_aerosols_sorgam_vbs, only: sum_pm_sorgam_vbs
        
        IMPLICIT NONE
        
@@ -99,23 +136,53 @@
             OPTIONAL,                                                     &
             INTENT(IN ) :: h2oaj,h2oai
        
-       REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                       &
-            OPTIONAL,                                                     &
-            INTENT(OUT) :: pm2_5_dry,pm2_5_water,pm2_5_dry_ec,pm10,       &
+       REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                  &
+            OPTIONAL,                                                 &
+            INTENT(OUT) :: pm2_5_dry,pm2_5_water,pm2_5_dry_ec,pm10,   &
+            tsoa,asoa,bsoa,                                           &
             hoa_a01,hoa_a02,hoa_a03,hoa_a04,                          &
+            hoa_a05,hoa_a06,hoa_a07,hoa_a08,                          &!BSINGH Added 4 more bins for each species for SAPRC 8 bin version             
             bboa_a01,bboa_a02,bboa_a03,bboa_a04,                      &
+            bboa_a05,bboa_a06,bboa_a07,bboa_a08,                      &     
             soa_a01,soa_a02,soa_a03,soa_a04,                          &
+            soa_a05,soa_a06,soa_a07,soa_a08,                          &        
             bbsoa_a01,bbsoa_a02,bbsoa_a03,bbsoa_a04,                  &
+            bbsoa_a05,bbsoa_a06,bbsoa_a07,bbsoa_a08,                  &     
             hsoa_a01,hsoa_a02,hsoa_a03,hsoa_a04,                      &
+            hsoa_a05,hsoa_a06,hsoa_a07,hsoa_a08,                      &       
             biog_a01,biog_a02,biog_a03,biog_a04,                      &
+            biog_a05,biog_a06,biog_a07,biog_a08,                      &       
             arosoa_a01,arosoa_a02,arosoa_a03,arosoa_a04,              &
+            arosoa_a05,arosoa_a06,arosoa_a07,arosoa_a08,              &             
             totoa_a01,totoa_a02,totoa_a03,totoa_a04,                  &
+            totoa_a05,totoa_a06,totoa_a07,totoa_a08,                  &    
             hsoa_c,hsoa_o,bbsoa_c,bbsoa_o,                            &
             biog_v1,biog_v2,biog_v3,biog_v4,                          &
-            ant_v1,ant_v2,ant_v3,ant_v4,                         &
-            smpa_v1,                          &
-            smpbb_v1,                          &
-            asmpsoa_a01,asmpsoa_a02,asmpsoa_a03,asmpsoa_a04
+            ant_v1,ant_v2,ant_v3,ant_v4,                              &
+            smpa_v1,                                                  &
+            smpbb_v1,                                                 &
+            asmpsoa_a01,asmpsoa_a02,asmpsoa_a03,asmpsoa_a04,          &!BSINGH - Not adding 5-8 bins for asmpsoa, as it is not req. for 8 bin SAPRC
+            !BSINGH - Added cw aerosols(for VBS)
+            hoa_cw01,    hoa_cw02,    hoa_cw03,    hoa_cw04,          &
+            hoa_cw05,    hoa_cw06,    hoa_cw07,    hoa_cw08,          &
+            bboa_cw01,   bboa_cw02,   bboa_cw03,   bboa_cw04,         &
+            bboa_cw05,   bboa_cw06,   bboa_cw07,   bboa_cw08,         &
+            soa_cw01,    soa_cw02,    soa_cw03,    soa_cw04,          &
+            soa_cw05,    soa_cw06,    soa_cw07,    soa_cw08,          &
+            bbsoa_cw01,  bbsoa_cw02,  bbsoa_cw03,  bbsoa_cw04,        &
+            bbsoa_cw05,  bbsoa_cw06,  bbsoa_cw07,  bbsoa_cw08,        &
+            biog_cw01,   biog_cw02,   biog_cw03,   biog_cw04,         &
+            biog_cw05,   biog_cw06,   biog_cw07,   biog_cw08,         &
+            hsoa_cw01,   hsoa_cw02,   hsoa_cw03,   hsoa_cw04,         &
+            hsoa_cw05,   hsoa_cw06,   hsoa_cw07,   hsoa_cw08,         &
+            arosoa_cw01, arosoa_cw02, arosoa_cw03, arosoa_cw04,       &
+            arosoa_cw05, arosoa_cw06, arosoa_cw07, arosoa_cw08,       &
+            totoa_cw01,  totoa_cw02,  totoa_cw03,  totoa_cw04,        &
+            totoa_cw05,  totoa_cw06,  totoa_cw07,  totoa_cw08,        &        
+            hsoa_cw_c,   hsoa_cw_o,   bbsoa_cw_c,  bbsoa_cw_o,        &
+            biog_cw_v1,                                               &
+            ant_cw_v1                                                 
+             !BSINGH -ENDS
        
        
        TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
@@ -129,7 +196,7 @@
    TYPE(domain) , TARGET          :: grid
    !
    !  Definitions of dummy arguments to solve
-# include <dummy_new_decl.inc>
+# include "dummy_new_decl.inc"
 # define NO_I1_OLD
 
    TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
@@ -140,6 +207,14 @@
                                   its,ite, jts,jte, kts,kte
 ! ..
 ! .. Local Scalars ..
+#if( WRF_CHEM == 1 && WRF_KPP == 1 )
+   REAL, PARAMETER  ::  navgdro = 6.022e23   ! molecules/mol
+   REAL, PARAMETER  ::  mw_air = 28.97       !molecular weights
+!dens2con air
+   REAL, PARAMETER ::          dens2con_a = 1.e-3    &! kg/m3 -> g/cm3
+                               * (1./mw_air)         &! -> mole/cm3
+                               * navgdro              ! -> molec/cm3
+#endif
    INTEGER :: stepave,i,j,k,l,numgas,nv,n, nr,ktau,k_start,k_end,idf,jdf,kdf
    INTEGER :: ijulian
 ! UoC dust scheme option
@@ -173,6 +248,8 @@
       REAL(KIND=8) :: real_time_r8                                 !ext. function in adapt_timestep_em.F
       LOGICAL      :: adapt_step_flag, do_chemstep, do_photstep
 
+      LOGICAL      :: chm_is_mozart
+
       REAL :: DAYI,DPL,FICE,FRAIN,HOUR,PLYR          &
      &       ,QI,QR,QW,RADT,TIMES,WC,TDUM,WMSK,RWMSK
  
@@ -180,9 +257,13 @@
       INTEGER                         :: ij 
       INTEGER                         :: im , num_3d_m , ic , num_3d_c, num_3d_s
       INTEGER                         :: ijds, ijde
+      INTEGER                         :: astat
+      INTEGER                         :: num_irr_diag
       INTEGER                         :: ksubt
 
       REAL :: chem_minval, dtstepc
+
+      REAL, DIMENSION(:,:,:,:), ALLOCATABLE :: irr_rates
 
       REAL, DIMENSION(grid%sm31:grid%em31, grid%sm32:grid%em32, grid%sm33:grid%em33, numgas_mam) :: gas_aqfrac ! fraction of gas that is in cloud water
       
@@ -203,6 +284,8 @@
 ! ..
 ! .. Intrinsic Functions ..
       INTRINSIC max, min
+
+      REAL, ALLOCATABLE, DIMENSION(:,:,:) :: si_zsigf, si_zsig
 !<DESCRIPTION>
 !<pre>
 ! chem_driver is the main driver for handling chemistry related tasks
@@ -217,6 +300,7 @@
 !        emissions_driver
 !        photolysis_driver
 !        dry_dep_driver
+!        uoc_dustwd_driver
 !        grelldrvct (convective tracer transport)
 !        mechanism_driver (gases)
 !        cloud_chem_driver
@@ -412,14 +496,18 @@
      CASE (RACM_SOA_VBS_KPP)
        CALL wrf_debug(15,'calling racm_soa_vbs_kpp aerosols driver from chem_driver')
        haveaer = .false.
+!!! TUCCELLA
+     CASE (RACM_SOA_VBS_AQCHEM_KPP)
+       CALL wrf_debug(15,'calling racm_soa_vbs_aqchem_kpp aerosols driver from chem_driver')
+       haveaer = .false.
+     CASE (RACM_SOA_VBS_HET_KPP)
+       CALL wrf_debug(15,'calling racm_soa_vbs_het_kpp aerosols driver from chem_driver')
+       haveaer = .false.
      CASE (GOCART_SIMPLE)
        CALL wrf_debug(15,'calling only gocart aerosols driver from chem_driver')
        haveaer = .false.
      CASE (GOCARTRACM_KPP)
        CALL wrf_debug(15,'calling gocart and racm driver from chem_driver')
-       haveaer = .false.
-     CASE (GOCARTRADM2_KPP)
-       CALL wrf_debug(15,'calling gocart and radmkpp driver from chem_driver')
        haveaer = .false.
      CASE (GOCARTRADM2)
        CALL wrf_debug(15,'calling gocart and radm driver from chem_driver')
@@ -427,16 +515,43 @@
      CASE (SAPRC99_KPP)
        CALL wrf_debug(15,'calling saprc99_kpp from chem_driver')
        haveaer = .false.
-     CASE (CBMZ_MOSAIC_4BIN_VBS2_KPP)
-       CALL wrf_debug(15,'calling cbmz_mosaic_4bin_vbs2_kpp from chem_driver')
-       haveaer = .false.
      CASE (SAPRC99_MOSAIC_4BIN_VBS2_KPP)
        CALL wrf_debug(15,'calling saprc99_mosaic_4bin_vbs2_kpp from chem_driver')
        haveaer = .false.
-     CASE (MOZART_MOSAIC_4BIN_VBS0_KPP) 
-       CALL wrf_debug(15,'calling mozart_mosaic_4bin_vbs0_kpp from chem_driver')
+     CASE (MOZART_MOSAIC_4BIN_KPP) 
+       CALL wrf_debug(15,'calling mozart_mosaic_4bin_kpp from chem_driver')
+#if( WRF_CHEM == 1 && WRF_KPP == 1 )
+       IF( grid%irr_opt == 1 ) then
+         ALLOCATE( irr_rates(grid%sm31:grid%em31,grid%sm32:grid%em32,grid%sm33:grid%em33,num_irr_diag_mozart_mosaic_4bin),stat=astat )
+         IF( astat /= 0 ) THEN
+           write(msg,'(''chem_driver: Failed to allocate irr_rates; error = '',i8)') astat
+           CALL wrf_error_fatal( trim(msg) )
+         ENDIF
+         num_irr_diag = num_irr_diag_mozart_mosaic_4bin
+       ENDIF
+#endif
        haveaer = .true.
-
+     CASE (MOZART_MOSAIC_4BIN_AQ_KPP)
+       CALL wrf_debug(15,'calling mozart_mosaic_4bin_aq_kpp from chem_driver')
+#if( WRF_CHEM == 1 && WRF_KPP == 1 )
+       IF( grid%irr_opt == 1 ) then
+         ALLOCATE( irr_rates(grid%sm31:grid%em31,grid%sm32:grid%em32,grid%sm33:grid%em33,num_irr_diag_mozart_mosaic_4bin_aq),stat=astat )
+         IF( astat /= 0 ) THEN
+           write(msg,'(''chem_driver: Failed to allocate irr_rates; error = '',i8)') astat
+           CALL wrf_error_fatal( trim(msg) )
+         ENDIF
+         num_irr_diag = num_irr_diag_mozart_mosaic_4bin_aq
+       ENDIF
+#endif
+       haveaer = .true.
+       !BSINGH -  Added case statement for SAPRC 8 bin
+     CASE (SAPRC99_MOSAIC_8BIN_VBS2_AQ_KPP)
+       CALL wrf_debug(15,'calling saprc99_mosaic_8bin_vbs2_aq_kpp from chem_driver')
+       haveaer = .false.
+     CASE (SAPRC99_MOSAIC_8BIN_VBS2_KPP) !BSINGH(04/04/2014)
+       CALL wrf_debug(15,'calling saprc99_mosaic_8bin_vbs2_kpp from chem_driver')
+       haveaer = .false.
+       !BSINGH - ENDS
      CASE (CBMZSORG)
        CALL wrf_debug(15,'calling cbmzsorg aerosols from chem_driver')
        haveaer = .true.
@@ -489,6 +604,34 @@
        CALL wrf_debug(15,'calling mozart driver from chem_driver')
      CASE (MOZCART_KPP)
        CALL wrf_debug(15,'calling mozcart driver from chem_driver')
+#if( WRF_CHEM == 1 && WRF_KPP == 1 )
+       IF( grid%irr_opt == 1 ) then
+         ALLOCATE( irr_rates(grid%sm31:grid%em31,grid%sm32:grid%em32,grid%sm33:grid%em33,num_irr_diag_mozcart),stat=astat )
+         IF( astat /= 0 ) THEN
+           write(msg,'(''chem_driver: Failed to allocate irr_rates; error = '',i8)') astat
+           CALL wrf_error_fatal( trim(msg) )
+         ENDIF
+         num_irr_diag = num_irr_diag_mozcart
+       ENDIF
+#endif
+     CASE (T1_MOZCART_KPP)
+       CALL wrf_debug(15,'calling t1_mozcart driver from chem_driver')
+#if( WRF_CHEM == 1 && WRF_KPP == 1 )
+       IF( grid%irr_opt == 1 ) then
+         ALLOCATE( irr_rates(grid%sm31:grid%em31,grid%sm32:grid%em32,grid%sm33:grid%em33,num_irr_diag_t1_mozcart),stat=astat )
+         IF( astat /= 0 ) THEN
+           write(msg,'(''chem_driver: Failed to allocate irr_rates; error = '',i8)') astat
+           CALL wrf_error_fatal( trim(msg) )
+         ENDIF
+         num_irr_diag = num_irr_diag_t1_mozcart
+       ENDIF
+#endif
+     CASE (CB05_SORG_AQ_KPP)
+       CALL wrf_debug(15,'calling cb05_sorg_aq_kpp from chem_driver')
+       haveaer = .true.
+     CASE (CB05_SORG_VBS_AQ_KPP)
+       CALL wrf_debug(15,'calling cb05_sorg_vbs_aq_kpp from chem_driver')
+       haveaer = .true.
     CASE (CHEM_TRACER,CHEM_TRACE2)
        CALL wrf_debug(15,'tracer mode: only doing emissions and dry dep in chem_driver')
     CASE (CHEM_VOLC)
@@ -554,8 +697,10 @@
          enddo
       enddo
       select case (config_flags%chem_opt)
+!!! TUCCELLA
       case (RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM, RADM2SORG_KPP, &
-            RACM_ESRLSORG_KPP,RACMSORG_AQ,RACMSORG_KPP, RACMSORG_AQCHEM_KPP, RACM_ESRLSORG_AQCHEM_KPP, RACM_SOA_VBS_KPP)
+            RACM_ESRLSORG_KPP,RACMSORG_AQ,RACMSORG_KPP, RACMSORG_AQCHEM_KPP, RACM_ESRLSORG_AQCHEM_KPP, &
+            RACM_SOA_VBS_KPP,RACM_SOA_VBS_AQCHEM_KPP,RACM_SOA_VBS_HET_KPP)
          do j=jps,jpe
             do k=kps,kpe
                do i=ips,ipe
@@ -567,7 +712,8 @@
          enddo
 
 ! Special treatment of CH4 in SAPRC99
-      case (CBMZ_MOSAIC_4BIN_VBS2_KPP, SAPRC99_KPP,SAPRC99_MOSAIC_4BIN_VBS2_KPP)
+      case (SAPRC99_KPP,SAPRC99_MOSAIC_4BIN_VBS2_KPP, &
+           SAPRC99_MOSAIC_8BIN_VBS2_AQ_KPP,SAPRC99_MOSAIC_8BIN_VBS2_KPP) !BSINGH -  Added for SAPRC 8 bin and non-aq on (04/04/2014)
          CALL wrf_debug ( 15 , ' fixing ch4 conc using co conc' )
          do j=jps,jpe
             do k=kps,kpe
@@ -600,15 +746,16 @@
          enddo
       enddo
 
+      chm_is_mozart = config_flags%chem_opt == MOZART_KPP .or. &                               
+                      config_flags%chem_opt == MOZCART_KPP .or. &
+                      config_flags%chem_opt == T1_MOZCART_KPP .or. &
+                      config_flags%chem_opt == MOZART_MOSAIC_4BIN_KPP .or. &
+                      config_flags%chem_opt == MOZART_MOSAIC_4BIN_AQ_KPP
 !------------------------------------------------------------------------
 ! setup ftuv column density timing
 !------------------------------------------------------------------------
-      if( config_flags%chem_opt == MOZART_KPP .or. &                               
-          config_flags%chem_opt == MOZCART_KPP .or. &
-          config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP) then
-        if( config_flags%phot_opt == FTUV ) then
-          CALL ftuv_timestep_init( grid%id, grid%julday )
-        endif
+      if( chm_is_mozart .and. config_flags%phot_opt == FTUV ) then
+        CALL ftuv_timestep_init( grid%id, grid%julday )
       endif
 
 !------------------------------------------------------------------------
@@ -659,7 +806,8 @@
 
 !--- emissions
 
-    if(config_flags%emiss_inpt_opt > 0 .or. config_flags%dust_opt > 0)then
+    if(config_flags%emiss_inpt_opt > 0 .or. config_flags%dust_opt > 0  &
+       .or. config_flags%tracer_opt > 0  )then
       call wrf_debug(15,'calling emissions driver')
 
       call emissions_driver(grid%id,ktau,grid%dt,grid%DX,                                  &
@@ -669,8 +817,10 @@
               config_flags,                                                                &
               grid%gmt,ijulian,rri,t_phy,moist,p8w,t8w,u_phy,v_phy,vvel,               &
               grid%e_bio,p_phy,chem,rho,dz8w,grid%ne_area,emis_ant,emis_vol,grid%tsk,      &
-              grid%erod,g,emis_seas,emis_dust,tracer, &
-              ebu , ebu_in,grid%mean_fct_agtf,grid%mean_fct_agef,grid%mean_fct_agsv,       &
+              grid%erod,grid%erod_dri,grid%lai_vegmask,                                    &
+              g,emis_seas,emis_dust,tracer,                                                &
+              emis_seas2,      &
+              ebu, ebu_in,grid%mean_fct_agtf,grid%mean_fct_agef,grid%mean_fct_agsv,       &
               grid%mean_fct_aggr,grid%firesize_agtf, &
               grid%firesize_agef,grid%firesize_agsv,grid%firesize_aggr,                    &
               grid%u10,grid%v10,grid%ivgtyp,grid%isltyp,grid%gsw,grid%vegfra,grid%rmol,    &
@@ -686,18 +836,20 @@
               grid%ebio_iso,grid%ebio_oli,grid%ebio_api,grid%ebio_lim,grid%ebio_xyl,       &
               grid%ebio_hc3,grid%ebio_ete,grid%ebio_olt,grid%ebio_ket,grid%ebio_ald,       &
               grid%ebio_hcho,grid%ebio_eth,grid%ebio_ora2,grid%ebio_co,grid%ebio_nr,       &
-              grid%ebio_no,grid%ebio_sesq,grid%ebio_mbo,                                   &
+              grid%ebio_no,grid%ebio_sesq,grid%ebio_mbo,grid%ebio_bpi,grid%ebio_myrc,      &
               grid%ebio_c10h16,grid%ebio_tol,grid%ebio_bigalk,                             &
               grid%ebio_ch3oh,grid%ebio_acet,grid%ebio_nh3,grid%ebio_no2,                  &
               grid%ebio_c2h5oh,grid%ebio_ch3cooh,grid%ebio_mek,grid%ebio_bigene,           &
               grid%ebio_c2h6,grid%ebio_c2h4,grid%ebio_c3h6,grid%ebio_c3h8,grid%ebio_so2,   &
-              grid%ebio_dms,                                                               &
+              grid%ebio_dms,grid%ebio_hcn,                                                 &
               grid%ebio_alk3, grid%ebio_alk4, grid%ebio_alk5, grid%ebio_ole1, grid%ebio_ole2,            &    
               grid%ebio_aro1, grid%ebio_aro2, grid%ebio_ccho, grid%ebio_meoh,             &    
               grid%ebio_ethene, grid%ebio_hcooh, grid%ebio_terp, grid%ebio_bald,          &    
               grid%ebio_cco_oh, grid%ebio_rco_oh,                                         &    
-              grid%clayfrac,grid%sandfrac,grid%dust_alpha,grid%dust_gamma,grid%dust_smtune,&
-              grid%snowh,grid%zs,                                                          &
+              grid%clayfrac,grid%sandfrac,grid%dust_alpha,grid%dust_gamma,grid%dust_smtune, grid%dust_ustune, &
+              grid%clayfrac_nga,grid%sandfrac_nga,                                        &
+              grid%snowh,grid%zs,grid%afwa_dustloft,                                       &
+              grid%tot_dust,grid%tot_edust,grid%vis_dust,                                  &
               grid%soilctop, grid%ust_t, grid%rough_cor, grid%smois_cor,                  &              
               grid%ebio_c5h8,grid%ebio_apinene,grid%ebio_bpinene,grid%ebio_toluene,        &
               grid%ebio_ch3cho,grid%ebio_ch3co2h,grid%ebio_tbut2ene,                      &
@@ -723,13 +875,11 @@
               grid%potevp,grid%SFCEVP,grid%LU_INDEX,                                       &
               grid%biomt_par,grid%emit_par,grid%ebio_co2oce,                               &
               eghg_bio,                                                                    &
-
+              grid%dust_flux, grid%seas_flux,                                              &
               ids,ide, jds,jde, kds,kde,                                                   &
               ims,ime, jms,jme, kms,kme,                                                   &
               its,ite,jts,jte,kts,kte)
-              if( config_flags%chem_opt == MOZART_KPP .or. &
-                  config_flags%chem_opt == MOZCART_KPP .or. &
-                  config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
+              if( chm_is_mozart ) then
                  call mozcart_lbc_set( chem, num_chem, grid%id, &
                                        ims, ime, jms, jme, kms, kme,    &                  
                                        its, ite, jts, jte, kts )                           
@@ -774,6 +924,7 @@
               grid%bscoef1,grid%bscoef2,grid%bscoef3,grid%bscoef4,                    &
               grid%l2aer,grid%l3aer,grid%l4aer,grid%l5aer,grid%l6aer,grid%l7aer,      &
               grid%totoa_a01,grid%totoa_a02,grid%totoa_a03,grid%totoa_a04,            &
+              grid%totoa_a05,grid%totoa_a06,grid%totoa_a07,grid%totoa_a08,            &
               grid%extaerlw1,grid%extaerlw2,grid%extaerlw3,grid%extaerlw4,grid%extaerlw5, &
               grid%extaerlw6,grid%extaerlw7,grid%extaerlw8,grid%extaerlw9,grid%extaerlw10, &
               grid%extaerlw11,grid%extaerlw12,grid%extaerlw13,grid%extaerlw14,grid%extaerlw15, &
@@ -802,11 +953,14 @@
          call wrf_debug(15,'calling photolysis driver')
          call photolysis_driver (grid%id,curr_secs,ktau,grid%dt,                      &
               config_flags,haveaer,                                                   &
-              grid%gmt,ijulian,t_phy,moist,grid%aerwrf,p8w,t8w,p_phy,             &
+              grid%dt_cld,grid%af_dir,grid%af_dn,grid%af_up,grid%ph_par,grid%ph_erythema,   &
+              grid%gmt,ijulian,t_phy,moist,grid%aerwrf,p8w,t8w,p_phy,                 &
               chem,rho,dz8w,grid%xlat,grid%xlong,                                     &
-              z_at_w,                                                                 &
+              zmid,z_at_w,                                                            &
               grid%qc_cu,grid%qi_cu,                                                  &
-              grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,grid%ph_no3o2,       &
+              grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                     &
+              grid%ph_clno2,                                                          &
+              grid%ph_no3o2,                                                          &
               grid%ph_no3o,grid%ph_hno2,grid%ph_hno3,grid%ph_hno4,grid%ph_h2o2,       &
               grid%ph_ch2or,grid%ph_ch2om,grid%ph_ch3cho,grid%ph_ch3coch3,            &
               grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,                      &
@@ -817,6 +971,7 @@
               grid%ph_acetp,grid%ph_xooh,grid%ph_isooh,grid%ph_alkooh,                &
               grid%ph_mekooh,grid%ph_tolooh,grid%ph_terpooh,grid%ph_mvk,              &
               grid%ph_glyald,grid%ph_hyac,                                            &
+              grid%ph_cl2,grid%ph_hocl,grid%ph_fmcl,                                  &
               config_flags%track_tuv_lev,                                             &
               config_flags%track_rad_num,                                             &
               config_flags%track_tuv_num,                                             &
@@ -843,7 +998,9 @@
                ims,ime, jms,jme, kms,kme,                                             &
                its,ite, jts,jte, kts,kte,                                             &
                config_flags%kemit,                                                    &
-               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,grid%ph_no3o2,      &
+               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                    &
+               grid%ph_cl2,grid%ph_hocl,grid%ph_clno2,grid%ph_fmcl,                   &
+               grid%ph_no3o2,                                                         &
                grid%ph_no3o,grid%ph_hno2,grid%ph_hno3,grid%ph_hno4,grid%ph_h2o2,      &
                grid%ph_ch2or,grid%ph_ch2om,grid%ph_ch3cho,grid%ph_ch3coch3,           &
                grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,                     &
@@ -888,6 +1045,7 @@
                  grid%h2oaj,grid%h2oai,grid%nu3,grid%ac3,grid%cor3,grid%asulf,        &
                  grid%ahno3,grid%anh3,grid%cvaro1,grid%cvaro2,grid%cvalk1,grid%cvole1,&
                  grid%cvapi1,grid%cvapi2,grid%cvlim1,grid%cvlim2,grid%dep_vel_o3,     &
+                 grid%ddlen,grid%ddflx, &
                  emis_ant,ebu_in,                                                     &
                  config_flags%sf_urban_physics,numgas,current_month,dvel,grid%snowh,  &
                  grid%dustdrydep_1,grid%dustdrydep_2,grid%dustdrydep_3,               &
@@ -903,9 +1061,7 @@
                  ims,ime, jms,jme, kms,kme,                                           &
                  its,ite,jts,jte,kts,kte)
                  
-            if( config_flags%chem_opt == MOZART_KPP .or. &
-                config_flags%chem_opt == MOZCART_KPP .or. &
-                config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
+            if( chm_is_mozart ) then
                call mozcart_lbc_set( chem, num_chem, grid%id, &
                                      ims, ime, jms, jme, kms, kme,    & 
                                      its, ite, jts, jte, kts )
@@ -931,7 +1087,9 @@
                ims,ime, jms,jme, kms,kme,                                             &
                its,ite, jts,jte, kts, kte,                                            &
                config_flags%kemit,                                                    &
-               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,grid%ph_no3o2,      &
+               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                    &
+               grid%ph_cl2,grid%ph_hocl,grid%ph_clno2,grid%ph_fmcl,                   &
+               grid%ph_no3o2,                                                         &
                grid%ph_no3o,grid%ph_hno2,grid%ph_hno3,grid%ph_hno4,grid%ph_h2o2,      &
                grid%ph_ch2or,grid%ph_ch2om,grid%ph_ch3cho,grid%ph_ch3coch3,           &
                grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,                     &
@@ -943,13 +1101,38 @@
 
       end if
 
+! cfrick - 2014 - WET DEPOSITION OF DUST FOLLOWING JUNG (2004)   -   mklose [03082015]
+        if(config_flags%dustwd_onoff>0)then
+          if(config_flags%mp_physics.ne.2 .and. config_flags%mp_physics.ne.10) then    ! mklose [03032015]
+             write(msg,*)'CHEM_DRIVER - UoC wet deposition is not yet implemented for this & 
+                          & microphysics option, mp_physics=', config_flags%mp_physics, & 
+                          & ' and dustwd_onoff=', config_flags%dustwd_onoff
+             call wrf_error_fatal( msg )
+          endif
 
-
+           call wrf_debug(15,'UoC dust wet deposition')
+           call uoc_dustwd_driver(grid%precr,chem,p_phy,t_phy,                  &
+                                  ids,ide, jds,jde, kds,kde,                    &
+                                  ims,ime, jms,jme, kms,kme,                    &
+                                  its,ite, jts,jte, kts,kte,                    &
+                                  dtstepc,                                      &
+                                  grid%dustwd_1, grid%dustwd_2,                 &
+                                  grid%dustwd_3, grid%dustwd_4,                 &
+                                  grid%dustwd_5,                                &
+                                  grid%wetdep_1, grid%wetdep_2,                 &
+                                  grid%wetdep_3, grid%wetdep_4,                 &
+                                  grid%wetdep_5,                                &
+                                  grid%dustwdload_1, grid%dustwdload_2,         &
+                                  grid%dustwdload_3, grid%dustwdload_4,         &
+                                  grid%dustwdload_5,                            &
+                                  rri, dz8w, epsilc                             )
+        endif
 !
 !   convective transport/wet deposition
 !
 !
-     if( config_flags%cu_physics>0 .and. config_flags%chem_conv_tr>0)then
+      if( config_flags%cu_physics>0 .and. config_flags%chem_conv_tr>0 &
+           .and. config_flags%cu_physics/=kfcupscheme ) then            !BSINGH - For WRFCuP scheme
         call wrf_debug(15,'calling conv transport for chemical species')
         if(config_flags%chem_opt >0 )then
         ! save old concentrations for convective tendencies
@@ -962,15 +1145,16 @@
              p_phy,XLV,CP,G,r_v,                                                      &
              z_at_w,grid%cu_co_ten,                                                   &
              grid%wd_no3_cu,grid%wd_so4_cu,                                 &
+             grid%wd_nh4_cu,grid%wd_oa_cu,                                            &
+             grid%wd_so2_cu, grid%wd_sulf_cu, grid%wd_hno3_cu, grid%wd_nh3_cu,        &
+             grid%wd_cvasoa_cu, grid%wd_cvbsoa_cu, grid%wd_asoa_cu, grid%wd_bsoa_cu,  &
              grid%k22_shallow,grid%kbcon_shallow,grid%ktop_shallow,grid%xmb_shallow,  &
              config_flags%ishallow,num_moist,numgas,num_chem,config_flags%chem_opt,0, &
              config_flags%conv_tr_wetscav,config_flags%conv_tr_aqchem,                &
              ids,ide, jds,jde, kds,kde,                                               &
              ims,ime, jms,jme, kms,kme,                                               &
              its,ite,jts,jte,kts,k_end)
-             if( config_flags%chem_opt == MOZART_KPP .or. &
-                 config_flags%chem_opt == MOZCART_KPP .or. &
-                 config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
+             if( chm_is_mozart ) then
                      call mozcart_lbc_set( chem, num_chem, grid%id, &
                                  ims, ime, jms, jme, kms, kme,    &
                                  its, ite, jts, jte, kts )
@@ -990,6 +1174,9 @@
              p_phy,XLV,CP,G,r_v,                                                      &
              z_at_w, grid%cu_co_ten,                                                  &
              grid%wd_no3_cu,grid%wd_so4_cu,                                 &
+             grid%wd_nh4_cu,grid%wd_oa_cu,                                            &
+             grid%wd_so2_cu, grid%wd_sulf_cu, grid%wd_hno3_cu, grid%wd_nh3_cu,        &
+             grid%wd_cvasoa_cu, grid%wd_cvbsoa_cu, grid%wd_asoa_cu, grid%wd_bsoa_cu,  &
              grid%k22_shallow,grid%kbcon_shallow,grid%ktop_shallow,grid%xmb_shallow,  &
              config_flags%ishallow,num_moist,0,num_tracer,0,config_flags%tracer_opt,  &
              config_flags%conv_tr_wetscav,config_flags%conv_tr_aqchem,                &
@@ -1008,7 +1195,9 @@
 ! Calculate rate of n2o5 hydrolysis 
      call wrf_debug(15,'calling calc_het_n2o5')
 
-
+     write(msg,'(''chem_driver('',i2.2,''): Calling dchm_tstep_init'')') grid%id
+     call wrf_debug( 200,trim(msg) )
+     call trajectory_dchm_tstep_init( grid, do_chemstep )
 
 !
 ! For the chemistry tracer mode, only emissions and vertical mixing are done.
@@ -1038,11 +1227,13 @@
         if(config_flags%gaschem_onoff>0)then
 
           call mechanism_driver(grid%id,curr_secs,ktau,grid%dt,grid%ktauc,dtstepc,config_flags, &
-              grid%gmt,ijulian,t_phy,moist,p8w,t8w,grid%gd_cldfr,                 &
+              grid%gmt,ijulian,t_phy,moist,p8w,t8w,grid%gd_cldfr,                     &
               p_phy,chem,rho,dz8w,grid%dx,g,                                          &
               zmid,z_at_w,grid%xlat,grid%xlong,                                       &
               vdrog3,vcsulf_old,vcso2_old,vch2o2_old,grid%ttday,grid%tcosz,           &
-              grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,grid%ph_no3o2,       &
+              grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                     &
+              grid%ph_cl2,grid%ph_hocl,grid%ph_clno2,grid%ph_fmcl,                    &
+              grid%ph_no3o2,                                                          &
               grid%ph_no3o,grid%ph_hno2,grid%ph_hno3,grid%ph_hno4,grid%ph_h2o2,       &
               grid%ph_ch2or,grid%ph_ch2om,grid%ph_ch3cho,grid%ph_ch3coch3,            &
               grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,grid%ph_hcochest,     &
@@ -1058,10 +1249,10 @@
               its,ite,jts,jte,kts,kte        )
 !
 
-#ifdef WRF_KPP
+#if ( WRF_KPP == 1 )
 
-         if( config_flags%chem_opt == CBMZ_MOSAIC_4BIN_VBS2_KPP .or. &
-             config_flags%chem_opt == SAPRC99_MOSAIC_4BIN_VBS2_KPP ) then
+         if( config_flags%chem_opt == SAPRC99_MOSAIC_4BIN_VBS2_KPP.or. &
+              config_flags%chem_opt ==SAPRC99_MOSAIC_8BIN_VBS2_AQ_KPP ) then
           do k=kts,kte
            do i=its,ite
             do j=jts,jte
@@ -1077,33 +1268,78 @@
 CALL kpp_mechanism_driver (chem,                                                      &
    grid%id,dtstepc,config_flags,                                                      &
    p_phy,t_phy,rho,                                                                   &
-   moist,                                                                             &
+   moist,aero_srf_area,                                                               &
    vdrog3, ldrog, vdrog3_vbs, ldrog_vbs,                                              &
 !
-#include <call_to_kpp_mech_drive.inc>
+#include "call_to_kpp_mech_drive.inc"
 !
    ids,ide, jds,jde, kds,kde,                                                         &
    ims,ime, jms,jme, kms,kme,                                                         &
-   its,ite,jts,jte,kts,kte)
-          if( config_flags%chem_opt == MOZART_KPP .or. &
-              config_flags%chem_opt == MOZCART_KPP .or. &
-              config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
+   its,ite,jts,jte,kts,kte,grid%id,num_irr_diag,irr_rates)
+          if( chm_is_mozart ) then
              call mozcart_lbc_set( chem, num_chem, grid%id, &
                                    ims, ime, jms, jme, kms, kme,    &
                                     its, ite, jts, jte, kts )
           end if
+    IF( grid%irr_opt == 1 ) then
+      select case( config_flags%chem_opt )
+        case( mozcart_kpp )
+          do n=param_first_scalar,num_irr_diag
+            do j=jts,jte
+              do k=kts,kte
+                irr_diag_mozcart(its:ite,k,j,n) = irr_diag_mozcart(its:ite,k,j,n) &
+                 + dtstepc*irr_rates(its:ite,k,j,n)*1.e6/(dens2con_a*rho(its:ite,k,j))
+              enddo
+            enddo
+          enddo
+        case( t1_mozcart_kpp )
+          do n=param_first_scalar,num_irr_diag
+            do j=jts,jte
+              do k=kts,kte
+                irr_diag_t1_mozcart(its:ite,k,j,n) = irr_diag_t1_mozcart(its:ite,k,j,n) &
+                 + dtstepc*irr_rates(its:ite,k,j,n)*1.e6/(dens2con_a*rho(its:ite,k,j))
+              enddo
+            enddo
+          enddo
+        case( mozart_mosaic_4bin_kpp )
+          do n=param_first_scalar,num_irr_diag
+            do j=jts,jte
+              do k=kts,kte
+                irr_diag_mozart_mosaic_4bin(its:ite,k,j,n) = &
+                      irr_diag_mozart_mosaic_4bin(its:ite,k,j,n) &
+                      + dtstepc*irr_rates(its:ite,k,j,n)*1.e6/(dens2con_a*rho(its:ite,k,j))
+              enddo
+            enddo
+          enddo
+        case( mozart_mosaic_4bin_aq_kpp )
+          do n=param_first_scalar,num_irr_diag
+            do j=jts,jte
+              do k=kts,kte
+                irr_diag_mozart_mosaic_4bin_aq(its:ite,k,j,n) = &
+                      irr_diag_mozart_mosaic_4bin_aq(its:ite,k,j,n) &
+                      + dtstepc*irr_rates(its:ite,k,j,n)*1.e6/(dens2con_a*rho(its:ite,k,j))
+              enddo
+            enddo
+          enddo
+      end select
+    ENDIF
+   
     if(config_flags%chem_opt == 301 ) then
        chem(its:ite,kts:kte,jts:jte,p_sulf)=vcsulf_old(its:ite,kts:kte,jts:jte)
        chem(its:ite,kts:kte,jts:jte,p_so2)=vcso2_old(its:ite,kts:kte,jts:jte)
 !      chem(its:ite,kts:kte,jts:jte,p_h2o2)=vch2o2_old(its:ite,kts:kte,jts:jte)
    endif
 
+   write(msg,'(''chem_driver('',i2.2,''): Calling dchm_tstep_set'')') grid%id
+   call wrf_debug( 200,trim(msg) )
+   call trajectory_dchm_tstep_set( grid )
+
    IF(config_flags%conv_tr_aqchem == 0 ) THEN
       so2so4_selecta: SELECT CASE(config_flags%chem_opt)
-      CASE (RADM2SORG,RADM2SORG_KPP,RACMSORG_KPP,RACM_SOA_VBS_KPP)
+      CASE (RADM2SORG,RADM2SORG_KPP,RACMSORG_KPP,RACM_SOA_VBS_KPP,RACM_SOA_VBS_HET_KPP)
          CALL wrf_debug(15,'gocart so2-so4 conversion')
          CALL  so2so4(0,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
-              grid%qc_cu, grid%gd_cldfr,                                    &
+              grid%qc_cu, grid%gd_cldfr, config_flags%cu_diag,                   &
               NUM_CHEM,NUM_MOIST,                                                &
               ids,ide, jds,jde, kds,kde,                                         &
               ims,ime, jms,jme, kms,kme,                                         &
@@ -1113,10 +1349,10 @@ CALL kpp_mechanism_driver (chem,                                                
       END SELECT so2so4_selecta
    else IF(config_flags%conv_tr_aqchem == 1 ) THEN
       so2so4_selectb: SELECT CASE(config_flags%chem_opt)
-      CASE (RADM2SORG,RADM2SORG_KPP,RACMSORG_KPP,RACM_SOA_VBS_KPP)
+      CASE (RADM2SORG,RADM2SORG_KPP,RACMSORG_KPP,RACM_SOA_VBS_KPP,RACM_SOA_VBS_HET_KPP)
          CALL wrf_debug(15,'gocart so2-so4 conversion')
          CALL  so2so4(1,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
-              grid%qc_cu, grid%gd_cldfr,                                    &
+              grid%qc_cu, grid%gd_cldfr, config_flags%cu_diag,                 &
               NUM_CHEM,NUM_MOIST,                                                &
               ids,ide, jds,jde, kds,kde,                                         &
               ims,ime, jms,jme, kms,kme,                                         &
@@ -1125,6 +1361,40 @@ CALL kpp_mechanism_driver (chem,                                                
          CALL wrf_debug(15,'no gocart so2-so4 conversion')
       END SELECT so2so4_selectb
 
+   ENDIF
+#else
+    if(config_flags%chem_opt == 301 ) then
+       chem(its:ite,kts:kte,jts:jte,p_sulf)=vcsulf_old(its:ite,kts:kte,jts:jte)
+       chem(its:ite,kts:kte,jts:jte,p_so2)=vcso2_old(its:ite,kts:kte,jts:jte)
+!      chem(its:ite,kts:kte,jts:jte,p_h2o2)=vch2o2_old(its:ite,kts:kte,jts:jte)
+   endif
+
+   IF(config_flags%conv_tr_aqchem == 0 ) THEN
+      so2so4_selectc: SELECT CASE(config_flags%chem_opt)
+      CASE (RADM2SORG)
+         CALL wrf_debug(15,'gocart so2-so4 conversion')
+         CALL  so2so4(0,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
+              grid%qc_cu, grid%gd_cldfr, config_flags%cu_diag,                 &
+              NUM_CHEM,NUM_MOIST,                                                &
+              ids,ide, jds,jde, kds,kde,                                         &
+              ims,ime, jms,jme, kms,kme,                                         &
+              its,ite, jts,jte, kts,kte                                          )
+      CASE DEFAULT
+         CALL wrf_debug(15,'no gocart so2-so4 conversion')
+      END SELECT so2so4_selectc
+   else IF(config_flags%conv_tr_aqchem == 1 ) THEN
+      so2so4_selectd: SELECT CASE(config_flags%chem_opt)
+      CASE (RADM2SORG)
+         CALL wrf_debug(15,'gocart so2-so4 conversion')
+         CALL  so2so4(1,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
+              grid%qc_cu, grid%gd_cldfr, config_flags%cu_diag,                   &
+              NUM_CHEM,NUM_MOIST,                                                &
+              ids,ide, jds,jde, kds,kde,                                         &
+              ims,ime, jms,jme, kms,kme,                                         &
+              its,ite, jts,jte, kts,kte                                          )
+      CASE DEFAULT
+         CALL wrf_debug(15,'no gocart so2-so4 conversion')
+      END SELECT so2so4_selectd
    ENDIF
 
 !
@@ -1140,7 +1410,9 @@ CALL kpp_mechanism_driver (chem,                                                
                ims,ime, jms,jme, kms,kme,                                             &
                its,ite, jts,jte, kts,kte,                                             &
                config_flags%kemit,                                                    &
-               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,grid%ph_no3o2,      &
+               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                    &
+               grid%ph_cl2,grid%ph_hocl,grid%ph_clno2,grid%ph_fmcl,                   &
+               grid%ph_no3o2,                                                         &
                grid%ph_no3o,grid%ph_hno2,grid%ph_hno3,grid%ph_hno4,grid%ph_h2o2,      &
                grid%ph_ch2or,grid%ph_ch2om,grid%ph_ch3cho,grid%ph_ch3coch3,           &
                grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,                     &
@@ -1197,6 +1469,71 @@ if ( cam_mam_aerosols ) &
                 its,ite, jts,jte, kts,kte                 )
            
         endif
+        !BSINGH - For WRFCuP scheme
+        
+        !
+        !   now do convective cloud processing for cup cumulus scheme
+        !
+        !   issues for future work
+        !      convective cloud processing should be done at same place (in the code)
+        !         and same time frequency for cup and grell schemes,
+        !         but doing it here is ok for initial testing
+        !      there should be a "convchem_driver" or "ctrans_driver" routine
+        !         to interface to the various options
+        !
+        if( config_flags%chem_conv_tr>0 .and. &
+             config_flags%cu_physics==kfcupscheme ) then
+           
+           call chem_cup_driver(                                                        &
+                grid%id, ktau, grid%ktauc, grid%dt, dtstepc, config_flags,              &
+                t_phy, p_phy, rho, rri, dz8w, zmid, z_at_w,                             &
+#if (NMM_CORE == 1)
+                moist_trans, grid%cldfra, grid%ph_no2,                                  &
+#endif
+#if (EM_CORE == 1)
+                moist, grid%cldfra, grid%ph_no2,                                        &
+#endif
+                chem, grid%chem_cupflag,                                                &
+                grid%cupflag, grid%shall, grid%tcloud_cup, grid%nca, grid%wact_cup,     &
+                grid%cldfra_cup, grid%updfra_cup, grid%qc_ic_cup, grid%qc_iu_cup,       &
+                grid%mfup_cup, grid%mfup_ent_cup, grid%mfdn_cup, grid%mfdn_ent_cup,     &
+                grid%fcvt_qc_to_pr_cup, grid%fcvt_qc_to_qi_cup, grid%fcvt_qi_to_pr_cup, &
+                !BSINGH(12/03/2013): Commenting out *_ams_* variables and replacing them with 
+                !*_ic_cup* variables
+                !grid%so4_a_ams_ic_cup, grid%so4_cw_ams_ic_cup,                         &
+                !grid%nh4_a_ams_ic_cup, grid%nh4_cw_ams_ic_cup,                         &
+                !grid%no3_a_ams_ic_cup, grid%no3_cw_ams_ic_cup,                         &
+                !grid%oa_a_ams_ic_cup,  grid%oa_cw_ams_ic_cup,                          &
+                grid%co_a_ic_cup,       grid%hno3_a_ic_cup,                             &
+                grid%so4_a_1to4_ic_cup, grid%so4_cw_1to4_ic_cup,                        &
+                grid%nh4_a_1to4_ic_cup, grid%nh4_cw_1to4_ic_cup,                        &
+                grid%no3_a_1to4_ic_cup, grid%no3_cw_1to4_ic_cup,                        &
+                grid%oa_a_1to4_ic_cup,  grid%oa_cw_1to4_ic_cup,                         &
+                grid%oin_a_1to4_ic_cup, grid%oin_cw_1to4_ic_cup,                        &
+                grid%bc_a_1to4_ic_cup,  grid%bc_cw_1to4_ic_cup,                         &
+                grid%na_a_1to4_ic_cup,  grid%na_cw_1to4_ic_cup,                         &
+                grid%cl_a_1to4_ic_cup,  grid%cl_cw_1to4_ic_cup,                         &
+                grid%water_1to4_ic_cup,                                                 &
+                grid%so4_a_5to6_ic_cup, grid%so4_cw_5to6_ic_cup,                        &
+                grid%nh4_a_5to6_ic_cup, grid%nh4_cw_5to6_ic_cup,                        &
+                grid%no3_a_5to6_ic_cup, grid%no3_cw_5to6_ic_cup,                        &
+                grid%oa_a_5to6_ic_cup,  grid%oa_cw_5to6_ic_cup,                         &
+                grid%oin_a_5to6_ic_cup, grid%oin_cw_5to6_ic_cup,                        &
+                grid%bc_a_5to6_ic_cup,  grid%bc_cw_5to6_ic_cup,                         &
+                grid%na_a_5to6_ic_cup,  grid%na_cw_5to6_ic_cup,                         &
+                grid%cl_a_5to6_ic_cup,  grid%cl_cw_5to6_ic_cup,                         &
+                grid%water_5to6_ic_cup,                                                 & 
+                ids,ide, jds,jde, kds,kde,                                              &
+                ims,ime, jms,jme, kms,kme,                                              &
+                its,ite, jts,jte, kts,kte                                               )
+           
+        else
+           grid%chem_cupflag = 0
+        endif
+        
+        
+        !BSINGH - Ends
+        
         
 
 !
@@ -1228,6 +1565,7 @@ if ( cam_mam_aerosols ) &
               rri,t_phy,moist,grid%aerwrf,p8w,t8w,                                    &
               p_phy,chem,rho,dz8w, rh,                                                & 
               zmid,z_at_w,pbl_h,grid%cldfra,grid%cldfra_mp_all,grid%vbs_nbin,         &
+              grid%gamn2o5,grid%cn2o5,grid%kn2o5,grid%yclno2,grid%snu,grid%sac,       &
               grid%h2oaj,grid%h2oai,grid%nu3,grid%ac3,grid%cor3,grid%asulf,           &
               grid%ahno3,grid%anh3,grid%cvaro1,grid%cvaro2,grid%cvalk1,grid%cvole1,   &
               grid%cvapi1,grid%cvapi2,grid%cvlim1,grid%cvlim2,vcsulf_old,             &
@@ -1249,7 +1587,9 @@ if ( cam_mam_aerosols ) &
                ims,ime, jms,jme, kms,kme,                                             &
                its,ite, jts,jte, kts, kte,                                            &
                config_flags%kemit,                                                    &
-               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,grid%ph_no3o2,      &
+               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                    &
+               grid%ph_cl2,grid%ph_hocl,grid%ph_clno2,grid%ph_fmcl,                   &
+               grid%ph_no3o2,                                                         &
                grid%ph_no3o,grid%ph_hno2,grid%ph_hno3,grid%ph_hno4,grid%ph_h2o2,      &
                grid%ph_ch2or,grid%ph_ch2om,grid%ph_ch3cho,grid%ph_ch3coch3,           &
                grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,                     &
@@ -1268,12 +1608,15 @@ if ( cam_mam_aerosols ) &
               p_phy,chem,rho,grid%cldfra,grid%cldfra2,                                &
               grid%rainprod,grid%evapprod,grid%hno3_col_mdel,                         &
               grid%qlsink,grid%precr,grid%preci,grid%precs,grid%precg,                &
+              grid%wdflx, &
               gas_aqfrac, numgas_mam,dz8w,                                            &
               grid%h2oaj,grid%h2oai,grid%nu3,grid%ac3,grid%cor3,                      &
               grid%asulf,grid%ahno3,grid%anh3,grid%cvaro1,grid%cvaro2,                &
               grid%cvalk1,grid%cvole1,grid%cvapi1,grid%cvapi2,                        &
               grid%cvlim1,grid%cvlim2,                                                &
-              grid%wd_no3_sc,grid%wd_so4_sc,                                          &
+              grid%wd_no3_sc, grid%wd_so4_sc, grid%wd_nh4_sc,grid%wd_oa_sc,           &
+              grid%wd_so2_sc, grid%wd_sulf_sc, grid%wd_hno3_sc, grid%wd_nh3_sc,       &
+              grid%wd_cvasoa_sc, grid%wd_cvbsoa_sc, grid%wd_asoa_sc, grid%wd_bsoa_sc, &
               grid%qv_b4mp, grid%qc_b4mp, grid%qi_b4mp, grid%qs_b4mp,                 &
 !======================================================================================
 !Variables required for CAM_MAM_WETSCAV
@@ -1315,7 +1658,7 @@ end if !Chemistry time step check
         if(config_flags%chem_opt == CHEM_VOLC)then
           CALL wrf_debug(15,'gocart so2-so4 conversion')
           CALL  so2so4(0,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,         &
-         grid%qc_cu, grid%gd_cldfr,                                    &
+         grid%qc_cu, grid%gd_cldfr, config_flags%cu_diag,                   &
          NUM_CHEM,NUM_MOIST,                                                &
          ids,ide, jds,jde, kds,kde,                                         &
          ims,ime, jms,jme, kms,kme,                                         &
@@ -1340,22 +1683,52 @@ end if !Chemistry time step check
       call sum_pm_driver ( config_flags,                                              &
            rri, chem, grid%h2oaj, grid%h2oai,                                         &
            grid%pm2_5_dry, grid%pm2_5_water, grid%pm2_5_dry_ec, grid%pm10,            &
-           grid% hoa_a01,grid%hoa_a02,grid%hoa_a03,grid%hoa_a04,                      &
+           grid%tsoa,grid%asoa,grid%bsoa,                                             &
+           grid%hoa_a01,grid%hoa_a02,grid%hoa_a03,grid%hoa_a04,                       &
+           grid%hoa_a05,     grid%hoa_a06,     grid%hoa_a07,      grid%hoa_a08,       & !BSINGH(12/03/2013) Added 4 more bins for each species for SAPRC 8 bin version
            grid%bboa_a01,grid%bboa_a02,grid%bboa_a03,grid%bboa_a04,                   &
+           grid%bboa_a05,    grid%bboa_a06,    grid%bboa_a07,     grid%bboa_a08,      &
            grid%soa_a01,grid%soa_a02,grid%soa_a03,grid%soa_a04,                       &
+           grid%soa_a05,     grid%soa_a06,     grid%soa_a07,      grid%soa_a08,       &
            grid%bbsoa_a01,grid%bbsoa_a02,grid%bbsoa_a03,grid%bbsoa_a04,               &
+           grid%bbsoa_a05,   grid%bbsoa_a06,   grid%bbsoa_a07,    grid%bbsoa_a08,     &
            grid%hsoa_a01,grid%hsoa_a02,grid%hsoa_a03,grid%hsoa_a04,                   &
+           grid%hsoa_a05,    grid%hsoa_a06,    grid%hsoa_a07,     grid%hsoa_a08,      &
            grid%biog_a01,grid%biog_a02,grid%biog_a03,grid%biog_a04,                   &
+           grid%biog_a05,    grid%biog_a06,    grid%biog_a07,     grid%biog_a08,      &
            grid%asmpsoa_a01,grid%asmpsoa_a02,grid%asmpsoa_a03,grid%asmpsoa_a04,       &
            grid%arosoa_a01,grid%arosoa_a02,grid%arosoa_a03,grid%arosoa_a04,           &
+           grid%arosoa_a05,  grid%arosoa_a06,  grid%arosoa_a07,   grid%arosoa_a08,    &
            grid%totoa_a01,grid%totoa_a02,grid%totoa_a03,grid%totoa_a04,               &
+           grid%totoa_a05,   grid%totoa_a06,   grid%totoa_a07,    grid%totoa_a08,     &
            grid%hsoa_c,grid%hsoa_o,grid%bbsoa_c,grid%bbsoa_o,                         &
            grid%biog_v1,grid%biog_v2,grid%biog_v3,grid%biog_v4,                       &
            grid%ant_v1,grid%ant_v2,grid%ant_v3,grid%ant_v4,                           &
            grid%smpa_v1,grid%smpbb_v1,                                                &
-           ids,ide, jds,jde, kds,kde,                                                 &
-           ims,ime, jms,jme, kms,kme,                                                 &
-           its,ite, jts,jte, kts,kte                                                  )
+            !BSINGH(12/03/2013) - Added cw aerosols(for VBS)
+           grid%hoa_cw01,    grid%hoa_cw02,    grid%hoa_cw03,    grid%hoa_cw04,       &
+           grid%hoa_cw05,    grid%hoa_cw06,    grid%hoa_cw07,    grid%hoa_cw08,       &
+           grid%bboa_cw01,   grid%bboa_cw02,   grid%bboa_cw03,   grid%bboa_cw04,      &
+           grid%bboa_cw05,   grid%bboa_cw06,   grid%bboa_cw07,   grid%bboa_cw08,      &
+           grid%soa_cw01,    grid%soa_cw02,    grid%soa_cw03,    grid%soa_cw04,       &
+           grid%soa_cw05,    grid%soa_cw06,    grid%soa_cw07,    grid%soa_cw08,       &
+           grid%bbsoa_cw01,  grid%bbsoa_cw02,  grid%bbsoa_cw03,  grid%bbsoa_cw04,     &
+           grid%bbsoa_cw05,  grid%bbsoa_cw06,  grid%bbsoa_cw07,  grid%bbsoa_cw08,     &
+           grid%biog_cw01,   grid%biog_cw02,   grid%biog_cw03,   grid%biog_cw04,      &
+           grid%biog_cw05,   grid%biog_cw06,   grid%biog_cw07,   grid%biog_cw08,      &
+           grid%hsoa_cw01,   grid%hsoa_cw02,   grid%hsoa_cw03,   grid%hsoa_cw04,      &
+           grid%hsoa_cw05,   grid%hsoa_cw06,   grid%hsoa_cw07,   grid%hsoa_cw08,      &
+           grid%arosoa_cw01, grid%arosoa_cw02, grid%arosoa_cw03, grid%arosoa_cw04,    &
+           grid%arosoa_cw05, grid%arosoa_cw06, grid%arosoa_cw07, grid%arosoa_cw08,    &
+           grid%totoa_cw01,  grid%totoa_cw02,  grid%totoa_cw03,  grid%totoa_cw04,     &
+           grid%totoa_cw05,  grid%totoa_cw06,  grid%totoa_cw07,  grid%totoa_cw08,     &        
+           grid%hsoa_cw_c,   grid%hsoa_cw_o,   grid%bbsoa_cw_c,  grid%bbsoa_cw_o,     &
+           grid%biog_cw_v1,                                                           &
+           grid%ant_cw_v1,                                                            &
+           !BSINGH(12/03/2013) -ENDS
+             ids,ide, jds,jde, kds,kde,                                               &
+             ims,ime, jms,jme, kms,kme,                                               &
+             its,ite, jts,jte, kts,kte             )
              
      call dust_load_driver ( config_flags,                                            &
            rri, chem, dz8w, grid%dustload_1, grid%dustload_2, grid%dustload_3,        &
@@ -1415,7 +1788,6 @@ end if !Chemistry time step check
                                its,ite, jts,jte, kts,kte            )
     endif
 
-
    END DO chem_tile_loop_1
 
 !-- Work around for dgnum and dgnumwet not being written to restart files.
@@ -1427,6 +1799,10 @@ end if !Chemistry time step check
    grid%dgnumwet_a1(its:ite, kts:kte, jts:jte) = grid%dgnumwet4d(its:ite, kts:kte, jts:jte, 1)
    grid%dgnumwet_a2(its:ite, kts:kte, jts:jte) = grid%dgnumwet4d(its:ite, kts:kte, jts:jte, 2)
    grid%dgnumwet_a3(its:ite, kts:kte, jts:jte) = grid%dgnumwet4d(its:ite, kts:kte, jts:jte, 3)
+
+   IF( allocated( irr_rates ) ) THEN
+     deallocate( irr_rates )
+   ENDIF
 
 
     END subroutine chem_driver

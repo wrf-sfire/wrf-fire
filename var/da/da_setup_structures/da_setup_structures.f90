@@ -10,12 +10,15 @@ module da_setup_structures
    use da_define_structures, only : xbx_type,be_subtype, be_type, y_type, j_type, &
       iv_type,da_allocate_background_errors,da_allocate_observations, &
       multi_level_type,each_level_type, da_allocate_observations_rain
+   use da_define_structures, only : da_allocate_obs_info, da_allocate_y, da_allocate_y_radar, &
+      da_allocate_y_rain
    use da_wrf_interfaces, only : wrf_debug
-   use da_control, only : trace_use,vert_evalue,stdout,rootproc, &
+   use da_control, only : trace_use,vert_evalue,stdout,rootproc, myproc, &
       analysis_date,coarse_ix,coarse_ds,map_projection,coarse_jy, c2,dsm,phic, &
       pole, cone_factor, start_x,base_pres,ptop,psi1,start_y, base_lapse,base_temp,truelat2_3dv, &
       truelat1_3dv,xlonc,t0,num_fft_factors,pi,print_detail_spectral, global, print_detail_obs, &
-      use_radar_rf, num_ob_indexes,kts, kte, time_window_max, time_window_min, &
+      use_radar_rf, use_radar_rhv, use_radar_rqv, &
+      num_ob_indexes,kts, kte, time_window_max, time_window_min, &
       max_fgat_time, num_fgat_time, dt_cloud_model, &
       use_ssmiretrievalobs,use_radarobs,use_ssmitbobs,use_qscatobs, num_procs, use_rainobs, &
       num_pseudo, missing, ob_format, ob_format_bufr,ob_format_ascii, ob_format_madis, ob_format_gpsro, &
@@ -31,11 +34,14 @@ module da_setup_structures
       lat_stats_option,alpha_std_dev,sigma_alpha,alpha_corr_scale, &
       len_scaling1, len_scaling2, len_scaling3, len_scaling4, len_scaling5,&
       len_scaling6, len_scaling7, len_scaling8, len_scaling9, &
+      len_scaling10, len_scaling11, &
       max_vert_var1, max_vert_var2, max_vert_var3, max_vert_var4, max_vert_var5, &
-      max_vert_var6, max_vert_var7, max_vert_var8, max_vert_var9, max_vert_var_alpha, &
+      max_vert_var6, max_vert_var7, max_vert_var8, max_vert_var9, max_vert_var10,&
+      max_vert_var11, max_vert_var_alpha, &
       print_detail_be, test_statistics, do_normalize, use_rf, &
       var_scaling1, var_scaling2, var_scaling3, var_scaling4, &
-      var_scaling5, var_scaling6, var_scaling7, var_scaling8, var_scaling9, &
+      var_scaling5, var_scaling6, var_scaling7, var_scaling8, &
+      var_scaling9, var_scaling10, var_scaling11,&
       vert_corr,max_vert_var5,power_truncation,alpha_truncation, &
       print_detail_regression,gas_constant, use_airsretobs, &
       filename_len, use_ssmisobs, gravity, t_triple, use_hirs4obs, use_mhsobs, &
@@ -51,7 +57,7 @@ module da_setup_structures
       num_pseudo,pseudo_x, pseudo_y, pseudo_z, pseudo_var,pseudo_val, pseudo_err,&
       fg_format, fg_format_wrf_arw_regional,fg_format_wrf_nmm_regional, &
       fg_format_wrf_arw_global, fg_format_kma_global, deg_to_rad, rad_to_deg, &
-      sonde_sfc, missing_data, missing_r, qc_good, thin_mesh_conv, time_slots, &
+      sonde_sfc, missing_data, missing_r, qc_good, thin_mesh_conv, time_slots, ifgat_ana, &
       cv_options, cloud_cv_options, cv_size, as1, as2, as3, as4, as5, print_detail_be, &
       ids,ide,jds,jde,kds,kde, ims,ime,jms,jme,kms,kme, &
       its,ite,jts,jte,kts,kte, ips,ipe,jps,jpe,kps,kpe, root, comm, ierr, &
@@ -59,13 +65,19 @@ module da_setup_structures
       psi_chi_factor, psi_t_factor, psi_ps_factor, psi_rh_factor, &
       chi_u_t_factor, chi_u_ps_factor,chi_u_rh_factor, t_u_rh_factor, ps_u_rh_factor, &
       interpolate_stats, be_eta, thin_rainobs, fgat_rain_flags, use_iasiobs, &
-      use_seviriobs,jds_int,jde_int,anal_type_hybrid_dual_res 
+      use_seviriobs, jds_int, jde_int, anal_type_hybrid_dual_res, use_amsr2obs, nrange, use_4denvar, &
+      use_goesimgobs
+   use da_control, only: rden_bin, use_lsac
+   use da_control, only: use_cv_w
+   use da_control, only: pseudo_tpw, pseudo_ztd, pseudo_ref, pseudo_uvtpq, pseudo_elv, anal_type_qcobs
+   use da_control, only: use_gpsephobs, gpseph_loadbalance, gpseph
 
    use da_obs, only : da_fill_obs_structures, da_store_obs_grid_info, da_store_obs_grid_info_rad, &
-                      da_fill_obs_structures_rain,da_set_obs_missing,da_set_3d_obs_missing
+                      da_fill_obs_structures_rain, da_fill_obs_structures_radar, da_set_obs_missing,da_set_3d_obs_missing
    use da_obs_io, only : da_read_obs_bufr,da_read_obs_radar, &
       da_scan_obs_radar,da_scan_obs_ascii,da_read_obs_ascii, &
-      da_read_obs_bufrgpsro, da_scan_obs_rain, da_read_obs_rain
+      da_read_obs_bufrgpsro, da_scan_obs_rain, da_read_obs_rain, &
+      da_read_obs_lsac, da_scan_obs_lsac, da_read_obs_bufrgpsro_eph
    use da_par_util1, only : da_proc_sum_real, da_proc_sum_int, da_proc_sum_ints
    use da_par_util, only : da_patch_to_global
    use da_lapack, only : dsyev
@@ -113,11 +125,14 @@ contains
 #include "da_setup_cv.inc"
 #include "da_chgvres.inc"
 #include "da_setup_flow_predictors.inc"
+#include "da_setup_flow_predictors_para_read_opt1.inc"
 #include "da_setup_obs_structures.inc"
 #include "da_setup_obs_structures_ascii.inc"
 #include "da_setup_obs_structures_bufr.inc"
 #include "da_setup_obs_structures_madis.inc"
 #include "da_setup_obs_structures_rain.inc"
+#include "da_setup_obs_structures_radar.inc"
+#include "da_setup_pseudo_obs.inc"
 #include "da_setup_obs_interp_wts.inc"
 #include "da_setup_runconstants.inc"
 #include "da_cloud_model.inc"

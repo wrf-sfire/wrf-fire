@@ -58,13 +58,14 @@ PROGRAM main_obsproc
    USE module_complete
    USE module_thin_ob
    USE module_write
+   use module_stntbl
 !------------------------------------------------------------------------------!
    IMPLICIT NONE
 
    CHARACTER (LEN = 80)                 :: nml_filename
    CHARACTER (LEN = 80)                 :: title, caption
    LOGICAL                              :: exist
-   INTEGER                              :: iunit, ii, fm_code, ntime
+   INTEGER                              :: ii, fm_code, ntime
    INTEGER                              :: ins, jew
    INTEGER                              :: loop_index, number_of_obs
    INTEGER                              :: total_dups_loc, total_dups_time
@@ -89,14 +90,13 @@ PROGRAM main_obsproc
 ! 1.  READ THE NAMELIST
 ! ====================   
 
-      iunit = 99
       nml_filename = 'namelist.obsproc'
 
       WRITE (UNIT = 0, FMT = '(/,A,A,/,A)')        &
     ' READ NAMELIST FILE: ',TRIM  (nml_filename),  &
     ' ------------------'
 
-      CALL get_namelist (nml_filename,  iunit)
+      CALL get_namelist (trim(nml_filename))
 
 
 ! 2.  SET THE MM5 MAP PROJECTION COEFICIENTS
@@ -183,10 +183,11 @@ PROGRAM main_obsproc
 
       IF (exist .and. LEN(TRIM(obs_gts_filename))>0) THEN
 
+         call read_msfc_table('msfc.tbl')
+
       !  Read data from input file
 
-        iunit = 99
-        CALL read_obs_gts (obs_gts_filename, iunit, obs, number_of_obs, &
+        CALL read_obs_gts (obs_gts_filename, obs, number_of_obs, &
           max_number_of_obs, fatal_if_exceed_max_obs, print_gts_read, &
           ins, jew, time_window_min, time_window_max,                 &
           map_projection, missing_flag)
@@ -199,6 +200,7 @@ PROGRAM main_obsproc
 
       ELSE
          WRITE (0,'(/,A,/)') "No decoded observation file to read."
+         STOP
       ENDIF
 
 ! 3.6 Check if any data have been loaded
@@ -225,6 +227,7 @@ PROGRAM main_obsproc
       CALL recover_pressure_from_height (max_number_of_obs , &
                                          obs, number_of_obs, print_recoverp)
 
+      !hcl-note: is check_obs actually doing anything?
       CALL check_obs (max_number_of_obs, obs, number_of_obs, 'pressure')
 
 ! 4.2 Sort station per location
@@ -285,6 +288,7 @@ PROGRAM main_obsproc
       CALL recover_height_from_pressure (max_number_of_obs , &
                                          obs, number_of_obs, print_recoverh)
 
+      !hcl-note: is check_obs actually doing anything?
       CALL check_obs (max_number_of_obs, obs, number_of_obs, 'height')
 
 ! 5.3 Observational error (pressure must be present)
@@ -296,16 +300,20 @@ PROGRAM main_obsproc
 
       IF (exist) THEN
 
-          CALL obs_err_afwa (obs_err_filename, iunit,&
+          CALL obs_err_afwa (obs_err_filename, &
                          max_number_of_obs, obs, number_of_obs)
 
       ELSE
 
-      !  Otherwise, use ncep value as default
-          write(0,'(/A/A/)') "!!! WARNING *** WARNING *** WARNING *** WARNING !!!", &
-      "<< NO AFWA OBS ERRORS FILE (obserr.txt) AVAILABE, USE NCEP ERROR AS DEFAULT >>"
-          
-          CALL obs_err_ncep (max_number_of_obs, obs, number_of_obs)
+         WRITE (0,'(/,A,/)') "No obs err input file "//trim(obs_err_filename)//" found."
+         STOP
+
+         !starting from V3.7.1, disable the usage below
+
+         !Otherwise, use ncep value as default
+         !write(0,'(/A/A/)') "!!! WARNING *** WARNING *** WARNING *** WARNING !!!", &
+         !"<< NO AFWA OBS ERRORS FILE (obserr.txt) AVAILABE, USE NCEP ERROR AS DEFAULT >>"
+         !CALL obs_err_ncep (max_number_of_obs, obs, number_of_obs)
 
       ENDIF
 

@@ -18,7 +18,7 @@ subroutine da_jo_and_grady(iv, re, jot, jo, jo_grad_y)
               jo_metar, jo_ships, jo_gpspw, &
               jo_ssmi_tb, jo_ssmi_rv, jo_ssmt1, jo_ssmt2, &
               jo_pseudo, jo_qscat, jo_buoy, &
-              jo_profiler, jo_radar, jo_gpsref, jo_bogus, jo_rain, &
+              jo_profiler, jo_radar, jo_gpsref, jo_gpseph, jo_bogus, jo_rain, &
               jo_radiance, jo_airsr, jo_mtgirs, jo_tamdar, jo_tamdar_sfc
    integer :: i,k
 
@@ -309,6 +309,19 @@ subroutine da_jo_and_grady(iv, re, jot, jo, jo_grad_y)
       jo_gpsref = 0.0
    end if
 
+   if (iv%info(gpseph)%nlocal > 0) then
+      call da_jo_and_grady_gpseph(iv, re, jo, jo_grad_y)
+      jo_gpseph = jo%gpseph_eph
+      if (print_detail_grad) then
+          write(unit=stdout, fmt='(a, e24.12)') &
+               ' jo_gpseph         ', jo_gpseph, &
+               '   jo%gpseph_eph   ', jo%gpseph_eph
+      end if
+   else
+      jo % gpseph_eph = 0.0
+      jo_gpseph = 0.0
+   end if
+
    if (iv%info(ssmi_tb)%nlocal > 0) then
       call da_jo_and_grady_ssmi_tb (iv, re, jo, jo_grad_y)
       jo_ssmi_tb = jo % ssmi_tb19v + jo % ssmi_tb19h + jo % ssmi_tb22v + &
@@ -379,18 +392,24 @@ subroutine da_jo_and_grady(iv, re, jot, jo, jo_grad_y)
 
    if (iv%info(radar)%nlocal > 0) then
       call da_jo_and_grady_radar(iv, re, jo, jo_grad_y)
-      jo_radar = jo%radar_rv + jo%radar_rf + jo%radar_rr
+      jo_radar = jo%radar_rv + jo%radar_rf + jo%radar_rrn + jo%radar_rsn + jo%radar_rgr + jo%radar_rqv
       if (print_detail_grad) then
           write(unit=stdout, fmt='(a, e24.12)') &
                ' jo_radar          ', jo_radar, &
                '   jo%radar_rv     ', jo%radar_rv, &
                '   jo%radar_rf     ', jo%radar_rf, &
-               '   jo%radar_rr     ', jo%radar_rr
+               '   jo%radar_rrn    ', jo%radar_rrn, &
+               '   jo%radar_rsn    ', jo%radar_rsn, &
+               '   jo%radar_rgr    ', jo%radar_rgr, &
+               '   jo%radar_rqv    ', jo%radar_rqv
       end if
    else
-      jo % radar_rv = 0.0
-      jo % radar_rf = 0.0
-      jo % radar_rr = 0.0
+      jo % radar_rv  = 0.0
+      jo % radar_rf  = 0.0
+      jo % radar_rrn = 0.0
+      jo % radar_rsn = 0.0
+      jo % radar_rgr = 0.0
+      jo % radar_rqv = 0.0
       jo_radar = 0.0
    end if
 
@@ -427,7 +446,7 @@ subroutine da_jo_and_grady(iv, re, jot, jo, jo_grad_y)
       jo % pseudo_q = 0.0
       jo_pseudo = 0.0
    end if
-
+   
    if (iv%info(qscat)%nlocal > 0) then
       call da_jo_and_grady_qscat(iv, re, jo, jo_grad_y)
       jo_qscat = jo%qscat_u + jo%qscat_v
@@ -547,7 +566,7 @@ subroutine da_jo_and_grady(iv, re, jot, jo, jo_grad_y)
       jo_pilot + jo_airep + jo_metar + jo_ships + &
       jo_gpspw + jo_ssmi_tb + jo_ssmi_rv + jo_ssmt1 + jo_ssmt2 + &
       jo_pseudo + jo_qscat + jo_profiler + jo_buoy + &
-      jo_radar + jo_gpsref + jo_bogus + jo_radiance + jo_airsr + jo_mtgirs + &
+      jo_radar + jo_gpsref + jo_gpseph + jo_bogus + jo_radiance + jo_airsr + jo_mtgirs + &
       jo_tamdar + jo_tamdar_sfc + jo_rain 
 
    jot = jo%total
@@ -578,6 +597,7 @@ subroutine da_jo_and_grady(iv, re, jot, jo, jo_grad_y)
          '   jo_buoy         ', jo_buoy, &
          '   jo_radar        ', jo_radar, &
          '   jo_gpsref       ', jo_gpsref, &
+         '   jo_gpseph       ', jo_gpseph, &
          '   jo_bogus        ', jo_bogus,  &
          '   jo_radiance     ', jo_radiance, &
          '   jo_airsr        ', jo_airsr,&

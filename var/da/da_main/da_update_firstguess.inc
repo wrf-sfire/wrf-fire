@@ -1,7 +1,7 @@
 subroutine da_update_firstguess(grid, out_filename) 
 
 !---------------------------------------------------------------------------
-!  Purpose: Only replce the fields touched by WRFDA, other than re-generate 
+!  Purpose: Only replace the fields touched by WRFDA, rather than re-generate 
 !           whole wrfvar_output from the scratch.
 !
 !  Update  :   jliu@ucar.edu Apr 1, 2013
@@ -25,9 +25,11 @@ subroutine da_update_firstguess(grid, out_filename)
 !---------------------------------------------------------------------------
 
   use module_domain, only : get_ijk_from_grid, program_name
-  use da_control,    only : use_radarobs, use_radar_rf, use_rad, crtm_cloud 
+  use da_control,    only : use_radarobs, use_rad, crtm_cloud, &
+                            use_radar_rhv, use_radar_rqv    
   use module_state_description, only : p_qv, p_qc, p_qr, p_qi, &
-                                       p_qs, p_qg
+                                       p_qs, p_qg, &
+                                       f_qc, f_qr, f_qi, f_qs, f_qg
 
   implicit none
 
@@ -67,6 +69,7 @@ subroutine da_update_firstguess(grid, out_filename)
   character(len=4) ::  fgname
   integer :: julyr, julday
   real    :: gmt
+  real*4  :: gmt4
 
   wrf_real=104
   end_index1=0
@@ -107,20 +110,30 @@ subroutine da_update_firstguess(grid, out_filename)
 !-------------  get date info
 
      call ext_ncd_get_next_time(dh1, DateStr1, Status_next_time)
-     if ( DateStr1 /= start_date )then
-        ! impossible scenario
-        ! start_date is set to be equal to file date in da_med_initialdata_input.inc
-        write(unit=message(1),fmt='(a)') 'date info mismatch'
-        call da_error(__FILE__,__LINE__,message(1:1))
+     if ( var4d .or. num_fgat_time == 1 )  then ! Don't do it for FGAT
+        if ( DateStr1 /= start_date )then
+           ! impossible scenario
+           ! start_date is set to be equal to file date in da_med_initialdata_input.inc
+           write(unit=message(1),fmt='(a)') 'date info mismatch '//trim(DateStr1)//" != "//trim(start_date)
+           call da_error(__FILE__,__LINE__,message(1:1))
+        endif
      endif
 
      ! update analysis time info in global attributes
      ! needs to be done before the ext_ncd_write_field calls
-     call get_julgmt(start_date, julyr, julday, gmt)
-     CALL ext_ncd_put_dom_ti_char (dh1, 'TITLE', ' OUTPUT FROM '//trim(program_name), ierr)
-     CALL ext_ncd_put_dom_ti_char (dh1, 'START_DATE', trim(start_date), ierr)
-     CALL ext_ncd_put_dom_ti_char (dh1, 'SIMULATION_START_DATE', trim(start_date), ierr)
-     CALL ext_ncd_put_dom_ti_real    (dh1, 'GMT',    gmt,    1, ierr)
+     if ( var4d .or. num_fgat_time == 1 ) then  ! For 4dvar or 3dvar
+        call get_julgmt(start_date, julyr, julday, gmt)
+        CALL ext_ncd_put_dom_ti_char (dh1, 'TITLE', ' OUTPUT FROM '//trim(program_name), ierr)
+        CALL ext_ncd_put_dom_ti_char (dh1, 'START_DATE', trim(start_date), ierr)
+        CALL ext_ncd_put_dom_ti_char (dh1, 'SIMULATION_START_DATE', trim(start_date), ierr)
+     else                                  ! For FGAT
+        call get_julgmt(DateStr1//'     ', julyr, julday, gmt)
+        CALL ext_ncd_put_dom_ti_char (dh1, 'TITLE', ' OUTPUT FROM '//trim(program_name), ierr)
+        CALL ext_ncd_put_dom_ti_char (dh1, 'START_DATE', trim(DateStr1), ierr)
+        CALL ext_ncd_put_dom_ti_char (dh1, 'SIMULATION_START_DATE', trim(DateStr1), ierr)
+     endif
+     gmt4 = real(gmt)
+     CALL ext_ncd_put_dom_ti_real    (dh1, 'GMT',    gmt4,   1, ierr)
      CALL ext_ncd_put_dom_ti_integer (dh1, 'JULYR',  julyr,  1, ierr)
      CALL ext_ncd_put_dom_ti_integer (dh1, 'JULDAY', julday, 1, ierr)
 
@@ -571,6 +584,19 @@ subroutine da_update_firstguess(grid, out_filename)
                              start_index,end_index1,               & !mem
                              start_index,end_index1,               & !pat
                              ierr                                 )
+
+! Update moist potential temperature: for now, it is identical to T with use_theta_m=0.
+     rmse_var='THM'
+     call ext_ncd_get_var_info (dh1,trim(rmse_var),ndim1,ordering,staggering, &
+          start_index,end_index1, WrfType, ierr    )
+     call ext_ncd_write_field(dh1,DateStr1,TRIM(rmse_var),         &
+                             field3,WRF_REAL,0,0,0,ordering,       &
+                             staggering, dimnames ,                &
+                             start_index,end_index1,               & !dom
+                             start_index,end_index1,               & !mem
+                             start_index,end_index1,               & !pat
+                             ierr                                 )
+
   end if  
   
 #ifdef DM_PARALLEL
@@ -828,8 +854,8 @@ subroutine da_update_firstguess(grid, out_filename)
 #endif
 
 !-------------Update QCLOUD, QRAIN, QICE, QSNOW & QGROUP 
-if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
-   if (size(grid%moist,dim=4) >= 4) then         ! update QCLOUD & QRAIN
+if ( cloud_cv_options >= 1 ) then ! update qcw and qrn
+   if ( f_qc ) then
 !
 !  update QCLOUD
 !
@@ -879,7 +905,9 @@ if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
 #ifdef DM_PARALLEL
       deallocate(globbuf) 
 #endif
+   end if ! f_qc
 
+   if ( f_qr ) then
 !
 !  update QRAIN
 !
@@ -930,9 +958,11 @@ if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
       deallocate(globbuf) 
 #endif
 
-   end if    ! end of update QCLOUD & QRAIN
+   end if ! f_qr
+end if ! cloud_cv_options >= 1
 
-   if (size(grid%moist,dim=4) >= 6) then     ! update QICE & QSNOW
+if ( cloud_cv_options >= 2 ) then ! update qci, qsn, qgr
+   if ( f_qi ) then
 !
 !  update QICE
 !
@@ -983,6 +1013,9 @@ if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
       deallocate(globbuf) 
 #endif
 
+   end if ! f_qi
+
+   if ( f_qs ) then
 !
 !  update QSNOW
 !
@@ -1033,9 +1066,9 @@ if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
       deallocate(globbuf) 
 #endif
 
-   end if    ! end of update QICE & QSNOW 
+   end if ! f_qs
 
-   if (size(grid%moist,dim=4) >= 7) then      ! update QGRAUP
+   if ( f_qg ) then
 !
 !  update QGRAUP
 !
@@ -1086,8 +1119,8 @@ if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
       deallocate(globbuf) 
 #endif
 
-   end if     ! end of update QGRAUP
-end if        ! end of radar or radiance
+   end if ! f_qg
+end if ! cloud_cv_options >= 2
 !-------------End of update QCLOUD, QRAIN, QICE, QSNOW & QGROUP
 
   if (rootproc) then

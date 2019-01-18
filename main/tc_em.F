@@ -35,6 +35,7 @@ PROGRAM tc_data
    TYPE(domain) , POINTER :: grid_ptr , grid_ptr2
    TYPE (grid_config_rec_type)              :: config_flags
    INTEGER                :: number_at_same_level
+   INTEGER :: myproc, nproc
 
    INTEGER :: max_dom, domain_id , grid_id , parent_id , parent_id1 , id
    INTEGER :: e_we , e_sn , i_parent_start , j_parent_start
@@ -55,6 +56,7 @@ PROGRAM tc_data
    INTEGER :: sibling_count , parent_id_hold , dom_loop
 
    CHARACTER (LEN=80)     :: message
+   CHARACTER(LEN=256)     :: some_string
 
    INTEGER :: start_year , start_month , start_day , start_hour , start_minute , start_second
    INTEGER ::   end_year ,   end_month ,   end_day ,   end_hour ,   end_minute ,   end_second
@@ -79,13 +81,6 @@ PROGRAM tc_data
 !  The TC bogus algorithm assumes that the user defines a central point, and then
 !  allows the program to remove a typhoon based on a distance in km.  This is
 !  implemented on a single processor only.
-
-#ifdef DM_PARALLEL
-   IF ( .NOT. wrf_dm_on_monitor() ) THEN
-      CALL wrf_error_fatal( 'TC bogus must run with a single processor only, re-run with num procs set to 1' )
-   END IF
-#endif
-
 #ifdef DM_PARALLEL
    CALL disable_quilting
 #endif
@@ -103,6 +98,21 @@ PROGRAM tc_data
    CALL WRFU_Initialize( defaultCalKind=WRFU_CAL_GREGORIAN, rc=rc )
 #endif
    CALL init_modules(2)   ! Phase 2 resumes after MPI_INIT() (if it is called)
+
+#if defined( DM_PARALLEL ) && !defined( STUBMPI )
+   IF ( wrf_dm_on_monitor () ) THEN
+       CALL wrf_get_myproc (myproc)
+       CALL wrf_get_nproc  (nproc)
+       IF ( nproc .GT. 1 ) THEN
+       WRITE (some_string,*) 'My MPI processor number   = ',myproc
+       CALL wrf_debug ( 0 , TRIM(some_string) )
+       WRITE (some_string,*) 'Total MPI requested tasks = ',nproc
+       CALL wrf_debug ( 0 , TRIM(some_string) )
+          CALL wrf_error_fatal( 'MPI TC bogus must run with a single processor only, re-run with num procs set to 1' )
+       END IF
+   END IF
+#endif
+
 
    !  The configuration switches mostly come from the NAMELIST input.
 
@@ -267,7 +277,7 @@ SUBROUTINE tc_med_sidata_input ( grid , config_flags, latc_loc, lonc_loc, &
 ! Declarations for the netcdf routines.
    INTEGER                ::nf_inq
 !
-   CHARACTER (LEN=80)     :: si_inpname
+   CHARACTER (LEN=256)    :: si_inpname
    CHARACTER (LEN=80)     :: message
 
    CHARACTER(LEN=19) :: start_date_char , end_date_char , current_date_char , next_date_char
@@ -536,7 +546,7 @@ SUBROUTINE assemble_output ( grid , config_flags , loop , time_loop_max,current_
 
    INTEGER :: id1 , interval_seconds , ierr, rc, sst_update, grid_fdda
    INTEGER , SAVE :: id, id2,  id4 
-   CHARACTER (LEN=80) :: tcoutname , bdyname,si_inpname
+   CHARACTER (LEN=256) :: tcoutname , bdyname,si_inpname
    CHARACTER(LEN= 4) :: loop_char
    CHARACTER(LEN=19) ::  current_date_char
    
@@ -2183,7 +2193,7 @@ END SUBROUTINE mass2_Vstag
   end do
 
 !Fill in U's along the left and right side.
- do j = 1,ns
+ do j = 1,ns-1
     utcp(1,:,j)  = utcp(2,:,j)
     utcp(ew,:,j) = utcp(ew-1,:,j)
  end do
@@ -2199,7 +2209,7 @@ END SUBROUTINE mass2_Vstag
   end do
 
 !Fill in V's along the bottom and bottom.   
-  do i = 1,ew
+  do i = 1,ew-1
      vtcp(i,:,1)  = vtcp(i,:,2)
      vtcp(i,:,ns) = vtcp(i,:,ns-1)
   end do

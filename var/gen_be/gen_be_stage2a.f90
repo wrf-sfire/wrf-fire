@@ -2,6 +2,7 @@ program gen_be_stage2a
 
    use da_control, only : stderr, stdout, filename_len
    use da_gen_be, only : da_filter_regcoeffs
+   use da_reporting, only : da_error
    use da_tools_serial, only : da_get_unit, da_advance_cymdh
 
    implicit none
@@ -21,11 +22,14 @@ program gen_be_stage2a
    integer             :: num_bins             ! Number of bins (3D fields).
    integer             :: num_bins2d           ! Number of bins (2D fields).
    integer             :: num_passes           ! Recursive filter passes.
+   integer             :: cv_options           ! Control variable option
+   integer             :: ios                  ! I/O status for file read
    real                :: lat_min, lat_max     ! Used if bin_type = 2 (degrees).
    real                :: binwidth_lat         ! Used if bin_type = 2 (degrees).
    real                :: hgt_min, hgt_max     ! Used if bin_type = 2 (m).
    real                :: binwidth_hgt         ! Used if bin_type = 2 (m).
    real                :: rf_scale             ! Recursive filter scale.
+   logical             :: allow_missing_dates  ! If data from stage 1 is not contiguous, attempt to continue
 
    real, allocatable   :: psi(:,:,:)           ! psi.
    real, allocatable   :: chi(:,:,:)           ! chi.
@@ -39,7 +43,7 @@ program gen_be_stage2a
    real, allocatable   :: regcoeff3(:,:,:)     ! psi/T regression cooefficient.
 
    namelist / gen_be_stage2a_nl / start_date, end_date, interval, &
-                                  ne, num_passes, rf_scale
+                                  ne, num_passes, rf_scale, cv_options, allow_missing_dates
 
    integer :: ounit,iunit,namelist_unit
 
@@ -60,6 +64,8 @@ program gen_be_stage2a
    ne = 1
    num_passes = 0
    rf_scale = 1.0
+   cv_options = 5
+   allow_missing_dates = .false.
 
    open(unit=namelist_unit, file='gen_be_stage2a_nl.nl', &
         form='formatted', status='old', action='read')
@@ -140,8 +146,17 @@ program gen_be_stage2a
          variable = 'psi'
          filename = trim(variable)//'/'//date(1:10)
          filename = trim(filename)//'.'//trim(variable)//'.e'//ce
-         open (iunit, file = filename, form='unformatted')
-         read(iunit)ni, nj, nk
+         open (iunit, file = trim(filename), form = 'unformatted')
+         read(iunit, iostat=ios)ni, nj, nk
+         if (ios /= 0) then
+            if (allow_missing_dates) then
+               write(6,'(a,a)')' WARNING: CAN NOT OPEN ',filename
+               write(6,'(a)')' Attempting to continue since allow_missing_dates = .true.'
+               cycle
+            else
+               call da_error(__FILE__,__LINE__,(/"Could not open "//trim(filename)/))
+            endif
+         endif
          read(iunit)psi
          close(iunit)
 
@@ -154,14 +169,16 @@ program gen_be_stage2a
          read(iunit)chi
          close(iunit)
 
-         do k = 1, nk
-            do j = 1, nj
-               do i = 1, ni
-                  b = bin(i,j,k)
-                  chi(i,j,k) = chi(i,j,k) - regcoeff1(b) * psi(i,j,k)
+         if ( cv_options /= 7 ) then
+            do k = 1, nk
+               do j = 1, nj
+                  do i = 1, ni
+                     b = bin(i,j,k)
+                     chi(i,j,k) = chi(i,j,k) - regcoeff1(b) * psi(i,j,k)
+                  end do
                end do
             end do
-         end do
+         end if
 
          variable = 'chi_u'
          filename = trim(variable)//'/'//date(1:10)
@@ -180,14 +197,16 @@ program gen_be_stage2a
          read(iunit)temp
          close(iunit)
 
-         do j = 1, nj
-            do i = 1, ni
-               b = bin2d(i,j)
-               do k = 1, nk
-                  temp(i,j,k) = temp(i,j,k) - SUM(regcoeff3(k,1:nk,b) * psi(i,j,1:nk))
+         if ( cv_options /= 7 ) then
+            do j = 1, nj
+               do i = 1, ni
+                  b = bin2d(i,j)
+                  do k = 1, nk
+                     temp(i,j,k) = temp(i,j,k) - SUM(regcoeff3(k,1:nk,b) * psi(i,j,1:nk))
+                  end do
                end do
             end do
-         end do
+         end if
 
          variable = 't_u'
          filename = trim(variable)//'/'//date(1:10)
@@ -206,12 +225,14 @@ program gen_be_stage2a
          read(iunit)ps
          close(iunit)
 
-         do j = 1, nj
-            do i = 1, ni
-               b = bin2d(i,j)
-               ps(i,j) = ps(i,j) - SUM(regcoeff2(1:nk,b) * psi(i,j,1:nk))
+         if ( cv_options /= 7 ) then
+            do j = 1, nj
+               do i = 1, ni
+                  b = bin2d(i,j)
+                  ps(i,j) = ps(i,j) - SUM(regcoeff2(1:nk,b) * psi(i,j,1:nk))
+               end do
             end do
-         end do
+         end if
 
          variable = 'ps_u'
          filename = trim(variable)//'/'//date(1:10)

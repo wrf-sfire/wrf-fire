@@ -2,6 +2,7 @@
 
 WRFVAR_OBJS = \
    copyfile.o \
+   amsr2time_.o \
    da_blas.o \
    da_lapack.o \
    da_par_util.o \
@@ -28,6 +29,7 @@ WRFVAR_OBJS = \
    da_rain.o \
    da_gpspw.o \
    da_gpsref.o \
+   da_gpseph.o \
    da_ssmi.o \
    module_ssmi.o \
    da_satem.o \
@@ -262,6 +264,9 @@ da_join_iv_for_multi_inc.o \
 copyfile.o :
 	$(SCC) -c $(CFLAGS) $*.c
 
+amsr2time_.o :
+	$(SCC) -c $(CFLAGS) $*.c
+
 module_state_description.F : ../../Registry/$(REGISTRY)
 	(cd $(WRF_SRC_ROOT_DIR); tools/registry $(ARCHFLAGS) -DNEW_BDYS Registry/$(REGISTRY) ; cd $(WRF_SRC_ROOT_DIR)/var/build )
 	$(LN) $(WRF_SRC_ROOT_DIR)/frame/module_state_description.F .
@@ -285,14 +290,14 @@ $(WRF_SRC_ROOT_DIR)/frame/pack_utils.o :
 init_modules.o :
 	$(RM) $@
 	$(SED_FTN) $*.F > $*.b
-	$(CPP) $(CPPFLAGS) $(OMPCPP) $(FPPFLAGS) $*.b  > $*.f
+	$(CPP) $(CPPFLAGS) $(OMPCPP) $(FPPFLAGS) $*.b  > $*.f90
 	$(RM) $*.b
 	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
           echo COMPILING $*.F for 4DVAR ; \
-          $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f > $*.f.tmp ; \
-          mv $*.f.tmp $*.f ; \
+          $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f90 > $*.f.tmp ; \
+          mv $*.f.tmp $*.f90 ; \
         fi
-	$(SFC) -c $(FCFLAGS) $(PROMOTION) -I../../external/io_int $*.f
+	$(SFC) -c $(FCFLAGS) $(PROMOTION) -I../../external/io_int $*.f90
 
 da_bias_verif.o da_bias_scan.o da_bias_sele.o da_bias_airmass.o da_rad_diags.o \
 da_tune_obs_hollingsworth1.o da_tune_obs_hollingsworth2.o da_tune_obs_desroziers.o \
@@ -339,8 +344,8 @@ da_etkf.o da_tools.o :
 da_4dvar.o :
 	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
           ${LN} ${WRFPLUS_DIR}/dyn_em/module_big_step_utilities_em.mod . ; \
-          ${LN} ${WRFPLUS_DIR}/dyn_em/g_module_big_step_utilities_em.mod . ; \
-          ${LN} ${WRFPLUS_DIR}/dyn_em/a_module_big_step_utilities_em.mod . ; \
+          ${LN} ${WRFPLUS_DIR}/wrftladj/g_module_big_step_utilities_em.mod . ; \
+          ${LN} ${WRFPLUS_DIR}/wrftladj/a_module_big_step_utilities_em.mod . ; \
           ${LN} ${WRFPLUS_DIR}/main/module_wrf_top.mod . ; \
           ${LN} ${WRFPLUS_DIR}/share/mediation_pertmod_io.mod . ; \
         fi
@@ -348,7 +353,7 @@ da_4dvar.o :
 	$(SED_FTN) $*.f90 > $*.b
 	$(CPP) $(CPPFLAGS) $(OMPCPP) $(FPPFLAGS) $*.b  > $*.f
 	$(RM) $*.b
-	$(FC) -c $(FCFLAGS) $(PROMOTION) -I$(WRFPLUS_DIR)/dyn_em -I$(WRFPLUS_DIR)/main -I$(WRFPLUS_DIR)/frame -I$(WRFPLUS_DIR)/share $*.f
+	$(FC) -c $(FCFLAGS) $(PROMOTION) $(WRFPLUS_INC) $*.f
 
 da_wrfvar_main.o \
 da_wrfvar_io.o \
@@ -364,16 +369,50 @@ da_wrfvar_top.o :
         fi
 	if $(FGREP) '!$$OMP' $*.f ; then \
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITH OMP ; fi ; \
-	  $(FC) -c $(FCFLAGS) $(OMP) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) -I$(WRFPLUS_DIR)/main -I$(WRFPLUS_DIR)/frame -I$(WRFPLUS_DIR)/share -I$(NETCDF)/include $*.f ; \
+	  $(FC) -c $(FCFLAGS) $(OMP) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(WRFPLUS_INC) $(HDF5_INC) -I$(NETCDF)/include $*.f ; \
         else \
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITHOUT OMP ; fi ; \
-	  $(FC) -c $(FCFLAGS) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) -I$(WRFPLUS_DIR)/main -I$(WRFPLUS_DIR)/frame -I$(WRFPLUS_DIR)/share -I$(NETCDF)/include $*.f ; \
+	  $(FC) -c $(FCFLAGS) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(WRFPLUS_INC) $(HDF5_INC) -I$(NETCDF)/include $*.f ; \
+        fi
+
+da_radiance.o :
+	$(RM) $@
+	$(SED_FTN) $*.f90 > $*.b
+	$(CPP) $(CPPFLAGS) $(OMPCPP) $(FPPFLAGS) $(RTTOV_SRC) $*.b  > $*.f
+	$(RM) $*.b
+	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
+          echo COMPILING $*.f90 for 4DVAR ; \
+          $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f > $*.f.tmp ; \
+          mv $*.f.tmp $*.f ; \
+        fi
+	if $(FGREP) '!$$OMP' $*.f ; then \
+          if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITH OMP ; fi ; \
+	  $(FC) -c $(FCFLAGS) $(OMP) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(HDF5_INC) -I$(NETCDF)/include $*.f ; \
+        else \
+	if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITHOUT OMP ; fi ; \
+	  $(FC) -c $(FCFLAGS) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(HDF5_INC) -I$(NETCDF)/include $*.f ; \
         fi
 
 da_radiance1.o \
 module_radiance.o \
-da_radiance.o \
-da_setup_structures.o \
+da_setup_structures.o :
+	$(RM) $@
+	$(SED_FTN) $*.f90 > $*.b
+	$(CPP) $(CPPFLAGS) $(OMPCPP) $(FPPFLAGS) $(RTTOV_SRC) $*.b  > $*.f
+	$(RM) $*.b
+	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
+           echo COMPILING $*.f90 for 4DVAR ; \
+           $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f > $*.f.tmp ; \
+           mv $*.f.tmp $*.f ; \
+         fi
+	if $(FGREP) '!$$OMP' $*.f ; then \
+          if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITH OMP ; fi ; \
+	  $(FC) -c $(FCFLAGS) $(OMP) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(HDF5_INC) $*.f ; \
+        else \
+	if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITHOUT OMP ; fi ; \
+	  $(FC) -c $(FCFLAGS) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(HDF5_INC) $*.f ; \
+        fi
+
 da_obs_io.o \
 da_obs.o \
 da_crtm.o \
@@ -410,10 +449,10 @@ da_minimisation.o :
         fi
 	if $(FGREP) '!$$OMP' $*.f ; then \
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITH OMP ; fi ; \
-	  $(FC) -c $(FCFLAGS) $(OMP) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) -I$(WRFPLUS_DIR)/main -I$(WRFPLUS_DIR)/dyn_em -I$(WRFPLUS_DIR)/frame -I$(WRFPLUS_DIR)/share $*.f ; \
+	  $(FC) -c $(FCFLAGS) $(OMP) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(WRFPLUS_INC) $(HDF5_INC) $*.f ; \
         else \
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.f90 WITHOUT OMP ; fi ; \
-	  $(FC) -c $(FCFLAGS) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) -I$(WRFPLUS_DIR)/main -I$(WRFPLUS_DIR)/dyn_em -I$(WRFPLUS_DIR)/frame -I$(WRFPLUS_DIR)/share $*.f ; \
+	  $(FC) -c $(FCFLAGS) $(PROMOTION) $(CRTM_SRC) $(RTTOV_SRC) $(WRFPLUS_INC) $(HDF5_INC) $*.f ; \
         fi
 
 da_blas.o \

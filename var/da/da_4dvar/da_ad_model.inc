@@ -166,15 +166,17 @@ subroutine da_ad_model ()
    head_grid%g_pratec = 0.0
 
    ! Set the physics options to what they are in TL and AD
-   if ( original_mp_physics .gt. 0 ) &
-      call nl_set_mp_physics (head_grid%id, 98) 
+   if (original_mp_physics .NE. 0 .and. original_mp_physics .NE. 98 .and. original_mp_physics .NE. 99) &
+      call nl_set_mp_physics (head_grid%id, original_mp_physics_ad) 
    call nl_set_ra_lw_physics (head_grid%id, 0)
    call nl_set_ra_sw_physics (head_grid%id, 0)
    call nl_set_sf_sfclay_physics (head_grid%id, 0)
    if ( original_bl_pbl_physics .gt. 0 ) &
       call nl_set_bl_pbl_physics (head_grid%id, 98)
-   if ( original_cu_physics .gt. 0 ) &
+   if ( original_cu_physics .gt. 0 ) then
       call nl_set_cu_physics (head_grid%id, 98) 
+      head_grid%cudt =0
+   endif
    !call nl_set_mp_zero_out (head_grid%id, 0)
    !call nl_set_sf_surface_physics (head_grid%id, 1)
    call nl_set_ifsnow (head_grid%id, 1)
@@ -194,6 +196,7 @@ subroutine da_ad_model ()
    call nl_set_sf_sfclay_physics (head_grid%id, original_sf_sfclay_physics)
    call nl_set_bl_pbl_physics (head_grid%id, original_bl_pbl_physics)
    call nl_set_cu_physics (head_grid%id, original_cu_physics)
+   head_grid%cudt = original_cudt
    !call nl_set_mp_zero_out (head_grid%id, original_mp_zero_out)
    !call nl_set_sf_surface_physics (head_grid%id, original_sf_surface_physics)
    call nl_set_ifsnow (head_grid%id, original_ifsnow)

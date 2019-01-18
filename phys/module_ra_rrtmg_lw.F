@@ -2772,7 +2772,7 @@ contains
 
       data icb /1,2,3,3,3,4,4,4,5, 5, 5, 5, 5, 5, 5, 5/
 
-      hvrclc = '$Revision: 1.8 $'
+!jm not thread safe      hvrclc = '$Revision: 1.8 $'
 
       ncbands = 1
 
@@ -3137,7 +3137,7 @@ contains
 !    htrc                         ! clear sky longwave heating rate (k/day)
 
 
-      hvrrtc = '$Revision: 1.3 $'
+!jm not thread safe      hvrrtc = '$Revision: 1.3 $'
 
       do ibnd = 1,nbndlw
          if (ibnd.eq.1 .or. ibnd.eq.4 .or. ibnd.ge.10) then
@@ -3556,7 +3556,7 @@ contains
       real(kind=rb) :: plog, fp, ft, ft1, water, scalefac, factor, compfp
 
 
-      hvrset = '$Revision: 1.3 $'
+!jm not thread safe      hvrset = '$Revision: 1.3 $'
 
       stpfac = 296._rb/1013._rb
 
@@ -4934,7 +4934,7 @@ contains
       real(kind=rb), intent(out) :: taug(:,:)         ! gaseous optical depth 
                                                       !    Dimensions: (nlayers,ngptlw)
 
-      hvrtau = '$Revision: 1.7 $'
+!jm not thread safe      hvrtau = '$Revision: 1.7 $'
 
 ! Calculate gaseous optical depth and planck fractions for each spectral band.
 
@@ -5984,10 +5984,12 @@ contains
 
 ! ------- Modules -------
 
-      use parrrtm, only : ng6, ngs5
+      use parrrtm, only : ngs5
+!     use parrrtm, only : ng6, ngs5
       use rrlw_ref, only : chi_mls
-      use rrlw_kg06, only : fracrefa, absa, ka, ka_mco2, &
-                            selfref, forref, cfc11adj, cfc12
+      use rrlw_kg06
+!     use rrlw_kg06, only : fracrefa, absa, ka, ka_mco2, &
+!                           selfref, forref, cfc11adj, cfc12
 
 ! ------- Declarations -------
 
@@ -6191,7 +6193,7 @@ contains
             fac100 = fs * fac00(lay)
             fac110 = fs * fac10(lay)
          endif
-         if (specparm .lt. 0.125_rb) then
+         if (specparm1 .lt. 0.125_rb) then
             p = fs1 - 1
             p4 = p**4
             fk0 = p4
@@ -7902,7 +7904,7 @@ contains
 !     BPADE   Inverse of the Pade approximation constant
 !
 
-      hvrini = '$Revision: 1.3 $'
+!jm not thread safe      hvrini = '$Revision: 1.3 $'
 
 ! Initialize model data
       call lwdatinit(cpdair)
@@ -8017,7 +8019,7 @@ contains
       use parrrtm, only : maxxsec, maxinpx
       use rrlw_con, only: heatfac, grav, planck, boltz, &
                           clight, avogad, alosmt, gascon, radcn1, radcn2, &
-                          sbcnst, secdy 
+                          sbcnst, secdy, fluxfac, oneminus, pi
       use rrlw_vsn
 
       save 
@@ -8081,6 +8083,12 @@ contains
                                               ! (W cm-2 K-4)
       secdy = 8.6400e4_rb                     ! Number of seconds per day
                                               ! (s d-1)
+
+!jm moved here for thread safety, 20141107
+      oneminus = 1._rb - 1.e-6_rb
+      pi       = 2._rb * asin(1._rb)
+      fluxfac  =  pi * 2.e4_rb  ! orig:   fluxfac = pi * 2.d4
+
 !
 !     units are generally cgs
 !
@@ -8756,11 +8764,13 @@ contains
 ! old band 6:  820-980 cm-1 (low - h2o; high - nothing)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng6
-      use rrlw_kg06, only: fracrefao, kao, kao_mco2, cfc11adjo, cfc12o, &
-                           selfrefo, forrefo, &
-                           fracrefa, absa, ka, ka_mco2, cfc11adj, cfc12, &
-                           selfref, forref
+      use parrrtm, only : mg, nbndlw, ngptlw
+!     use parrrtm, only : mg, nbndlw, ngptlw, ng6
+      use rrlw_kg06
+!     use rrlw_kg06, only: fracrefao, kao, kao_mco2, cfc11adjo, cfc12o, &
+!                          selfrefo, forrefo, &
+!                          fracrefa, absa, ka, ka_mco2, cfc11adj, cfc12, &
+!                          selfref, forref
 
 ! ------- Local -------
       integer(kind=im) :: jt, jp, igc, ipr, iprsm 
@@ -10577,7 +10587,8 @@ contains
              inflglw ,iceflglw,liqflglw,cldfmcl , &
              taucmcl ,ciwpmcl ,clwpmcl , cswpmcl ,reicmcl ,relqmcl , resnmcl , &
              tauaer  , &
-             uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc)
+             uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc, &
+             uflxcln ,dflxcln, calc_clean_atm_diag )
 
 ! -------- Description --------
 
@@ -10758,6 +10769,7 @@ contains
                                                       !    Dimensions: (ncol,nlay,nbndlw)
                                                       !   for future expansion 
                                                       !   (lw aerosols/scattering not yet available)
+      integer, intent(in) :: calc_clean_atm_diag      ! Control for clean air diagnositic calls for WRF-Chem
 
 ! ----- Output -----
 
@@ -10773,6 +10785,10 @@ contains
                                                       !    Dimensions: (ncol,nlay+1)
       real(kind=rb), intent(out) :: hrc(:,:)          ! Clear sky longwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
+      real(kind=rb), intent(out) :: uflxcln(:,:)      ! Clean sky longwave upward flux (W/m2)
+                                                      !    Dimensions: (ncol,nlay+1)
+      real(kind=rb), intent(out) :: dflxcln(:,:)      ! Clean sky longwave downward flux (W/m2)
+                                                      !    Dimensions: (ncol,nlay+1)
 
 ! ----- Local -----
 
@@ -10884,13 +10900,17 @@ contains
       real(kind=rb) :: totdclfl(0:nlay+1)     ! clear sky downward longwave flux (w/m2)
       real(kind=rb) :: fnetc(0:nlay+1)        ! clear sky net longwave flux (w/m2)
       real(kind=rb) :: htrc(0:nlay+1)         ! clear sky longwave heating rate (k/day)
+      real(kind=rb) :: totuclnlfl(0:nlay+1)   ! clean sky upward longwave flux (w/m2)
+      real(kind=rb) :: totdclnlfl(0:nlay+1)   ! clean sky downward longwave flux (w/m2)
+      real(kind=rb) :: fnetcln(0:nlay+1)      ! clean sky net longwave flux (w/m2)
+      real(kind=rb) :: htrcln(0:nlay+1)       ! clean sky longwave heating rate (k/day)
 
 !
 ! Initializations
 
-      oneminus = 1._rb - 1.e-6_rb
-      pi = 2._rb * asin(1._rb)
-      fluxfac = pi * 2.e4_rb                  ! orig:   fluxfac = pi * 2.d4  
+!jm not thread safe      oneminus = 1._rb - 1.e-6_rb
+!jm not thread safe      pi = 2._rb * asin(1._rb)
+!jm not thread safe      fluxfac = pi * 2.e4_rb                  ! orig:   fluxfac = pi * 2.d4  
       istart = 1
       iend = 16
       iout = 0
@@ -10998,6 +11018,29 @@ contains
 ! to be used.  Clear sky calculation is done simultaneously.
 ! For McICA, RTRNMC is called for clear and cloudy calculations.
 
+#if (WRF_CHEM == 1)
+        ! Call the radiative transfer routine for "clean" sky first,
+        ! passing taug rather than taut so we have no aerosol influence.
+        ! We will keep totuclnlfl, totdclnlfl, fnetcln, and htrcln, 
+        ! and then overwrite the rest with the second call to rtrnmc.
+         if(calc_clean_atm_diag .gt. 0)then
+             call rtrnmc(nlayers, istart, iend, iout, pz, semiss, ncbands, &
+                     cldfmc, taucmc, planklay, planklev, plankbnd, &
+                     pwvcm, fracs, taug, &
+                     totuclnlfl, totdclnlfl, fnetcln, htrcln, &
+                     totuclfl, totdclfl, fnetc, htrc )
+         else
+            do k = 0, nlayers
+                totuclnlfl(k) = 0.0
+                totdclnlfl(k) = 0.0
+            end do
+         end if
+#else
+         do k = 0, nlayers
+            totuclnlfl(k) = 0.0
+            totdclnlfl(k) = 0.0
+         end do
+#endif
          call rtrnmc(nlayers, istart, iend, iout, pz, semiss, ncbands, &
                      cldfmc, taucmc, planklay, planklev, plankbnd, &
                      pwvcm, fracs, taut, &
@@ -11012,6 +11055,8 @@ contains
             dflx(iplon,k+1) = totdflux(k)
             uflxc(iplon,k+1) = totuclfl(k)
             dflxc(iplon,k+1) = totdclfl(k)
+            uflxcln(iplon,k+1) = totuclnlfl(k)
+            dflxcln(iplon,k+1) = totdclnlfl(k)
          enddo
          do k = 0, nlayers-1
             hr(iplon,k+1) = htr(k)
@@ -11368,6 +11413,11 @@ MODULE module_ra_rrtmg_lw
 
 use module_model_constants, only : cp
 use module_wrf_error
+#if (HWRF == 1)
+   USE module_state_description, ONLY : FER_MP_HIRES, FER_MP_HIRES_ADVECT, ETAMP_HWRF 
+#else
+   USE module_state_description, ONLY : FER_MP_HIRES, FER_MP_HIRES_ADVECT
+#endif
 !use module_dm
 
 use parrrtm, only : nbndlw, ngptlw
@@ -11376,23 +11426,23 @@ use rrtmg_lw_rad, only: rrtmg_lw
 use mcica_subcol_gen_lw, only: mcica_subcol_lw
 
     real retab(95)
-    data retab / 						&
-         5.92779, 6.26422, 6.61973, 6.99539, 7.39234,	&
-         7.81177, 8.25496, 8.72323, 9.21800, 9.74075, 10.2930,	&
-         10.8765, 11.4929, 12.1440, 12.8317, 13.5581, 14.2319, 	&
-         15.0351, 15.8799, 16.7674, 17.6986, 18.6744, 19.6955,	&
-         20.7623, 21.8757, 23.0364, 24.2452, 25.5034, 26.8125,	&
-         27.7895, 28.6450, 29.4167, 30.1088, 30.7306, 31.2943, 	&
-         31.8151, 32.3077, 32.7870, 33.2657, 33.7540, 34.2601, 	&
-         34.7892, 35.3442, 35.9255, 36.5316, 37.1602, 37.8078,	&
-         38.4720, 39.1508, 39.8442, 40.5552, 41.2912, 42.0635,	&
-         42.8876, 43.7863, 44.7853, 45.9170, 47.2165, 48.7221,	&
-         50.4710, 52.4980, 54.8315, 57.4898, 60.4785, 63.7898,	&
-         65.5604, 71.2885, 75.4113, 79.7368, 84.2351, 88.8833,	&
-         93.6658, 98.5739, 103.603, 108.752, 114.025, 119.424, 	&
-         124.954, 130.630, 136.457, 142.446, 148.608, 154.956,	&
-         161.503, 168.262, 175.248, 182.473, 189.952, 197.699,	&
-         205.728, 214.055, 222.694, 231.661, 240.971, 250.639/	
+    data retab /                                                &
+         5.92779, 6.26422, 6.61973, 6.99539, 7.39234,   &
+         7.81177, 8.25496, 8.72323, 9.21800, 9.74075, 10.2930,  &
+         10.8765, 11.4929, 12.1440, 12.8317, 13.5581, 14.2319,  &
+         15.0351, 15.8799, 16.7674, 17.6986, 18.6744, 19.6955,  &
+         20.7623, 21.8757, 23.0364, 24.2452, 25.5034, 26.8125,  &
+         27.7895, 28.6450, 29.4167, 30.1088, 30.7306, 31.2943,  &
+         31.8151, 32.3077, 32.7870, 33.2657, 33.7540, 34.2601,  &
+         34.7892, 35.3442, 35.9255, 36.5316, 37.1602, 37.8078,  &
+         38.4720, 39.1508, 39.8442, 40.5552, 41.2912, 42.0635,  &
+         42.8876, 43.7863, 44.7853, 45.9170, 47.2165, 48.7221,  &
+         50.4710, 52.4980, 54.8315, 57.4898, 60.4785, 63.7898,  &
+         65.5604, 71.2885, 75.4113, 79.7368, 84.2351, 88.8833,  &
+         93.6658, 98.5739, 103.603, 108.752, 114.025, 119.424,  &
+         124.954, 130.630, 136.457, 142.446, 148.608, 154.956,  &
+         161.503, 168.262, 175.248, 182.473, 189.952, 197.699,  &
+         205.728, 214.055, 222.694, 231.661, 240.971, 250.639/  
     !
     save retab
     ! For buffer layer adjustment.  Steven Cavallo, Dec 2010.
@@ -11404,8 +11454,8 @@ CONTAINS
 !------------------------------------------------------------------
    SUBROUTINE RRTMG_LWRAD(                                        &
                        rthratenlw,                                &
-                       lwupt, lwuptc, lwdnt, lwdntc,              &
-                       lwupb, lwupbc, lwdnb, lwdnbc,              &
+                       lwupt, lwuptc, lwuptcln, lwdnt, lwdntc, lwdntcln, &
+                       lwupb, lwupbc, lwupbcln, lwdnb, lwdnbc, lwdnbcln, &
 !                      lwupflx, lwupflxc, lwdnflx, lwdnflxc,      &
                        glw, olr, lwcf, emiss,                     &
                        p8w, p3d, pi3d,                            &
@@ -11427,11 +11477,12 @@ CONTAINS
                        tauaerlw13,tauaerlw14,tauaerlw15,tauaerlw16,   & ! czhao 
                        aer_ra_feedback,                           & !czhao
 !jdfcz                 progn,prescribe,                           & !czhao
-                       progn,                                     & !czhao
+                       progn,calc_clean_atm_diag,                 & !czhao
                        qndrop3d,f_qndrop,                         & !czhao
 !ccc added for time varying gases.
                        yr,julian,                                 &
 !ccc
+                       mp_physics,                                &
                        ids,ide, jds,jde, kds,kde,                 & 
                        ims,ime, jms,jme, kms,kme,                 &
                        its,ite, jts,jte, kts,kte,                 &
@@ -11451,6 +11502,7 @@ CONTAINS
                                        its,ite, jts,jte, kts,kte
 
    INTEGER, INTENT(IN )      ::        ICLOUD
+   INTEGER, INTENT(IN )      ::        MP_PHYSICS
 !
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme )                 , &
          INTENT(IN   ) ::                                   dz8w, &
@@ -11529,6 +11581,8 @@ CONTAINS
    INTEGER,    INTENT(IN  ), OPTIONAL   ::       aer_ra_feedback
 !jdfcz   INTEGER,    INTENT(IN  ), OPTIONAL   ::       progn,prescribe
    INTEGER,    INTENT(IN  ), OPTIONAL   ::       progn
+   INTEGER,    INTENT(IN  )             ::       calc_clean_atm_diag
+
 !  Ozone
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme )                 , &
          OPTIONAL                                               , &
@@ -11543,8 +11597,8 @@ CONTAINS
 ! Top of atmosphere and surface longwave fluxes (W m-2)
    REAL, DIMENSION( ims:ime, jms:jme ),                           &
          OPTIONAL, INTENT(INOUT) ::                               &
-                                       LWUPT,LWUPTC,LWDNT,LWDNTC, &
-                                       LWUPB,LWUPBC,LWDNB,LWDNBC
+                      LWUPT,LWUPTC,LWUPTCLN,LWDNT,LWDNTC,LWDNTCLN,&
+                      LWUPB,LWUPBC,LWUPBCLN,LWDNB,LWDNBC,LWDNBCLN 
 
 ! Layer longwave fluxes (including extra layer above model top)
 ! Vertical ordering is from bottom to top (W m-2)
@@ -11566,10 +11620,15 @@ CONTAINS
                                                             QC1D, &
                                                             QR1D, &
                                                             QI1D, &
+                                                           RHO1D, &
                                                             QS1D, &
                                                             QG1D, &
                                                             O31D, &
                                                           qndrop1d 
+!BSF: From eq. (5) on p. 2434 in McFarquhar & Heymsfield (1996)
+       real, parameter :: re_50C=1250.0/9.917, re_40C=1250.0/9.337, &
+                          re_30C=1250.0/9.208, re_20C=1250.0/9.387
+
 
 ! Added local arrays for RRTMG
     integer ::                                              ncol, &
@@ -11626,7 +11685,10 @@ CONTAINS
     real, dimension( 1, kts:nlayers+1 )  ::                 uflx, &
                                                             dflx, &
                                                            uflxc, &
-                                                           dflxc
+                                                           dflxc, &
+                                                         uflxcln, &
+                                                         dflxcln
+                                                           
     real, dimension( 1, kts:nlayers )  ::                    hr, &
                                                              hrc
 
@@ -11726,14 +11788,15 @@ CONTAINS
     integer :: pcols, pver
 
 !
-    INTEGER :: i,j,K
+    INTEGER :: i,j,K, idx_rei
+    REAL :: corr
     LOGICAL :: predicate
 
 ! Added for top of model adjustment.  Steven Cavallo NCAR/MMM December 2010
     INTEGER, PARAMETER :: nproflevs = 60 ! Constant, from the table
     INTEGER :: L, LL, klev               ! Loop indices      
     REAL, DIMENSION( kts:nlayers+1 ) :: varint
-    REAL :: wght,vark,vark1       
+    REAL :: wght,vark,vark1,tem1,tem2,tem3
     REAL :: PPROF(nproflevs), TPROF(nproflevs)            
     ! Weighted mean pressure and temperature profiles from midlatitude 
     ! summer (MLS),midlatitude winter (MLW), sub-Arctic 
@@ -11750,17 +11813,17 @@ CONTAINS
                   0.56,0.48,0.41,0.35,0.30,0.26,                  &
                   0.22,0.19,0.16,0.14,0.12,0.10/
     DATA TPROF   /286.96,281.07,275.16,268.11,260.56,253.02,      &
-         	  245.62,238.41,231.57,225.91,221.72,217.79,      &
-		  215.06,212.74,210.25,210.16,210.69,212.14,      &
-		  213.74,215.37,216.82,217.94,219.03,220.18,      &
-		  221.37,222.64,224.16,225.88,227.63,229.51,      &
-		  231.50,233.73,236.18,238.78,241.60,244.44,      &
-		  247.35,250.33,253.32,256.30,259.22,262.12,      &
-		  264.80,266.50,267.59,268.44,268.69,267.76,      &
-		  266.13,263.96,261.54,258.93,256.15,253.23,      &
-		  249.89,246.67,243.48,240.25,236.66,233.86/	
+                  245.62,238.41,231.57,225.91,221.72,217.79,      &
+                  215.06,212.74,210.25,210.16,210.69,212.14,      &
+                  213.74,215.37,216.82,217.94,219.03,220.18,      &
+                  221.37,222.64,224.16,225.88,227.63,229.51,      &
+                  231.50,233.73,236.18,238.78,241.60,244.44,      &
+                  247.35,250.33,253.32,256.30,259.22,262.12,      &
+                  264.80,266.50,267.59,268.44,268.69,267.76,      &
+                  266.13,263.96,261.54,258.93,256.15,253.23,      &
+                  249.89,246.67,243.48,240.25,236.66,233.86/    
 !------------------------------------------------------------------
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
       IF ( aer_ra_feedback == 1) then
       IF ( .NOT. &
       ( PRESENT(tauaerlw1) .AND. &
@@ -11799,9 +11862,9 @@ CONTAINS
 
    IF ( wrf_dm_on_monitor() ) THEN
      WRITE(message,*)'CAM-CLWRF interpolated values______ year:',yr,' julian day:',julian
-     call wrf_debug( 1, message)
+     call wrf_debug( 100, message)
      WRITE(message,*)'  CAM-CLWRF co2vmr: ',co2,' n2ovmr:',n2o,' ch4vmr:',ch4,' cfc11vmr:',cfc11,' cfc12vmr:',cfc12
-     call wrf_debug( 1, message)
+     call wrf_debug( 100, message)
    ENDIF
 
 #endif
@@ -11846,6 +11909,7 @@ CONTAINS
             TTEN1D(K)=0.
             T1D(K)=T3D(I,K,J)
             P1D(K)=P3D(I,K,J)/100.
+            RHO1D(K)=RHO3D(I,K,J)
             DZ1D(K)=dz8w(I,K,J)
          ENDDO
 
@@ -11948,6 +12012,24 @@ CONTAINS
 
         ENDIF
 
+!   For mp option=5 or 85  (new Ferrier- Aligo or fer_hires scheme), QI3D saves all
+#if (HWRF == 1)
+        IF ( mp_physics == FER_MP_HIRES .OR. &
+             mp_physics == FER_MP_HIRES_ADVECT .OR. &
+             mp_physics == ETAMP_HWRF ) THEN
+#else
+        IF ( mp_physics == FER_MP_HIRES .OR. &
+             mp_physics == FER_MP_HIRES_ADVECT) THEN
+#endif
+                  DO K=kts,kte
+                     qi1d(k) = qi3d(i,k,j)
+                     qs1d(k) = 0.0
+                     qc1d(k) = qc3d(i,k,j)
+                     qi1d(k) = max(0.,qi1d(k))
+                     qc1d(k) = max(0.,qc1d(k))
+                  ENDDO
+        ENDIF
+
 !         EMISS0=EMISS(I,J)
 !         GLW0=0. 
 !         OLR0=0. 
@@ -11980,13 +12062,16 @@ CONTAINS
 !Mukul change the flags here with reference to the new effective cloud/ice/snow radius
          IF (ICLOUD .ne. 0) THEN
             IF ( has_reqc .ne. 0) THEN
-               IF ( wrf_dm_on_monitor() ) THEN
-                 WRITE(message,*)'RRTMG: pre-computed cloud droplet effective radius found, setting inflglw=3'
-                 call wrf_debug(150, message)
-               ENDIF
                inflglw = 3
                DO K=kts,kte
                   recloud1D(ncol,K) = MAX(2.5, re_cloud(I,K,J)*1.E6)
+                  if (recloud1D(ncol,K).LE.2.5.AND.cldfra3d(i,k,j).gt.0. &
+     &                            .AND. (XLAND(I,J)-1.5).GT.0.) then     !--- Ocean
+                     recloud1D(ncol,K) = 10.5
+                  elseif(recloud1D(ncol,K).LE.2.5.AND.cldfra3d(i,k,j).gt.0. &
+     &                            .AND. (XLAND(I,J)-1.5).LT.0.) then     !--- Land
+                     recloud1D(ncol,K) = 7.5
+                  endif
                ENDDO
             ELSE
                DO K=kts,kte
@@ -11995,26 +12080,45 @@ CONTAINS
             ENDIF
 
             IF ( has_reqi .ne. 0) THEN
-               IF ( wrf_dm_on_monitor() ) THEN
-                 WRITE(message,*)'RRTMG: pre-computed cloud ice effective radius found, setting inflglw=4 and iceflglw=4'
-                 call wrf_debug(150, message)
-               ENDIF
                inflglw  = 4
                iceflglw = 4
                DO K=kts,kte
-                  reice1D(ncol,K) = MAX(10., re_ice(I,K,J)*1.E6)
+                  reice1D(ncol,K) = MAX(5., re_ice(I,K,J)*1.E6)
+                  if (reice1D(ncol,K).LE.5..AND.cldfra3d(i,k,j).gt.0.) then
+                     idx_rei = int(t3d(i,k,j)-179.)
+                     idx_rei = min(max(idx_rei,1),75)
+                     corr = t3d(i,k,j) - int(t3d(i,k,j))
+                     reice1D(ncol,K) = retab(idx_rei)*(1.-corr) +       &
+     &                                 retab(idx_rei+1)*corr
+                     reice1D(ncol,K) = MAX(reice1D(ncol,K), 5.0)
+                  endif
                ENDDO
             ELSE
                DO K=kts,kte
+#if (EM_CORE==1) 
                   reice1D(ncol,K) = 10.0
+#else
+                  tem2 = 25.0  !- was 10.0
+                  tem3=1.e3*rho1d(k)*qi1d(k)  !- IWC (g m^-3)
+                  if (tem3>thresh) then       !- Only when IWC>1.e-9 gm^-3
+                    tem1=t1d(k)-273.15
+                    if (tem1 < -50.0) then
+                      tem2 = re_50C*tem3**0.109
+                    elseif (tem1 < -40.0) then
+                      tem2 = re_40C*tem3**0.08
+                    elseif (tem1 < -30.0) then
+                      tem2 = re_30C*tem3**0.055
+                    else
+                      tem2 = re_20C*tem3**0.031
+                    endif
+                    tem2 = max(25.,tem2)
+                  endif
+                  reice1D(ncol,K) = min(tem2, 135.72)   !- 1.0315*reice<= 140 microns
+#endif
                ENDDO
             ENDIF
 
             IF ( has_reqs .ne. 0) THEN
-               IF ( wrf_dm_on_monitor() ) THEN
-                 WRITE(message,*)'RRTMG: pre-computed snow effective radius found, setting inflglw=5 and iceflglw=5'
-                 call wrf_debug(150, message)
-               ENDIF
                inflglw  = 5
                iceflglw = 5
                DO K=kts,kte
@@ -12025,6 +12129,20 @@ CONTAINS
                   resnow1D(ncol,K) = 10.0
                ENDDO
             ENDIF
+
+! special case for P3 microphysics
+! put ice into snow category for optics, then set ice to zero
+            IF (has_reqs .eq. 0 .and. has_reqi .ne. 0 .and. has_reqc .ne. 0) THEN
+               inflglw  = 5
+               iceflglw = 5
+               DO K=kts,kte
+                  resnow1D(ncol,K) = MAX(10., re_ice(I,K,J)*1.E6)
+                  QS1D(K)=QI3D(I,K,J)
+                  QI1D(K)=0.
+                  reice1D(ncol,K)=10.
+               END DO
+            END IF
+
          ENDIF
 
 ! Layer indexing goes bottom to top here for all fields.
@@ -12126,8 +12244,8 @@ CONTAINS
        do L=kte+1,nlayers+1,1
           tlev(ncol,L) = varint(L) + (tlev(ncol,kte) - varint(kte))
           !if ( L .le. nlay ) then
-	  tlay(ncol,L-1) = 0.5*(tlev(ncol,L) + tlev(ncol,L-1))  
-	  !endif
+          tlay(ncol,L-1) = 0.5*(tlev(ncol,L) + tlev(ncol,L-1))  
+          !endif
        enddo 
 
        ! Now the chemical species (except for ozone)
@@ -12141,9 +12259,9 @@ CONTAINS
           cfc12vmr(ncol,L) = cfc12vmr(ncol,kte) 
           cfc22vmr(ncol,L) = cfc22vmr(ncol,kte) 
           ccl4vmr(ncol,L) = ccl4vmr(ncol,kte) 
-       enddo	 
+       enddo     
 ! End top of model buffer 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 ! Get ozone profile including amount in extra layer above model top.
 ! Steven Cavallo: Must pass nlay-1 into subroutine to get nlayers 
 ! dimension for o3mmr
@@ -12329,7 +12447,12 @@ CONTAINS
             reliq(ncol,k) = recloud1d(ncol,k)
          end do
       endif
+#if (EM_CORE==1) 
       if (iceflglw .ge. 4) then
+#else
+      if (iceflglw .ge. 3) then    !BSF: was .ge. 4
+#endif
+
          do k = kts, kte
             reice(ncol,k) = reice1d(ncol,k)
          end do
@@ -12411,18 +12534,18 @@ CONTAINS
          endif
 
          ! Buffer adjustment. Steven Cavallo December 2010
-	 do k=kte+1,nlayers
-	    clwpth(ncol,k) = 0.
-	    ciwpth(ncol,k) = 0.
-	    cswpth(ncol,k) = 0.
-	    rel(ncol,k) = 10.
+         do k=kte+1,nlayers
+            clwpth(ncol,k) = 0.
+            ciwpth(ncol,k) = 0.
+            cswpth(ncol,k) = 0.
+            rel(ncol,k) = 10.
             rei(ncol,k) = 10.
             res(ncol,k) = 10.
             cldfrac(ncol,k) = 0.
-	    do nb = 1,nbndlw
+            do nb = 1,nbndlw
                taucld(nb,ncol,k) = 0.
             enddo
-	 enddo	 
+         enddo   
 
          iplon = 1
          irng = 0
@@ -12453,7 +12576,7 @@ CONTAINS
       end do
       end do
 
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
    IF ( AER_RA_FEEDBACK == 1) then
 !     do nb = 1, nbndlw 
       do k = kts,kte      !wig
@@ -12512,7 +12635,8 @@ CONTAINS
              inflglw ,iceflglw,liqflglw,cldfmcl , &
              taucmcl ,ciwpmcl ,clwpmcl ,cswpmcl, reicmcl ,relqmcl ,resnmcl , &
              tauaer  , &
-             uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc)
+             uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc, &
+             uflxcln ,dflxcln, calc_clean_atm_diag )
 
 ! Output downard surface flux, and outgoing longwave flux and cloud forcing 
 ! at the top of atmosphere (W/m2)
@@ -12526,15 +12650,24 @@ CONTAINS
 
          if (present(lwupt)) then 
 ! Output up and down toa fluxes for total and clear sky
-            lwupt(i,j)     = uflx(1,kte+2)
-            lwuptc(i,j)    = uflxc(1,kte+2)
-            lwdnt(i,j)     = dflx(1,kte+2)
-            lwdntc(i,j)    = dflxc(1,kte+2)
+! nlayers+1 represents value at 0 mb
+            lwupt(i,j)     = uflx(1,nlayers+1)
+            lwuptc(i,j)    = uflxc(1,nlayers+1)
+            lwdnt(i,j)     = dflx(1,nlayers+1)
+            lwdntc(i,j)    = dflxc(1,nlayers+1)
 ! Output up and down surface fluxes for total and clear sky
             lwupb(i,j)     = uflx(1,1)
             lwupbc(i,j)    = uflxc(1,1)
             lwdnb(i,j)     = dflx(1,1)
             lwdnbc(i,j)    = dflxc(1,1)
+			if(calc_clean_atm_diag .gt. 0)then
+! Output up and down toa fluxes for clean sky
+            	lwuptcln(i,j)  = uflxcln(1,nlayers+1)
+            	lwdntcln(i,j)  = dflxcln(1,nlayers+1)
+! Output up and down surface fluxes for clean sky
+            	lwupbcln(i,j)  = uflxcln(1,1)
+            	lwdnbcln(i,j)  = dflxcln(1,1)
+			end if
          endif
 
 ! Output up and down layer fluxes for total and clear sky.
@@ -12724,7 +12857,7 @@ CONTAINS
 ! Steven Cavallo.  Added for buffer layer adjustment.   December 2010.
    NLAYERS = kme + nint(p_top*0.01/deltap)- 1 ! Model levels plus new levels.
                                               ! nlayers will subsequently 
-					      ! replace kte+1
+                                              ! replace kte+1
 
 ! Read in absorption coefficients and other data
    IF ( allowed_to_read ) THEN
@@ -13293,8 +13426,9 @@ IMPLICIT NONE
       subroutine lw_kgb06(rrtmg_unit)
 ! **************************************************************************
 
-      use rrlw_kg06, only : fracrefao, kao, kao_mco2, selfrefo, forrefo, &
-                            cfc11adjo, cfc12o
+      use rrlw_kg06
+!     use rrlw_kg06, only : fracrefao, kao, kao_mco2, selfrefo, forrefo, &
+!                           cfc11adjo, cfc12o
 
       implicit none
       save
@@ -14345,7 +14479,7 @@ IMPLICIT NONE
           index = int(t(i,k)-179.)
           index = min(max(index,1),94)
           corr = t(i,k) - int(t(i,k))
-          re(i,k) = retab(index)*(1.-corr)		&
+          re(i,k) = retab(index)*(1.-corr)              &
                +retab(index+1)*corr
           !           re(i,k) = amax1(amin1(re(i,k),30.),10.)
        end do

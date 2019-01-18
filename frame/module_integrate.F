@@ -15,7 +15,18 @@ RECURSIVE SUBROUTINE integrate ( grid )
    USE module_configure
    USE module_timing
    USE module_utility
+#if ( WRFPLUS == 1 )
+!   USE module_linked_list2, only : linkedlist_initialize
+#endif
    USE module_cpl, ONLY : coupler_on, cpl_snd, cpl_defdomain
+#ifdef DM_PARALLEL
+! better if this did not need to be used here. Problem is that the definition of 
+! domain_active_this_task comes from module_dm, and the routine it's being passed to (alloc_and_configure_domain)
+! is defined in module_domain, which uses module_dm.  If that weren't the case, we could have the
+! alloc_and_configure_domain routine get this form the module_dm module itself, but as it stands there
+! would be a circular use association.  jm 20140828
+   USE module_dm, ONLY:  domain_active_this_task !, push_communicators_for_domain, pop_communicators_for_domain
+#endif
 
    IMPLICIT NONE
 
@@ -156,6 +167,11 @@ RECURSIVE SUBROUTINE integrate ( grid )
    LOGICAL , EXTERNAL                     :: wrf_dm_on_monitor
    INTEGER                                :: idum1 , idum2 , ierr , open_status
    LOGICAL                                :: should_do_last_io
+   LOGICAL                                :: may_have_moved
+#if ( WRFPLUS == 1 )
+   INTEGER                                :: rc
+   LOGICAL                                :: should_add_forcing
+#endif
 
    ! interface
    INTERFACE
@@ -180,6 +196,28 @@ RECURSIVE SUBROUTINE integrate ( grid )
        TYPE (domain) grid
        TYPE (grid_config_rec_type) config_flags
      END SUBROUTINE med_before_solve_io
+#if ( WRFPLUS == 1 )
+     SUBROUTINE med_last_ad_solve_io ( grid , config_flags )
+       USE module_domain
+       USE module_configure
+       TYPE (domain) grid
+       TYPE (grid_config_rec_type) config_flags
+     END SUBROUTINE med_last_ad_solve_io
+     SUBROUTINE jcdfi_init_coef
+     END SUBROUTINE jcdfi_init_coef
+     SUBROUTINE jcdfi_zero_forcing ( grid )
+       USE module_domain
+       TYPE (domain) grid
+     END SUBROUTINE jcdfi_zero_forcing
+     SUBROUTINE jcdfi_tl ( grid )
+       USE module_domain
+       TYPE (domain) grid
+     END SUBROUTINE jcdfi_tl
+     SUBROUTINE jcdfi_add_forcing (grid)
+       USE module_domain
+       TYPE (domain) grid
+     END SUBROUTINE jcdfi_add_forcing
+#endif
        ! mediation-supplied routine that gives mediation layer opportunity to 
        ! perform I/O after the call to the solve routine
      SUBROUTINE med_after_solve_io ( grid , config_flags )
@@ -217,6 +255,11 @@ RECURSIVE SUBROUTINE integrate ( grid )
        USE module_configure
        TYPE (domain), POINTER ::  grid , parent
      END SUBROUTINE med_nest_move
+     SUBROUTINE reconcile_nest_positions_over_tasks ( grid )
+       USE module_domain
+       USE module_configure
+       TYPE (domain), POINTER ::  grid
+     END SUBROUTINE reconcile_nest_positions_over_tasks
 #endif
 
        ! mediation-supplied routine that gives mediation layer opportunity to 
@@ -270,14 +313,23 @@ RECURSIVE SUBROUTINE integrate ( grid )
    ! This allows us to reference the current grid from anywhere beneath 
    ! this point for debugging purposes.  
    CALL set_current_grid_ptr( grid )
+   CALL push_communicators_for_domain( grid%id )
 
    IF ( .NOT. domain_clockisstoptime( grid ) ) THEN
       CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
       IF ( config_flags%grid_allowed ) THEN
          CALL domain_clockprint ( 150, grid, 'DEBUG:  top of integrate(),' )
+#if ( WRFPLUS == 1 )
+         IF ( (grid%jcdfi_use .OR. grid%jcdfi_diag .EQ. 1) .AND. config_flags%dyn_opt .EQ. dyn_em_tl ) THEN
+            CALL jcdfi_zero_forcing (grid)
+            CALL jcdfi_tl (grid)
+         ENDIF
+#endif
          DO WHILE ( .NOT. domain_clockisstopsubtime(grid) )
             IF ( wrf_dm_on_monitor() ) THEN
+IF ( grid%active_this_task ) THEN
                CALL start_timing
+END IF
             END IF
             CALL med_setup_step ( grid , config_flags )
             a_nest_was_opened = .false.
@@ -288,29 +340,62 @@ RECURSIVE SUBROUTINE integrate ( grid )
                a_nest_was_opened = .true.
                CALL med_pre_nest_initial ( grid , nestid , config_flags )
                CALL alloc_and_configure_domain ( domain_id  = nestid ,   &
+! better if this were not ifdef'd here, try moving into module_dm? see comment above. jm 20140828
+#ifdef DM_PARALLEL
+                                           active_this_task = domain_active_this_task( nestid ), &
+#endif
                                                  grid       = new_nest , &
                                                  parent     = grid ,     &
                                                  kid        = kid        )
                CALL Setup_Timekeeping (new_nest)
                CALL med_nest_initial ( grid , new_nest , config_flags )
+IF ( grid%active_this_task ) THEN
                IF ( grid%dfi_stage == DFI_STARTFWD ) THEN
                   CALL wrf_dfi_startfwd_init(new_nest)
                ENDIF
                IF (coupler_on) CALL cpl_defdomain( new_nest ) 
+ENDIF ! active_this_task
             END DO
             IF ( a_nest_was_opened ) THEN
                CALL set_overlaps ( grid )   ! find overlapping and set pointers
             END IF
 
+IF ( grid%active_this_task ) THEN
             ! Accumulation calculation for DFI
-            CALL dfi_accumulate ( grid )
+              CALL dfi_accumulate ( grid )
+ENDIF ! active_this_task
 
-            CALL med_before_solve_io ( grid , config_flags )
+#if ( WRFPLUS == 1 )
+            ! Check if the auxinput3 is ringing before read it
+            should_add_forcing = .FALSE.
+            IF ( WRFU_AlarmIsRinging( grid%alarms( AUXINPUT7_ALARM ), rc=rc ) ) should_add_forcing = .TRUE.  
+#endif
+
+IF ( grid%active_this_task ) THEN
+              CALL med_before_solve_io ( grid , config_flags )
+ENDIF ! active_this_task
+
+#if ( WRFPLUS == 1 )
+            IF ( config_flags%dyn_opt .EQ. dyn_em_ad .AND. should_add_forcing) THEN
+              CALL add_forcing_to_ad ( grid )
+            ENDIF
+            IF ( grid%jcdfi_use .AND. config_flags%dyn_opt .EQ. dyn_em_ad ) THEN
+               CALL jcdfi_add_forcing ( grid )
+            ENDIF
+#endif
+
             grid_ptr => grid
             DO WHILE ( ASSOCIATED( grid_ptr ) )
-               CALL set_current_grid_ptr( grid_ptr )
-               CALL wrf_debug( 100 , 'module_integrate: calling solve interface ' )
-               CALL solve_interface ( grid_ptr ) 
+#if ( NMM_CORE == 1 )
+                  grid_ptr%mvnest = .FALSE.
+#endif
+IF ( grid_ptr%active_this_task ) THEN
+                  CALL set_current_grid_ptr( grid_ptr )
+                  CALL wrf_debug( 100 , 'module_integrate: calling solve interface ' )
+
+                  CALL solve_interface ( grid_ptr ) 
+
+ENDIF
                CALL domain_clockadvance ( grid_ptr )
                CALL wrf_debug( 100 , 'module_integrate: back from solve interface ' )
                ! print lots of time-related information for testing
@@ -320,7 +405,10 @@ RECURSIVE SUBROUTINE integrate ( grid )
             END DO
             CALL set_current_grid_ptr( grid )
             CALL med_calc_model_time ( grid , config_flags )
-            CALL med_after_solve_io ( grid , config_flags )
+IF ( grid%active_this_task ) THEN
+              CALL med_after_solve_io ( grid , config_flags )
+ENDIF
+
             grid_ptr => grid
             DO WHILE ( ASSOCIATED( grid_ptr ) )
                DO kid = 1, max_nests
@@ -334,8 +422,23 @@ RECURSIVE SUBROUTINE integrate ( grid )
                      domain_get_current_time(grid) - domain_get_time_step(grid)
                    grid_ptr%nests(kid)%ptr%stop_subtime = &
                      domain_get_current_time(grid)
-                   CALL integrate ( grid_ptr%nests(kid)%ptr ) 
-                   CALL wrf_debug( 100 , 'module_integrate: back from recursive call to integrate ' )
+                 ENDIF
+               ENDDO
+
+               DO kid = 1, max_nests
+                 IF ( ASSOCIATED( grid_ptr%nests(kid)%ptr ) ) THEN
+                   CALL set_current_grid_ptr( grid_ptr%nests(kid)%ptr )
+                   WRITE(message,*)grid%id,' module_integrate: recursive call to integrate '
+                   CALL wrf_debug( 100 , message )
+                      CALL integrate ( grid_ptr%nests(kid)%ptr ) 
+                   WRITE(message,*)grid%id,' module_integrate: back from recursive call to integrate '
+                   CALL wrf_debug( 100 , message )
+                 ENDIF
+               ENDDO
+               may_have_moved = .FALSE.
+               DO kid = 1, max_nests
+                 IF ( ASSOCIATED( grid_ptr%nests(kid)%ptr ) ) THEN
+                   CALL set_current_grid_ptr( grid_ptr%nests(kid)%ptr )
                    IF ( .NOT. ( domain_clockisstoptime(head_grid              ) .OR. &
                                 domain_clockisstoptime(grid                   ) .OR. &
                                 domain_clockisstoptime(grid_ptr%nests(kid)%ptr) ) )  THEN
@@ -346,16 +449,24 @@ RECURSIVE SUBROUTINE integrate ( grid )
 #ifdef MOVE_NESTS
                    IF ( .NOT. domain_clockisstoptime( head_grid ) ) THEN
                      CALL med_nest_move ( grid_ptr , grid_ptr%nests(kid)%ptr )
+                     may_have_moved = .TRUE.
                    ENDIF
 #endif
                  END IF
                END DO
+#ifdef MOVE_NESTS
+               IF ( may_have_moved ) THEN
+                 CALL reconcile_nest_positions_over_tasks( grid_ptr )
+                 CALL model_to_grid_config_rec ( grid_ptr%id , model_config_rec , config_flags )
+               ENDIF
+#endif
                IF (coupler_on) CALL cpl_snd( grid_ptr ) 
                grid_ptr => grid_ptr%sibling
             END DO
             CALL set_current_grid_ptr( grid )
             !  Report on the timing for a single time step.
             IF ( wrf_dm_on_monitor() ) THEN
+IF ( grid%active_this_task ) THEN
                CALL domain_clock_get ( grid, current_timestr=message2 )
 #if (EM_CORE == 1)
                if (config_flags%use_adaptive_time_step) then
@@ -367,17 +478,39 @@ RECURSIVE SUBROUTINE integrate ( grid )
                   WRITE ( message , FMT = '("main: time ",A," on domain ",I3)' ) TRIM(message2), grid%id
 #endif
                CALL end_timing ( TRIM(message) )
-            END IF
+ENDIF ! active_this_task
+            ENDIF
+#if ( WRFPLUS == 1 )
+            IF ( (grid%jcdfi_use .OR. grid%jcdfi_diag .EQ. 1) .AND. config_flags%dyn_opt .EQ. dyn_em_tl ) THEN
+               CALL jcdfi_tl (grid)
+            ENDIF
+#endif
             CALL med_endup_step ( grid , config_flags )
          END DO
 
+IF ( grid%active_this_task ) THEN
          ! Accumulation calculation for DFI
          CALL dfi_accumulate ( grid )
+ENDIF ! active_this_task
+
+#if ( WRFPLUS == 1 )
+!        Read in first basic states and forcing, add forcing
+         IF ( config_flags%dyn_opt .EQ. dyn_em_ad .AND. WRFU_AlarmIsRinging( grid%alarms( AUXINPUT7_ALARM ), rc=rc ) ) THEN
+           CALL med_last_ad_solve_io ( grid , config_flags )
+           CALL add_forcing_to_ad ( grid )
+         ENDIF
+         IF ( grid%jcdfi_use .AND. config_flags%dyn_opt .EQ. dyn_em_ad ) THEN
+            CALL jcdfi_add_forcing ( grid )
+         ENDIF
+         !IF ( config_flags%dyn_opt .EQ. dyn_em_ad ) THEN
+         !   CALL linkedlist_initialize
+         !ENDIF
+#endif
 
          ! Avoid double writes on nests if this is not really the last time;
          ! Do check for write if the parent domain is ending.
          IF ( grid%id .EQ. 1 ) THEN               ! head_grid
-            CALL med_last_solve_io ( grid , config_flags )
+            IF ( grid%active_this_task ) CALL med_last_solve_io ( grid , config_flags )
          ELSE
 ! zip up the tree and see if any ancestor is at its stop time
             should_do_last_io = domain_clockisstoptime( head_grid )
@@ -391,11 +524,12 @@ RECURSIVE SUBROUTINE integrate ( grid )
             IF ( should_do_last_io ) THEN 
                grid_ptr => grid 
                CALL med_nest_feedback ( grid_ptr%parents(1)%ptr, grid , config_flags )
-               CALL med_last_solve_io ( grid , config_flags )
+               IF ( grid%active_this_task ) CALL med_last_solve_io ( grid , config_flags )
             ENDIF
          ENDIF
       ENDIF
    END IF
+   CALL pop_communicators_for_domain
    
 END SUBROUTINE integrate
 

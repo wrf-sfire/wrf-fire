@@ -16,7 +16,7 @@ typedef struct node_struct {
   int           stag_x ;
   int           stag_y ;
   int           stag_z ;
-  int           nmm_v_grid, mp_var ;
+  int           nmm_v_grid, mp_var, full_feedback, no_feedback ;
   int           subject_to_communication ;
   int           boundary_array ;
   int           boundary_array_4d ;
@@ -108,6 +108,9 @@ EXTERN node_t * Type ;
 EXTERN node_t * Dim ;
 EXTERN node_t * Packages ;
 EXTERN node_t * Halos ;
+#if ( WRFPLUS == 1 )
+EXTERN node_t * Halos_nta ;
+#endif
 EXTERN node_t * Periods ;
 EXTERN node_t * Xposes ;
 EXTERN node_t * FourD ;

@@ -22,19 +22,12 @@ subroutine da_scan_obs_radar (iv, filename, grid)
    logical                       :: outside, outside_all
    integer                       :: n_dup, ndup
 
-   real*8                        :: obs_time, analysis_time
+   real*8                        :: obs_time
    integer                       :: iyear, imonth, iday, ihour, imin
-   real                          :: tdiff, dlat_earth,dlon_earth,crit
-   integer                       :: itt,itx,iout
-   logical                       :: iuse, thin_3d
-   integer                       :: i1,j1,k
-   real                          :: dx,dy,dxm,dym,zk
-   real                          :: v_h(kms:kme)
 
 
    if (trace_use) call da_trace_entry("da_scan_obs_radar")
-   thin_3d=.false. 
-   if( thin_conv_ascii) thin_3d=.true.
+
    ! 1. open file
    ! ============
 
@@ -83,7 +76,6 @@ subroutine da_scan_obs_radar (iv, filename, grid)
 
    do n = 1, total_radar
 
-   if ( thin_conv_ascii ) call cleangrids_conv(radar)
       ! 3.1 skip one blank line
 
       read (unit=iunit, fmt = '(A)', iostat = iost)
@@ -91,10 +83,19 @@ subroutine da_scan_obs_radar (iv, filename, grid)
       ! 3.2 read header
 
       read (unit=iunit, fmt = '(A)', iostat = iost) char_ned
+      if (iost /= 0) then
+         write(unit=message(1),fmt='(A,I3)')'Error reading header information for station number ',n
+         call da_error(__FILE__,__LINE__,message(1:1))
+      end if
 
       ! 3.3 read header information
 
       read (unit=char_ned (69:74), fmt='(I6)', iostat = iost) platform % stn % numobs
+
+      if(char_ned (1:5).ne."RADAR") then
+         write(unit=message(1),fmt='(A,I3)')'Error reading header information for station number ',n
+         call da_error(__FILE__,__LINE__,message(1:1))
+      end if
 
       ! 3.4 skip two lines
 
@@ -116,6 +117,13 @@ subroutine da_scan_obs_radar (iv, filename, grid)
                       platform % info % elv,       &
                       platform % info % levels
 
+         if (iost /= 0) then
+            write(unit=message(1),fmt='(A)')'Error reading next observation for '
+            write(unit=message(2),fmt='(A)')char_ned
+            write(unit=message(3),fmt='(A,I6,A,I6)')'Observation number ',j,' out of ',platform % stn % numobs
+            call da_error(__FILE__,__LINE__,message(1:3))
+         end if
+
          if (platform%info%lon == 180.0  ) platform%info%lon =-180.000
          ! Fix funny wind direction at Poles
          if (platform%info%lat < -89.9999 .or. platform%info%lat > 89.9999) then
@@ -132,7 +140,7 @@ subroutine da_scan_obs_radar (iv, filename, grid)
                field_type(missing_r, missing, missing_r, missing, missing_r), & ! rv
                field_type(missing_r, missing, missing_r, missing, missing_r))   ! rf
 
-            read (unit = iunit, fmt = '(3X, F12.1, 2(F12.3,I4,F12.3,2X))') &
+            read (unit = iunit, fmt = '(3X, F12.1, 2(F12.3,I4,F12.3,2X))', iostat = iost) &
                              platform % each (i) % height,           &
                              platform % each (i) % rv % inv,         &
                              platform % each (i) % rv % qc,          &
@@ -140,6 +148,13 @@ subroutine da_scan_obs_radar (iv, filename, grid)
                              platform % each (i) % rf % inv,         &
                              platform % each (i) % rf % qc,          &
                              platform % each (i) % rf % error
+
+         if (iost /= 0) then
+            write(unit=message(1),fmt='(A)')'Error reading next level for '
+            write(unit=message(2),fmt='(A)')char_ned
+            write(unit=message(3),fmt='(A,I6,A,I6)')'Observation number ',j,' out of ',platform % stn % numobs
+            call da_error(__FILE__,__LINE__,message(1:3))
+         end if
 
             if (platform % each (i) % rv % error == 0.0) then
                  platform % each (i) % rv % error  = 1.0
@@ -163,8 +178,15 @@ subroutine da_scan_obs_radar (iv, filename, grid)
 
          ! Check if outside of the time range:
 
-         read (platform%info%date_char,'(i4,4(1x,i2))') &
+         read (platform%info%date_char,'(i4,4(1x,i2))', iostat = iost) &
                iyear, imonth, iday, ihour, imin
+         if (iost /= 0) then
+            write(unit=message(1),fmt='(A,A,A)')'Bad date: ',platform % info % date_char,' found for'
+            write(unit=message(2),fmt='(A)')char_ned
+            write(unit=message(3),fmt='(A,I6,A,I6)')'Observation number ',j,' out of ',platform % stn % numobs
+            write(unit=message(4),fmt='(A)')'This is usually due to an incorrect number of vertical levels in the previous observation'
+            call da_error(__FILE__,__LINE__,message(1:4))
+         end if
          call da_get_julian_time (iyear,imonth,iday,ihour,imin,obs_time)
          if ( obs_time < time_slots(0) .or. &
               obs_time >= time_slots(num_fgat_time) ) then
@@ -173,16 +195,6 @@ subroutine da_scan_obs_radar (iv, filename, grid)
 
          call da_llxy (platform%info, platform%loc, outside, outside_all)
          if( outside_all ) cycle reports
-
-         read (analysis_date,'(i4,4(1x,i2))')iyear, imonth, iday, ihour, imin
-         call da_get_julian_time (iyear,imonth,iday,ihour,imin,analysis_time)
-         tdiff = abs((obs_time - analysis_time)-0.02)
-         dlat_earth = platform%info%lat
-         dlon_earth = platform%info%lon
-         if (dlon_earth < 0.0) dlon_earth = dlon_earth + 360.0
-         if (dlon_earth >= 360.0) dlon_earth = dlon_earth - 360.0
-         dlat_earth = dlat_earth * deg2rad
-         dlon_earth = dlon_earth * deg2rad
 
          nlevels = platform%info%levels
 
@@ -207,33 +219,9 @@ subroutine da_scan_obs_radar (iv, filename, grid)
 
             case (128)
                if (.not.use_radarobs .or. iv%info(radar)%ntotal == max_radar_input) cycle reports
-               if ( .not. thin_conv_ascii ) then
-                  if (ndup==1) iv%info(radar)%ntotal = iv%info(radar)%ntotal + 1
-                  if (outside) cycle reports
-                  iv%info(radar)%nlocal = iv%info(radar)%nlocal + 1
-               else 
-                  crit = tdiff
-                  i1   = platform%loc%i
-                  j1   = platform%loc%j
-                  dx   = platform%loc%dx
-                  dy   = platform%loc%dy
-                  dxm  = platform%loc%dxm
-                  dym  = platform%loc%dym
-
-                  do k=kms,kme
-                     v_h(k) = dym*(dxm*grid%xb%h(i1,j1,k)+dx*grid%xb%h(i1+1,j1,k)) + &
-                              dy*(dxm*grid%xb%h(i1,j1+1,k)+dx*grid%xb%h(i1+1,j1+1,k))
-                  end do
-
-                  do k=1,nlevels
-                     if (ndup==1) iv%info(radar)%ntotal = iv%info(radar)%ntotal + 1
-                     if (outside) cycle 
-                     call da_to_zk(platform%each(k)%height, v_h, v_interp_h, zk)
-                     if ( zk == missing_r ) cycle   
-                     call map2grids_conv(radar,dlat_earth,dlon_earth,crit,iv%info(radar)%nlocal,itx,1,itt,iout,iuse,zk,thin_3d)
-                     if ( .not. iuse ) cycle   
-                  end do 
-               end if ! if thin_conv_ascii
+               if (ndup==1) iv%info(radar)%ntotal = iv%info(radar)%ntotal + 1
+               if (outside) cycle reports
+               iv%info(radar)%nlocal = iv%info(radar)%nlocal + 1
 
             case default;
                write(unit=stdout, fmt='(a)') 'Warning: unsaved obs found:'
@@ -245,11 +233,7 @@ subroutine da_scan_obs_radar (iv, filename, grid)
                   'platform % info % levels=', platform % info % levels
             end select
 
-            if( .not. thin_conv_ascii) then
-               iv%info(radar)%max_lev = max(iv%info(radar)%max_lev, platform%info%levels)
-            else
-               iv%info(radar)%max_lev = 1
-            end if
+            iv%info(radar)%max_lev = max(iv%info(radar)%max_lev, platform%info%levels)
          end do        !  loop over duplicate
       end do reports
       

@@ -127,7 +127,7 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
   subcsr='NC021043'            ! sub message
   subasr='NC021042'            ! sub message
 
-   call da_trace_entry("da_read_obs_bufrseviri")
+   if(trace_use) call da_trace_entry("da_read_obs_bufrseviri")
 
   !  0.0  Initialize variables
   !-----------------------------------
@@ -196,7 +196,7 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
    if (iost /= 0) then
       call da_warning(__FILE__,__LINE__, &
          (/"Cannot open file "//infile/))
-      call da_trace_exit("da_read_obs_bufrsevri")
+      if(trace_use) call da_trace_exit("da_read_obs_bufrsevri")
       return
    end if
 
@@ -207,8 +207,10 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
 
    ! Check the data set
   if( iret/=0) then
-     write(6,*) 'READ_SEVIRI: SKIP PROCESSING OF SEVIRI FILE and RETURN'
-     write(6,*) 'infile=', lnbufr, infile
+     write(message(1),fmt='(A)')'SKIP PROCESSING OF SEVIRI FILE'
+     write(message(2),fmt='(A,I2,A)')'infile = ', lnbufr, infile
+     call da_warning(__FILE__,__LINE__,message(1:2))
+     if(trace_use) call da_trace_exit("da_read_obs_bufrseviri")
      return 
   endif
 
@@ -216,15 +218,19 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
   allsky=.false.
   if(subset == subcsr) then
      clrsky=.true.
-     write(6,*) 'READ_SEVIRI FILE'
-     write(6,*) 'clrsky= ', clrsky,' subset= ', subset
+     write(message(1),fmt='(A)')'READ SEVIRI FILE'
+     write(message(2),fmt='(A,L1,2A)')'clrsky= ', clrsky,' subset= ', subset
+     call da_message(message(1:2))
   elseif(subset == subasr) then
      allsky=.true.
-     write(6,*) 'READ_SEVIRI FILE'
-     write(6,*) 'allsky= ', allsky,' subset= ', subset
+     write(message(1),fmt='(A)')'READ SEVIRI FILE'
+     write(message(2),fmt='(A,L1,2A)')'allsky= ', allsky,' subset= ', subset
+     call da_message(message(1:2))
   else
-     write(6,*) 'READ_SEVIRI: SKIP PROCESSING OF UNKNOWN SEVIRI FILE, RETURN'
-     write(6,*) 'infile=', lnbufr, infile,' subset=', subset
+     write(message(1),fmt='(A)')'SKIP PROCESSING OF UNKNOWN SEVIRI FILE'
+     write(message(2),fmt='(A,I2,3A)')'infile=', lnbufr, infile,' subset=', subset
+     call da_warning(__FILE__,__LINE__,message(1:2))
+     if(trace_use) call da_trace_exit("da_read_obs_bufrseviri")
      return 
   endif
 
@@ -368,9 +374,10 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
              idate5(4) < 0    .or. idate5(4) >   24 .or. &
              idate5(5) < 0    .or. idate5(5) >   60 ) then
 
-            write(6,*)'READ_SEVIR:  ### ERROR IN READING ', 'SEVIRI', ' BUFR DATA:', &
-                ' STRANGE OBS TIME (YMDHM):', idate5(1:5)
-             cycle read_loop
+            write(message(1),fmt='(A)')'ERROR IN READING SEVIRI BUFR DATA'
+            write(message(2),fmt='(A,5I8)')'STRANGE OBS TIME (YMDHM):', idate5(1:5)
+            call da_warning(__FILE__,__LINE__,message(1:2))
+            cycle read_loop
          end if
 
          call da_get_julian_time(idate5(1),idate5(2),idate5(3),idate5(4),idate5(5),obs_time)		
@@ -438,7 +445,7 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
          p%loc              = loc
          p%landsea_mask     = 1
          p%scanpos          = nint(hdr(ilzah))+1.001_r_kind 
-         p%satzen           = hdr(ilzah)*deg2rad       ! satellite zenith angle (rad)
+         p%satzen           = hdr(ilzah)               ! satellite zenith angle (deg)
          p%satazi           = 0.0                      ! satellite azimuth angle (deg) 
          p%solzen           = 0.0                      ! solar zenith angle (deg)  
          p%solazi           = 0.0                      ! solar azimuth angle (deg) 
@@ -452,11 +459,14 @@ subroutine da_read_obs_bufrseviri (obstype,iv,infile)
      end do read_loop
   end do
   call closbf(lnbufr)
+
+  !Deallocate temporary arrays for next bufrfile do loop
+  deallocate(datasev1)
+  deallocate(datasev2)
+  deallocate(hdr)
+  deallocate(data_all)
 end do bufrfile
 
-deallocate(data_all) ! Deallocate data arrays
-
-  
    if (thinning .and. num_seviri_global > 0 ) then
 
 #ifdef DM_PARALLEL 
@@ -614,7 +624,7 @@ deallocate(data_all) ! Deallocate data arrays
 
    call da_free_unit(lnbufr)
 
-   call da_trace_exit("da_read_obs_bufrseviri")
+   if(trace_use) call da_trace_exit("da_read_obs_bufrseviri")
 #else
    call da_error(__FILE__,__LINE__,(/"Needs to be compiled with a BUFR library"/))
 #endif  

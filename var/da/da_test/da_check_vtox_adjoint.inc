@@ -61,13 +61,15 @@ subroutine da_check_vtox_adjoint(grid, cv_size, xbx, be, ep, cv1, vv, vp)
               + sum(grid%xa % rh(its:ite, jts:jte, kts:kte)**2) / typical_rh_rms**2
    end if
 !
-   if (use_radar_rf .or.  crtm_cloud ) then
+   if (use_radar_rf .or. use_radar_rhv .or.  crtm_cloud ) then
       adj_par_lhs = adj_par_lhs &
              + sum(grid%xa % qcw(its:ite, jts:jte, kts:kte)**2)/typical_qcw_rms**2 &
              + sum(grid%xa % qrn(its:ite, jts:jte, kts:kte)**2)/typical_qrn_rms**2
       if ( cloud_cv_options /= 1 ) then
          adj_par_lhs = adj_par_lhs &
-             + sum(grid%xa % qci(its:ite, jts:jte, kts:kte)**2)/typical_qci_rms**2
+             + sum(grid%xa % qci(its:ite, jts:jte, kts:kte)**2)/typical_qci_rms**2 &
+             + sum(grid%xa % qsn(its:ite, jts:jte, kts:kte)**2)/typical_qsn_rms**2 &
+             + sum(grid%xa % qgr(its:ite, jts:jte, kts:kte)**2)/typical_qgr_rms**2
       end if
    end if
 
@@ -97,11 +99,13 @@ subroutine da_check_vtox_adjoint(grid, cv_size, xbx, be, ep, cv1, vv, vp)
    end if
 
 !
-   if (use_radar_rf .or.  crtm_cloud ) then
+   if (use_radar_rf .or. use_radar_rhv .or. crtm_cloud ) then
       grid%xa % qcw(:,:,:) = grid%xa % qcw(:,:,:) / typical_qcw_rms**2
       grid%xa % qrn(:,:,:) = grid%xa % qrn(:,:,:) / typical_qrn_rms**2
       if ( cloud_cv_options /= 1 ) then
          grid%xa % qci(:,:,:) = grid%xa % qci(:,:,:) / typical_qci_rms**2
+         grid%xa % qsn(:,:,:) = grid%xa % qsn(:,:,:) / typical_qsn_rms**2
+         grid%xa % qgr(:,:,:) = grid%xa % qgr(:,:,:) / typical_qgr_rms**2
       end if
    end if
 
@@ -117,6 +121,8 @@ subroutine da_check_vtox_adjoint(grid, cv_size, xbx, be, ep, cv1, vv, vp)
    !-------------------------------------------------------------------------
 
    call da_transform_xtoxa_adj(grid)
+   !as of V3.9, da_zero_vp_type(vp) is commented out in the da_transform_vtox_adj
+   call da_zero_vp_type(vp) !as of V3.9, zero out vp here
    call da_transform_vtox_adj(grid, cv_size, xbx, be, ep, vp, vv, cv2)
 
    !-------------------------------------------------------------------------

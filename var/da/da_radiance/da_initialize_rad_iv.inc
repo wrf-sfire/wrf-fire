@@ -69,8 +69,14 @@ subroutine da_initialize_rad_iv (i, n, iv, p)
    iv%instid(i)%vegfra(n)       = 0.0
    iv%instid(i)%vegtyp(n)       = 0.0
    iv%instid(i)%clwp(n)         = 0.0
+   if ( index(iv%instid(i)%rttovid_string, 'amsr2') > 0 ) then
+      iv%instid(i)%clw(n)       = p%clw
+   end if
    iv%instid(i)%ps(n)           = 0.0
    iv%instid(i)%tb_xb(:,n)      = 0.0
+   if ( crtm_cloud ) then
+      iv%instid(i)%tb_xb_clr(:,n) = 0.0
+   end if
    iv%instid(i)%tb_inv(:,n)     = p%tb_inv(:)
    iv%instid(i)%tb_qc(:,n)      = 0
    iv%instid(i)%tb_error(:,n)   = 500.0
@@ -136,14 +142,14 @@ subroutine da_initialize_rad_iv (i, n, iv, p)
             iv%instid(i)%trans_jacobian(:,:,n) = 0.0
             iv%instid(i)%der_trans(:,:,n) = 0.0
          end if
-#ifdef CRTM_MODIF			 
+
          if (use_clddet_ecmwf) then
-            iv%instid(i)%kmin_t(n)	= 0.0 
-            iv%instid(i)%kmax_p(n)	= 0.0    
-            iv%instid(i)%sensitivity_ratio(:,:,n)	= 0.0       
-            iv%instid(i)%p_chan_level(:,n)	= 0.0		 
-         end if	
-#endif		 
+            iv%instid(i)%kmin_t(n) = 0.0
+            iv%instid(i)%kmax_p(n) = 0.0
+            iv%instid(i)%sensitivity_ratio(:,:,n) = 0.0
+            iv%instid(i)%p_chan_level(:,n) = 0.0
+         end if
+
       end if
    end if
 

@@ -183,4 +183,15 @@ inquire_of_wrf_
 init_modules
 modify_io_masks
 write_68
+quilting_disabled
+wrf_set_dm_quilt_comm
+instate_communicators_for_domain
+pop_communicators_for_domain
+push_communicators_for_domain
+store_communicators_for_domain
+wrf_get_dm_quilt_comm
+wrf_dm_nestexchange_init
+set_tiles
+wrf_get_dom_ti_integer
+is_this_data_ok_to_use
 ###########################################################################################

@@ -40,8 +40,8 @@ module wrf_data
   integer                , parameter      :: WARN             = 1
   integer                , parameter      :: WrfDataHandleMax = 99
   integer                , parameter      :: MaxDims          = 2000 ! = NF_MAX_VARS
-#ifdef WRF_CHEM
-  integer                , parameter      :: MaxVars          = 8000
+#if(WRF_CHEM == 1)
+  integer                , parameter      :: MaxVars          = 10000
 #else
   integer                , parameter      :: MaxVars          = 3000
 #endif
@@ -901,6 +901,22 @@ LOGICAL FUNCTION ncd_is_first_operation( DataHandle )
     RETURN
 END FUNCTION ncd_is_first_operation
 
+subroutine upgrade_filename(FileName)
+  implicit none
+
+  character*(*), intent(inout) :: FileName
+  integer :: i
+
+  do i = 1, len(trim(FileName))
+     if(FileName(i:i) == '-') then
+        FileName(i:i) = '_'
+     else if(FileName(i:i) == ':') then
+         FileName(i:i) = '_'
+     endif
+  enddo
+
+end subroutine upgrade_filename
+
 end module ext_ncd_support_routines
 
 subroutine TransposeToR4(IO,MemoryOrder,di, Field,l1,l2,m1,m2,n1,n2 &
@@ -1015,7 +1031,7 @@ subroutine ext_ncd_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, Data
   implicit none
   include 'wrf_status_codes.h'
   include 'netcdf.inc'
-  character*(*)         ,intent(IN)      :: FileName
+  character*(*)         ,intent(INOUT)   :: FileName
   integer               ,intent(IN)      :: Comm
   integer               ,intent(IN)      :: IOComm
   character*(*)         ,intent(in)      :: SysDepInfo
@@ -1039,6 +1055,8 @@ subroutine ext_ncd_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, Data
 #ifdef USE_NETCDF4_FEATURES
   integer                                :: open_mode
 #endif
+
+  !call upgrade_filename(FileName)
 
   if(WrfIOnotInitialized) then
     Status = WRF_IO_NOT_INITIALIZED 
@@ -1139,7 +1157,7 @@ subroutine ext_ncd_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, Data
   DH%NumVars         = NumVars
   DH%NumberTimes     = VLen(2)
   DH%FileStatus      = WRF_FILE_OPENED_NOT_COMMITTED
-  DH%FileName        = FileName
+  DH%FileName        = trim(FileName)
   DH%CurrentVariable = 0
   DH%CurrentTime     = 0
   DH%TimesVarID      = VarID
@@ -1153,7 +1171,7 @@ subroutine ext_ncd_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataHand
   implicit none
   include 'wrf_status_codes.h'
   include 'netcdf.inc'
-  character*(*)         ,intent(IN)      :: FileName
+  character*(*)         ,intent(INOUT)   :: FileName
   integer               ,intent(IN)      :: Comm
   integer               ,intent(IN)      :: IOComm
   character*(*)         ,intent(in)      :: SysDepInfo
@@ -1177,6 +1195,8 @@ subroutine ext_ncd_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataHand
 #ifdef USE_NETCDF4_FEATURES
   integer                                :: open_mode
 #endif
+
+  !call upgrade_filename(FileName)
 
   if(WrfIOnotInitialized) then
     Status = WRF_IO_NOT_INITIALIZED 
@@ -1276,7 +1296,7 @@ subroutine ext_ncd_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataHand
   DH%NumVars         = NumVars
   DH%NumberTimes     = VLen(2)
   DH%FileStatus      = WRF_FILE_OPENED_FOR_UPDATE
-  DH%FileName        = FileName
+  DH%FileName        = trim(FileName)
   DH%CurrentVariable = 0
   DH%CurrentTime     = 0
   DH%TimesVarID      = VarID
@@ -1291,7 +1311,7 @@ SUBROUTINE ext_ncd_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHand
   implicit none
   include 'wrf_status_codes.h'
   include 'netcdf.inc'
-  character*(*)        ,intent(in)  :: FileName
+  character*(*)        ,intent(inout) :: FileName
   integer              ,intent(in)  :: Comm
   integer              ,intent(in)  :: IOComm
   character*(*)        ,intent(in)  :: SysDepInfo
@@ -1309,6 +1329,8 @@ SUBROUTINE ext_ncd_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHand
                                        cache_nelem = 37, &
                                        cache_preemption = 100
 #endif
+
+  !call upgrade_filename(FileName)
 
   if(WrfIOnotInitialized) then
     Status = WRF_IO_NOT_INITIALIZED 
@@ -1329,10 +1351,10 @@ SUBROUTINE ext_ncd_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHand
   if ( DH%use_netcdf_classic ) then
   write(msg,*) 'output will be in classic NetCDF format'
   call wrf_debug ( WARN , TRIM(msg))
-#ifdef WRFIO_NCD_LARGE_FILE_SUPPORT
-  stat = NF_CREATE(FileName, IOR(NF_CLOBBER,NF_64BIT_OFFSET), DH%NCID)
-#else
+#ifdef WRFIO_NCD_NO_LARGE_FILE_SUPPORT
   stat = NF_CREATE(FileName, NF_CLOBBER, DH%NCID)
+#else
+  stat = NF_CREATE(FileName, IOR(NF_CLOBBER,NF_64BIT_OFFSET), DH%NCID)
 #endif
   else
   create_mode = nf_netcdf4
@@ -1340,10 +1362,10 @@ SUBROUTINE ext_ncd_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHand
   stat = NF_SET_CHUNK_CACHE(cache_size, cache_nelem, cache_preemption)
   endif
 #else
-#ifdef WRFIO_NCD_LARGE_FILE_SUPPORT
-  stat = NF_CREATE(FileName, IOR(NF_CLOBBER,NF_64BIT_OFFSET), DH%NCID)
-#else
+#ifdef WRFIO_NCD_NO_LARGE_FILE_SUPPORT
   stat = NF_CREATE(FileName, NF_CLOBBER, DH%NCID)
+#else
+  stat = NF_CREATE(FileName, IOR(NF_CLOBBER,NF_64BIT_OFFSET), DH%NCID)
 #endif
 #endif
   call netcdf_err(stat,Status)
@@ -1353,7 +1375,7 @@ SUBROUTINE ext_ncd_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHand
     return
   endif
   DH%FileStatus  = WRF_FILE_OPENED_NOT_COMMITTED
-  DH%FileName    = FileName
+  DH%FileName    = trim(FileName)
   stat = NF_DEF_DIM(DH%NCID,DH%DimUnlimName,NF_UNLIMITED,DH%DimUnlimID)
   call netcdf_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -3020,17 +3042,19 @@ subroutine ext_ncd_inquire_opened( DataHandle, FileName , FileStatus, Status )
   implicit none
   include 'wrf_status_codes.h'
   integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: FileName
+  character*(*)         ,intent(inout)  :: FileName
   integer               ,intent(out)    :: FileStatus
   integer               ,intent(out)    :: Status
   type(wrf_data_handle) ,pointer        :: DH
+
+  !call upgrade_filename(FileName)
 
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     FileStatus = WRF_FILE_NOT_OPENED
     return
   endif
-  if(FileName /= DH%FileName) then
+  if(trim(FileName) /= trim(DH%FileName)) then
     FileStatus = WRF_FILE_NOT_OPENED
   else
     FileStatus = DH%FileStatus
@@ -3056,7 +3080,7 @@ subroutine ext_ncd_inquire_filename( Datahandle, FileName,  FileStatus, Status )
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-  FileName = DH%FileName
+  FileName = trim(DH%FileName)
   FileStatus = DH%FileStatus
   Status = WRF_NO_ERR
   return
@@ -3197,7 +3221,7 @@ subroutine ext_ncd_get_previous_time(DataHandle, DateStr, Status)
     if(DH%CurrentTime.GT.0) then
       DH%CurrentTime     = DH%CurrentTime -1
     endif
-    DateStr            = DH%Times(DH%CurrentTime)
+    DateStr            = DH%Times(MAX(1,DH%CurrentTime))
     DH%CurrentVariable = 0
     Status = WRF_NO_ERR
   else

@@ -19,7 +19,10 @@ subroutine da_transform_vtox(grid, cv_size, xbx, be, ep, cv, vv, vp)
 
    call da_zero_x (grid%xa)
    
-   if (.not. use_background_errors) return
+   if (.not. use_background_errors) then
+      if (trace_use) call da_trace_exit("da_transform_vtox")
+      return
+   end if
 
    !----------------------------------------------------------------------
    ! [1.0]: Perform vv = u_h cv transform:
@@ -52,12 +55,18 @@ subroutine da_transform_vtox(grid, cv_size, xbx, be, ep, cv, vv, vp)
       vp % v3(its:ite,jts:jte,kts:kte) = vv % v3(its:ite,jts:jte,kts:kte)
       vp % v4(its:ite,jts:jte,kts:kte) = vv % v4(its:ite,jts:jte,kts:kte)
       vp % v5(its:ite,jts:jte,kts:kte) = vv % v5(its:ite,jts:jte,kts:kte)
-#ifdef CLOUD_CV
-      vp % v6(its:ite,jts:jte,kts:kte) = vv % v6(its:ite,jts:jte,kts:kte)
-      vp % v7(its:ite,jts:jte,kts:kte) = vv % v7(its:ite,jts:jte,kts:kte)
-      vp % v8(its:ite,jts:jte,kts:kte) = vv % v8(its:ite,jts:jte,kts:kte)
-      vp % v9(its:ite,jts:jte,kts:kte) = vv % v9(its:ite,jts:jte,kts:kte)
-#endif
+
+      if ( cloud_cv_options >= 2 ) then
+         vp % v6(its:ite,jts:jte,kts:kte)  = vv % v6(its:ite,jts:jte,kts:kte)
+         vp % v7(its:ite,jts:jte,kts:kte)  = vv % v7(its:ite,jts:jte,kts:kte)
+         vp % v8(its:ite,jts:jte,kts:kte)  = vv % v8(its:ite,jts:jte,kts:kte)
+         vp % v9(its:ite,jts:jte,kts:kte)  = vv % v9(its:ite,jts:jte,kts:kte)
+         vp % v10(its:ite,jts:jte,kts:kte) = vv % v10(its:ite,jts:jte,kts:kte)
+      end if
+      if ( use_cv_w ) then
+         vp % v11(its:ite,jts:jte,kts:kte) = vv % v11(its:ite,jts:jte,kts:kte)
+      end if
+
       if (be % ne > 0) then
 !        vp % alpha(its:ite,jts:jte,kts:kte,1:be%ne) = vv%alpha(its:ite,jts:jte,kts:kte,1:be%ne)
          vp % alpha(its_int:ite_int,jts_int:jte_int,kts_int:kte_int,1:be%ne) =  &

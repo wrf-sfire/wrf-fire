@@ -63,7 +63,7 @@ MODULE module_err_afwa
 
 CONTAINS
 
-SUBROUTINE obs_err_afwa (filein,iunit,nobs_max, obs, number_of_obs)
+SUBROUTINE obs_err_afwa (filein,nobs_max, obs, number_of_obs)
 
 !-------------------------------------------------------------------------------
 
@@ -432,6 +432,8 @@ SUBROUTINE obs_err_afwa (filein,iunit,nobs_max, obs, number_of_obs)
                                                 err_k (1:JPERR),err_u (1:JPERR)) 
 
       ENDDO
+
+      iunit= 99
 
 ! 1.5 HEIGHT OBSERVATIONAL ERROR
 !     --------------------------
@@ -1580,8 +1582,8 @@ upper_level: DO WHILE (ASSOCIATED (current))
 
       CASE DEFAULT
 
-      WRITE (UNIT = 0, FMT = '(A,A,A)') &
-     'Unknown platform:',TRIM (platform),' use NCEP observational errors.'
+     ! WRITE (UNIT = 0, FMT = '(A,A,A)') &
+     !'Unknown platform:',TRIM (platform),' use NCEP observational errors.'
 
 
       !  wind
@@ -1715,13 +1717,13 @@ upper_level: DO WHILE (ASSOCIATED (current))
 ! ====================
  
       WRITE (UNIT = 0 , FMT = '(A)' ) ' '
-      WRITE (UNIT = 0 , FMT = '(A,I6,A,I6,A)' ) &
+      WRITE (UNIT = 0 , FMT = '(A,I7,A,I7,A)' ) &
      "Number of processed stations:           ",nvalids,&
      " = ",nlevels," levels."
-      WRITE (UNIT = 0 , FMT = '(A,I6,A,I6,A)' ) &
+      WRITE (UNIT = 0 , FMT = '(A,I7,A,I7,A)' ) &
      "Number of processed surface stations:   ",nsurfaces,&
      " = ",nsurfaces," surface levels."
-      WRITE (UNIT = 0 , FMT = '(A,I6,A,I6,A,/)' ) &
+      WRITE (UNIT = 0 , FMT = '(A,I7,A,I7,A,/)' ) &
      "Number of processed upper-air stations: ",nsoundings,&
      " = ",nlevels-nsurfaces," upper-air levels."
 

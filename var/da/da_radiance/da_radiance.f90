@@ -4,6 +4,10 @@ module da_radiance
    ! Purpose: module for radiance data assimilation. 
    !---------------------------------------------------------------------------
 
+#if defined(HDF5)
+   use hdf5
+#endif
+
 #if defined(RTTOV) || defined(CRTM)
 
    use module_domain, only : xb_type, domain
@@ -41,8 +45,8 @@ module da_radiance
       rtminit_print, rttov_scatt,comm,root,ierr,biasprep, qc_rad, num_procs, &
       tovs_min_transfer,use_error_factor_rad,num_fgat_time,stdout,trace_use, &
       qc_good, qc_bad,myproc,biascorr,thinning,thinning_mesh, &
-      rad_monitoring, monitor_on, kts, kte, kms,kme,&
-      use_mwtsobs, use_mwhsobs, use_atmsobs, &
+      rad_monitoring, monitor_on, kts, kte, kms, kme, calc_weightfunc, &
+      use_mwtsobs, use_mwhsobs, use_atmsobs, use_amsr2obs, &
       use_hirs4obs, use_mhsobs,bufr_year, bufr_month,bufr_day,bufr_hour, &
       bufr_minute, bufr_second,bufr_solzen, bufr_station_height, &
       bufr_landsea_mask,bufr_solazi,tovs_end, max_tovs_input, bufr_satzen, nchan_mhs, &
@@ -53,12 +57,13 @@ module da_radiance
       pseudo_rad_err, use_simulated_rad,use_rttov_kmatrix, use_crtm_kmatrix , &
       use_rad,crtm_cloud, DT_cloud_model, global, use_varbc, freeze_varbc, &
       airs_warmest_fov, time_slots, interp_option, ids, ide, jds, jde, &
-      ips, ipe, jps, jpe, simulated_rad_ngrid, obs_qc_pointer, use_blacklist_rad
+      ips, ipe, jps, jpe, simulated_rad_ngrid, obs_qc_pointer, use_blacklist_rad, use_satcv, &
+      use_goesimgobs, pi, earth_radius, satellite_height
  
 #ifdef CRTM
    use da_crtm, only : da_crtm_init, da_get_innov_vector_crtm
 #endif
-   use da_define_structures, only : maxmin_type, iv_type, y_type, jo_type, &
+   use da_define_structures, only : maxmin_type, iv_type, y_type, jo_type, j_type, &
       bad_data_type, x_type, number_type, bad_data_type, &
       airsr_type,info_type, model_loc_type, varbc_info_type, varbc_type
    use da_interpolation, only : da_to_zk, da_to_zk_new
@@ -96,6 +101,8 @@ module da_radiance
                             
    implicit none
 
+   include 'netcdf.inc'
+
 #ifdef DM_PARALLEL
    include 'mpif.h'
 #endif
@@ -114,6 +121,9 @@ contains
 #include "da_read_obs_bufrssmis.inc"
 #include "da_read_obs_bufriasi.inc"
 #include "da_read_obs_bufrseviri.inc"
+#include "da_read_obs_hdf5amsr2.inc"
+#include "da_read_obs_ncgoesimg.inc"
+#include "da_get_satzen.inc"
 #include "da_allocate_rad_iv.inc"
 #include "da_initialize_rad_iv.inc"
 #include "da_read_kma1dvar.inc"
@@ -123,6 +133,7 @@ contains
 #include "da_get_innov_vector_radiance.inc"
 #include "da_read_pseudo_rad.inc"
 #include "da_blacklist_rad.inc"
+#include "da_deallocate_radiance.inc"
 
 #endif
 

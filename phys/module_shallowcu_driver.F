@@ -28,7 +28,7 @@ CONTAINS
                      ,qv_curr, qc_curr, qr_curr                       &
                      ,qi_curr, qs_curr, qg_curr                       & 
                      ,qnc_curr,qni_curr                               &
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
                      ,chem, chem_opt                                  &
 #endif
                  ! Optional output arguments for CAMZM scheme
@@ -50,6 +50,8 @@ CONTAINS
                      ,ht,shfrc3d,is_CAMMGMP_used                      &
                  ! for grims shallow convection with ysupbl
                      ,wstar,delta,kpbl,znu,raincv                   &
+                 ! for nscv shallow convection
+                     ,w,xland,hfx,qfx,mp_physics,pgcon                                           &
                                                                       )
 !----------------------------------------------------------------------
    USE module_model_constants
@@ -58,14 +60,16 @@ CONTAINS
                                        , CAMMGMPSCHEME    & 
 # endif
                                        , G3SHCUSCHEME     & 
-                                       , GRIMSSHCUSCHEME 
+                                       , GRIMSSHCUSCHEME  &
+                                       , NSCVSHCUSCHEME 
 ! *** add new modules of schemes here
 
    USE module_shcu_camuwshcu_driver, ONLY : camuwshcu_driver
-   USE module_shcu_grims
+   USE module_shcu_grims           , ONLY : grims
+   USE module_shcu_nscv            , ONLY : shcu_nscv
    USE module_dm
    USE module_domain, ONLY: domain
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
       USE module_state_description, ONLY: num_chem
 #endif
 
@@ -75,6 +79,8 @@ CONTAINS
    !  1. G3 shallow cumulus
    !  2. UW shallow cumulus from CAM
    !  3. GRIMs shallow cumulus from GRIMs (available only with ysupbl)
+   !  4. NCEP shallow cumulus scheme (separated from NSAS cumulus scheme) 
+   !                                 (Han and Pan 2011, YSU)
    !
 !----------------------------------------------------------------------
    IMPLICIT NONE
@@ -225,7 +231,7 @@ CONTAINS
                                       ims,ime, jms,jme, kms,kme, &
                                                         kts,kte, &
                                       itimestep, num_tiles
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
    INTEGER,      INTENT(IN   )    :: chem_opt
 #endif
 
@@ -240,7 +246,7 @@ CONTAINS
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),      &
          INTENT(INOUT)  ::                                       &
                                                           moist
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),       &
          INTENT(INOUT)  ::                                    &
                                                           chem
@@ -336,6 +342,17 @@ CONTAINS
    INTEGER, DIMENSION( ims:ime , jms:jme )                     , &
          OPTIONAL, INTENT(IN)                    ::         kpbl
 !
+! for nscv shallow convection
+!
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme )                , &
+         INTENT(IN   ) ::                                      w
+   REAL, DIMENSION( ims:ime, jms:jme )                         , &
+         INTENT(IN   ) ::                                  xland
+   REAL, DIMENSION( ims:ime, jms:jme )                         , &
+         OPTIONAL, INTENT(IN   ) ::                      hfx,qfx
+   INTEGER, INTENT(IN), OPTIONAL ::                   mp_physics
+   REAL,    INTENT(IN), OPTIONAL ::                        pgcon
+!
 ! Flags relating to the optional tendency arrays declared above
 ! Models that carry the optional tendencies will provdide the
 ! optional arguments at compile time; these flags all the model
@@ -423,7 +440,7 @@ CONTAINS
            ,T_PHY=t, U_PHY=u, V_PHY=v                                    &
            ,MOIST=moist, QV=qv_curr, QC=qc_curr, QI=qi_curr              &
            ,QNC=qnc_curr, QNI=qni_curr                                   & 
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
            ,CHEM=chem, CHEM_OPT=chem_opt                                 &
 #endif
            ,PBLH_IN=pblh, TKE_PBL=tke_pbl                                &
@@ -460,6 +477,35 @@ CONTAINS
            ,IMS=ims,IME=ime,JMS=jms,JME=jme,KMS=kms,KME=kme              &
            ,ITS=its,ITE=ite,JTS=jts,JTE=jte,KTS=kts,KTE=kte              &
                                                                          )
+      ENDIF
+
+   CASE (NSCVSHCUSCHEME)
+      CALL wrf_debug(100,'in nscv_scps')
+      IF ( PRESENT ( QFX ) .AND. PRESENT( HFX ) ) THEN
+         CALL SHCU_NSCV(                                        &
+                DT=dt,P3DI=p8w,P3D=p,PI3D=pi                    &
+               ,QC3D=QC_CURR,QI3D=QI_CURR,RHO3D=rho             &
+               ,QV3D=QV_CURR,T3D=t                              &
+               ,RAINCV=RAINCV                                   &
+               ,XLAND=XLAND,DZ8W=dz8w,W=w,U3D=u,V3D=v           &
+               ,HPBL=pblh,HFX=hfx,QFX=qfx                       &
+               ,MP_PHYSICS=mp_physics                           &
+               ,pgcon=pgcon                                     &
+               ,CP=cp,CLIQ=cliq,CPV=cpv,G=g,XLV=xlv,R_D=r_d     &
+               ,R_V=r_v,EP_1=ep_1,EP_2=EP_2                     &
+               ,CICE=cice,XLS=xls,PSAT=psat                     &
+               ,F_QI=f_qi,F_QC=f_qc                             &
+               ,RTHSHTEN=RTHSHTEN,RQVSHTEN=RQVSHTEN             &
+               ,RQCSHTEN=RQCSHTEN,RQISHTEN=RQISHTEN             &
+               ,RUSHTEN=RUSHTEN,RVSHTEN=RVSHTEN                 &
+               ,PRATESH=tmppratesh                              &
+               ,HBOT=HBOT,HTOP=HTOP                             &
+               ,IDS=ids,IDE=ide,JDS=jds,JDE=jde,KDS=kds,KDE=kde &
+               ,IMS=ims,IME=ime,JMS=jms,JME=jme,KMS=kms,KME=kme &
+               ,ITS=its,ITE=ite,JTS=jts,JTE=jte,KTS=kts,KTE=kte &
+                                                                )
+      ELSE
+         CALL wrf_error_fatal('Lacking arguments for SHCU_NSCV in shallow cumulus driver')
       ENDIF
 
    CASE DEFAULT 

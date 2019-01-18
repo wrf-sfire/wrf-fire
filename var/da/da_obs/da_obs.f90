@@ -1,7 +1,8 @@
 module da_obs
 
    use da_define_structures, only : multi_level_type, y_type, iv_type, infa_type, &
-      field_type, each_level_type,da_allocate_y, da_random_seed,da_allocate_y_rain
+      field_type, each_level_type,da_allocate_y, da_random_seed,da_allocate_y_rain, &
+      da_allocate_y_radar
    use module_domain, only : domain, x_type
 
    use da_airep, only : da_transform_xtoy_airep, da_transform_xtoy_airep_adj 
@@ -19,11 +20,14 @@ module da_obs
       pseudo_err,obs_qc_pointer,myproc,rtm_option,rtm_option_rttov, &
       rtm_option_crtm,use_rad, base_temp, base_lapse, base_pres, &
       ob_format,ob_format_ascii,filename_len, trace_use_dull, &
-      sound, mtgirs, synop, profiler, gpsref, gpspw, polaramv, geoamv, ships, metar, &
+      sound, mtgirs, synop, profiler, gpsref, gpseph, gpspw, polaramv, geoamv, ships, metar, &
       satem, radar, ssmi_rv, ssmi_tb, ssmt1, ssmt2, airsr, pilot, airep, sonde_sfc,rain, &
       bogus, buoy, qscat, tamdar, tamdar_sfc, pseudo, num_ob_indexes, its,ite,jds,jts,jte,ids, &
-      write_mod_filtered_obs, radiance, use_varbc, obs_names
+      write_mod_filtered_obs, radiance, use_varbc, obs_names, q_error_options, kts,kte,kds,kde, &
+      use_gpsephobs
    ! use_crtm_kmatrix,use_crtm_kmatrix_fast
+   use da_control, only : pseudo_tpw, pseudo_ztd, pseudo_ref, pseudo_uvtpq
+   use da_define_structures, only : da_allocate_obs_info
 #ifdef CRTM
    use da_crtm, only : da_transform_xtoy_crtm, da_transform_xtoy_crtm_adj
       !da_transform_xtoy_crtmk,da_transform_xtoy_crtmk_adj
@@ -33,6 +37,8 @@ module da_obs
    use da_gpspw,     only : da_transform_xtoy_gpspw,da_transform_xtoy_gpspw_adj, &
                             da_transform_xtoy_gpsztd,da_transform_xtoy_gpsztd_adj
    use da_gpsref,    only : da_transform_xtoy_gpsref,da_transform_xtoy_gpsref_adj
+   use da_gpseph,    only : da_transform_xtoy_gpseph,da_transform_xtoy_gpseph_adj, &
+      global_adj_ref, global_h_mean, global_h, global_xa_ref, global_ref, gps_rays
    use da_metar,     only : da_transform_xtoy_metar, da_transform_xtoy_metar_adj
    use da_physics,   only : da_tp_to_qs,da_get_q_error
    use da_pilot,     only : da_transform_xtoy_pilot,da_transform_xtoy_pilot_adj
@@ -74,9 +80,9 @@ contains
 #include "da_add_noise_to_ob.inc"
 #include "da_check_missing.inc"
 #include "da_fill_obs_structures.inc"
+#include "da_fill_obs_structures_radar.inc"
 #include "da_fill_obs_structures_rain.inc"
 #include "da_random_omb_all.inc"
-#include "da_setup_pseudo_obs.inc"
 #include "da_store_obs_grid_info.inc"
 #include "da_store_obs_grid_info_rad.inc"
 #include "da_count_filtered_obs.inc"

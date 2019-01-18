@@ -71,19 +71,22 @@ subroutine da_obs_sfc_correction(info, sfc_obs, n, xb)
 
    ! 3.1 Compute the surface OBS pressure from mean sea level pressure
 
-   mslp = info%slp(n)%inv
-   if (abs(mslp - missing_r) > 1.0) then
-      psfc = missing_r
-      if (abs(ho - missing_r) > 1.0) then
-         if (abs(to - missing_r) > 1.0) then
-            call da_sfcprs (kts, kte, pressure, t_mdl, q_mdl, height, psfc, mslp, ho, to)
-         else
-            call da_sfcprs (kts, kte, pressure, t_mdl, q_mdl, height, psfc, mslp, ho)
+   if ( psfc_from_slp ) then
+      mslp = info%slp(n)%inv
+      if (abs(mslp - missing_r) > 1.0) then
+         psfc = missing_r
+         if (abs(ho - missing_r) > 1.0) then
+            if (abs(to - missing_r) > 1.0) then
+               call da_sfcprs (kts, kte, pressure, t_mdl, q_mdl, height, psfc, mslp, ho, to)
+            else
+               call da_sfcprs (kts, kte, pressure, t_mdl, q_mdl, height, psfc, mslp, ho)
+            end if
          end if
+         sfc_obs % p % inv = psfc
+         ! YRG: to allow assmilate the Psfc from mslp:
+         sfc_obs % p % qc  = 0
       end if
-      sfc_obs % p % inv = psfc
-      ! YRG: to allow assmilate the Psfc from mslp:
-      sfc_obs % p % qc  = 0
+      po = sfc_obs % p % inv
    end if
 
    if (sfc_obs % p % inv < 1.0) then
@@ -96,7 +99,7 @@ subroutine da_obs_sfc_correction(info, sfc_obs, n, xb)
    !     ----------------------------------------------
 
    if (abs(po - missing_r) < 1.0  .OR. abs(ho - missing_r) < 1.0) then
-
+      if (trace_use_dull) call da_trace_exit("da_obs_sfc_correction")
       return
 
       ! write(unit=message(1), fmt='(/3(1x,a))') &
@@ -146,10 +149,10 @@ subroutine da_obs_sfc_correction(info, sfc_obs, n, xb)
          !  with surface correction flag
 
          sfc_obs % u % inv = correc * sfc_obs % u % inv 
-         sfc_obs % u % qc  = surface_correction
+         if ( abs(correc-1.0)>0.0 ) sfc_obs % u % qc  = surface_correction
 
          sfc_obs % v % inv = correc * sfc_obs % v % inv
-         sfc_obs % v % qc  = surface_correction
+         if ( abs(correc-1.0)>0.0 ) sfc_obs % v % qc  = surface_correction
       end if
 
       ! 3.4 Correct pressure

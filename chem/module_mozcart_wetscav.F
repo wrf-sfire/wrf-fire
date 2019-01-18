@@ -12,7 +12,6 @@ public :: wetscav_mozcart
 
 save
 
-   integer, parameter :: wetscav_tab_cnt = 37
    real, parameter :: zero = 0.
    real, parameter :: one  = 1.
    real, parameter :: four = 4.
@@ -37,6 +36,7 @@ save
      real    :: heff(6)
      real    :: molecw
      logical :: ice_uptake
+     real    :: reteff
    end type wet_scav
 
    type(wet_scav), allocatable :: wet_scav_tab(:)
@@ -50,6 +50,8 @@ CONTAINS
 !  Initialize the mozart, mozcart wet scavenging module
 !----------------------------------------------------------------------
    use module_scalar_tables, only : chem_dname_table
+   use module_chem_utilities, only : upcase
+   use module_HLawConst, only : nHLC, HLC
 
 !----------------------------------------------------------------------
 !  dummy arguments
@@ -63,116 +65,119 @@ CONTAINS
 !----------------------------------------------------------------------
    integer :: m, m1, m2
    integer :: astat
-   character(len=12) :: wrf_spc_name
-   character(len=128) :: message
+   character(len=12)  :: wrf_spc_name
+   character(len=64)  :: HL_tbl_name
+   character(len=256) :: message
 
 is_allocated : &
    if( .not. allocated( wet_scav_tab ) ) then
-     write(*,*) ' '
-     write(*,*) 'wetscav_mozcart_init: species names'
-     write(*,'(6a12)') chem_dname_table(id,param_first_scalar:numgas)
-     write(*,*) ' '
-
-     allocate( wet_scav_tab(wetscav_tab_cnt),stat=astat )
-     if( astat /= 0 ) then
-       call wrf_error_fatal("mozcart_wetscav_init: failed to allocate wet_scav_tab")
-     endif
-
+     call wrf_message( ' ' )
+     call wrf_message( 'wetscav_mozcart_init: species names' )
+     do m = param_first_scalar,numgas,6
+       write(message,'(6a12)') chem_dname_table(id,m:min(m+5,numgas))
+       call wrf_message( trim(message) )
+     enddo
+     call wrf_message( ' ' )
 !----------------------------------------------------------------------
-!  NOTE: this table does NOT include an entry for SO4
+!  scan HLawConst table for match with chem_opt scheme gas phase species
+!  first just count matches
 !----------------------------------------------------------------------
-     wet_scav_tab(1) = wet_scav( 'h2o2', p_h2o2, (/8.33e+04, 7379., 2.2e-12, -3730., 0., 0./), 34.0135994, .false. )
-     wet_scav_tab(2) = wet_scav( 'hno3', p_hno3, (/0., 0., 2.6e+06, 8700., 0., 0./), 63.0123405, .true. )
-     wet_scav_tab(3) = wet_scav( 'hcho', p_hcho, (/6.30e+03, 6425., 0., 0., 0., 0./), 30.0251999, .false. )
-     wet_scav_tab(4) = wet_scav( 'ch3ooh', p_ch3ooh, (/3.11e+02, 5241., 0., 0., 0., 0./), 48.0393982, .false. )
-     wet_scav_tab(5) = wet_scav( 'c3h6ooh', p_c3h6ooh, (/2.20e+02, 5653., 0., 0., 0., 0./), 75.0835953, .false. )
-     wet_scav_tab(6) = wet_scav( 'paa', p_paa, (/8.37e+02, 5308., 1.8e-04, -1510., 0., 0./), 76.0498047, .false. )
-     wet_scav_tab(7) = wet_scav( 'hno4', p_hno4, (/0., 0., 3.2e+01, 0., 0., 0./), 79.0117416, .false. )
-     wet_scav_tab(8) = wet_scav( 'onit', p_onit, (/1.00e+03, 6000., 0., 0., 0., 0./), 119.074341, .false. )
-     wet_scav_tab(9) = wet_scav( 'mvk', p_mvk, (/1.7e-03, 0., 0., 0., 0., 0./), 70.0878067, .false. )
-     wet_scav_tab(10) = wet_scav( 'macr', p_macr, (/1.70e-03, 0., 0., 0., 0., 0./), 70.0878067, .false. )
-     wet_scav_tab(11) = wet_scav( 'etooh', p_etooh, (/3.36e+02, 5995., 0., 0., 0., 0./), 62.065197, .false. )
-     wet_scav_tab(12) = wet_scav( 'prooh', p_prooh, (/3.36e+02, 5995., 0., 0., 0., 0./), 76.0909958, .false. )
-     wet_scav_tab(13) = wet_scav( 'acetp', p_acetp, (/3.36e+02, 5995., 0., 0., 0., 0./), 90.0755997, .false. )
-     wet_scav_tab(14) = wet_scav( 'mgly', p_mgly, (/3.71e+03, 7541., 0., 0., 0., 0./), 72.0614014, .false. )
-     wet_scav_tab(15) = wet_scav( 'mvkooh', p_mvkooh, (/0., 0., 2.6e+06, 8700., 0., 0./), 120.1008, .false. )
-     wet_scav_tab(16) = wet_scav( 'onitr', p_onitr, (/7.51e+03, 6485., 0., 0., 0., 0./), 147.125946, .false. )
-     wet_scav_tab(17) = wet_scav( 'isooh', p_isooh, (/0., 0., 2.6e+06, 8700., 0., 0./), 118.127205, .false. )
-     wet_scav_tab(18) = wet_scav( 'ch3oh', p_ch3oh, (/2.20e+02, 4934., 0., 0., 0., 0./), 32.0400009, .false. )
-     wet_scav_tab(19) = wet_scav( 'c2h5oh', p_c2h5oh, (/2.00e+02, 6500., 0., 0., 0., 0./), 46.0657997, .false. )
-     wet_scav_tab(20) = wet_scav( 'glyald', p_glyald, (/4.14e+04, 4630., 0., 0., 0., 0./), 60.0504036, .false. )
-     wet_scav_tab(21) = wet_scav( 'hydrald', p_hydrald, (/7.00e+01, 6000., 0., 0., 0., 0./), 100.113007, .false. )
-     wet_scav_tab(22) = wet_scav( 'ald', p_ald, (/1.14e+01, 6267., 0., 0., 0., 0./), 44.0510025, .false. )
-     wet_scav_tab(23) = wet_scav( 'isopn', p_isopn, (/1.00e+01, 0., 0., 0., 0., 0./), 162.117935, .false. )
-     wet_scav_tab(24) = wet_scav( 'alkooh', p_alkooh, (/3.11e+02, 5241., 0., 0., 0., 0./), 104.142501, .false. )
-     wet_scav_tab(25) = wet_scav( 'mekooh', p_mekooh, (/3.11e+02, 5241., 0., 0., 0., 0./), 104.101395, .false. )
-     wet_scav_tab(26) = wet_scav( 'tolooh', p_tolooh, (/3.11e+02, 5241., 0., 0., 0., 0./), 142.1492, .false. )
-     wet_scav_tab(27) = wet_scav( 'terpooh', p_terpooh, (/3.11e+02, 5241., 0., 0., 0., 0./), 186.241394, .false. )
-     wet_scav_tab(28) = wet_scav( 'xhno3', -1, (/0., 0., 2.6e+06, 8700., 0., 0./), 63.0123405, .true. )
-     wet_scav_tab(29) = wet_scav( 'nh3', p_nh3, (/7.40e+01, 3400., 1.7e-05, -450., 1.0e-14, -6716./), 17.0289402, .false. )
-     wet_scav_tab(30) = wet_scav( 'xho2no2', -1, (/0., 0., 3.2e+01, 0., 0., 0./), 79.0117416, .false. )
-     wet_scav_tab(31) = wet_scav( 'xisopno3', -1, (/1.00e+01, 0., 0., 0., 0., 0./), 162.117935, .false. )
-     wet_scav_tab(32) = wet_scav( 'xonit', -1, (/1.00e+03, 6000., 0., 0., 0., 0./), 119.074341, .false. )
-     wet_scav_tab(33) = wet_scav( 'xonitr', -1, (/7.51e+03, 6485., 0., 0., 0., 0./), 147.125946, .false. )
-     wet_scav_tab(34) = wet_scav( 'xooh', p_xooh, (/90.5, 5607., 0., 0., 0., 0./), 134.126602, .false. )
-     wet_scav_tab(35) = wet_scav( 'ch3cooh', p_ch3cooh, (/4.1e3, 6300., 0., 0., 0., 0./), 60.0503998, .false. )
-     wet_scav_tab(36) = wet_scav( 'so2', p_so2, (/8.33e+04, 7379., 2.2e-12, -3730., 0., 0./), 34.0135994, .false. )
-     wet_scav_tab(37) = wet_scav( 'h2so4', p_h2so4, (/0., 0., 2.6e+06, 8700., 0., 0./), 98.0784, .false. )
- 
-   hetcnt = 0
-   do m = param_first_scalar,numgas
-     wrf_spc_name = chem_dname_table(id,m)
-     do m1 = 1,wetscav_tab_cnt
-       if( trim(wrf_spc_name) == trim(wet_scav_tab(m1)%name) .and. &
-           wet_scav_tab(m1)%p_ndx >= param_first_scalar ) then
-         hetcnt = hetcnt + 1
-         exit
-       endif
-     end do
-   end do
-
-   m2 = 0
-   if( hetcnt > 0 ) then
-     allocate( wrf2tab(hetcnt),mol_wght(hetcnt),ice_uptake(hetcnt),stat=astat )
-     if( astat /= 0 ) then
-       call wrf_error_fatal("mozcart_wetscav_init: failed to allocate wrf2tab,mol_wght,ice_uptake")
-     endif
-     do m = param_first_scalar,numgas
-       wrf_spc_name = chem_dname_table(id,m)
-       do m1 = 1,wetscav_tab_cnt
-         if( trim(wrf_spc_name) == trim(wet_scav_tab(m1)%name) .and. &
-             wet_scav_tab(m1)%p_ndx >= param_first_scalar ) then
-           m2 = m2 + 1
-           wrf2tab(m2) = m1
-           mol_wght(m2) = wet_scav_tab(m1)%molecw
-           ice_uptake(m2) = wet_scav_tab(m1)%ice_uptake
-           if( wet_scav_tab(m1)%p_ndx == p_hno3 ) then
-             hno3_ndx = m2
-           endif
+     hetcnt = 0
+     do m = 1,nHLC
+       HL_tbl_name = HLC(m)%name
+       call upcase( HL_tbl_name )
+       do m1 = param_first_scalar,numgas
+         wrf_spc_name = chem_dname_table(id,m1)
+         call upcase( wrf_spc_name )
+         if( trim(HL_tbl_name) == trim(wrf_spc_name) ) then
+           hetcnt = hetcnt + 1 
            exit
          endif
        end do
      end do
-   else
-     write(*,*) ' '
-     write(*,*) 'wetscav_mozcart_init: There are no wet scavenging mozcart species'
-     write(*,*) ' '
-     return
-   endif
 
-   write(*,*) 'wetscav_mozcart_init: Wet scavenging mozcart species'
-   do m = 1,hetcnt
-     write(*,*) m,wrf2tab(m),trim(wet_scav_tab(wrf2tab(m))%name),mol_wght(m),ice_uptake(m)
-   end do
+     if( hetcnt > 0 ) then
+       allocate( wet_scav_tab(hetcnt),stat=astat )
+       if( astat /= 0 ) then
+         call wrf_error_fatal("mozcart_wetscav_init: failed to allocate wet_scav_tab")
+       endif
+     else
+       call wrf_message( ' ' )
+       call wrf_message( 'wetscav_mozcart_init: There are no wet scavenging mozcart species' )
+       call wrf_message( ' ' )
+       return
+     endif
 
-   if( wrf_dm_on_monitor() ) then
-     write(*,*) ' '
-     write(message,*) 'wetscav_mozcart_init: hetcnt = ',hetcnt
-     call wrf_debug( 100, trim(message) )
-     write(message,*) 'wetscav_mozcart_init: hno3_ndx = ',hno3_ndx
-     call wrf_debug( 100, trim(message) )
-     write(*,*) ' '
-   endif
+!----------------------------------------------------------------------
+!  now put matches in local table
+!----------------------------------------------------------------------
+     m2 = 0
+     do m = 1,nHLC
+       HL_tbl_name = HLC(m)%name
+       call upcase( HL_tbl_name )
+       do m1 = param_first_scalar,numgas
+         wrf_spc_name = chem_dname_table(id,m1)
+         call upcase( wrf_spc_name )
+         if( trim(HL_tbl_name) == trim(wrf_spc_name) ) then
+           m2 = m2 + 1
+           wet_scav_tab(m2)%name  = chem_dname_table(id,m1)
+           wet_scav_tab(m2)%p_ndx = m1
+           wet_scav_tab(m2)%molecw = HLC(m)%mw
+           wet_scav_tab(m2)%heff(1:6) = HLC(m)%hcnst(1:6)
+           exit
+         endif
+       end do
+     end do
+
+     wet_scav_tab(:)%ice_uptake = .false.
+     wet_scav_tab(:)%reteff = 0.
+     do m = 1,hetcnt
+       if( wet_scav_tab(m)%p_ndx == p_h2o2 ) then
+         wet_scav_tab(m)%ice_uptake = .true.
+         wet_scav_tab(m)%reteff     = .64
+       elseif( wet_scav_tab(m)%p_ndx == p_hno3 ) then
+         wet_scav_tab(m)%ice_uptake = .true.
+         wet_scav_tab(m)%reteff     = 1.
+         hno3_ndx = m
+       elseif( wet_scav_tab(m)%p_ndx == p_hcooh ) then
+         wet_scav_tab(m)%ice_uptake = .true.
+         wet_scav_tab(m)%reteff     = .64
+       elseif( wet_scav_tab(m)%p_ndx == p_ch3ooh ) then
+         wet_scav_tab(m)%ice_uptake = .true.
+         wet_scav_tab(m)%reteff     = .02
+       elseif( wet_scav_tab(m)%p_ndx == p_so2 ) then
+         wet_scav_tab(m)%ice_uptake = .true.
+         wet_scav_tab(m)%reteff     = .02
+       elseif( wet_scav_tab(m)%p_ndx == p_hcooh ) then
+         wet_scav_tab(m)%ice_uptake = .true.
+         wet_scav_tab(m)%reteff     = .68
+       endif
+     end do
+
+     allocate( wrf2tab(hetcnt),mol_wght(hetcnt),ice_uptake(hetcnt),stat=astat )
+     if( astat /= 0 ) then
+       call wrf_error_fatal("mozcart_wetscav_init: failed to allocate wrf2tab,mol_wght,ice_uptake")
+     endif
+     do m = 1,hetcnt
+       wrf2tab(m)    = m
+       mol_wght(m)   = wet_scav_tab(m)%molecw
+       ice_uptake(m) = wet_scav_tab(m)%ice_uptake
+     end do
+
+     call wrf_message( 'wetscav_mozcart_init: Wet scavenging mozcart species' )
+     do m = 1,hetcnt
+       write(message,*) m,wrf2tab(m),trim(wet_scav_tab(wrf2tab(m))%name),mol_wght(m),ice_uptake(m)
+       call wrf_message( trim(message) )
+     end do
+
+     if( wrf_dm_on_monitor() ) then
+       call wrf_debug( 100,' ' )
+       write(message,*) 'wetscav_mozcart_init: hetcnt = ',hetcnt
+       call wrf_debug( 100, trim(message) )
+       write(message,*) 'wetscav_mozcart_init: hno3_ndx = ',hno3_ndx
+       call wrf_debug( 100, trim(message) )
+       call wrf_debug( 100,' ' )
+     endif
    endif is_allocated
 
    end subroutine wetscav_mozcart_init
@@ -183,7 +188,10 @@ is_allocated : &
                                qv_b4mp, qc_b4mp, qi_b4mp, qs_b4mp,                         &
                                gas_aqfrac, numgas_aqfrac, dz8w, dx, dy,                    &
                                qv, qc, qi, qs,                                             &
-                               hno3_col_mdel,                                              &
+! 20131125 acd_ck_washout start
+!                               hno3_col_mdel,                                              &
+                               delta_mass_col,                                             &
+! 20131125 acd_ck_washout end
                                ids,ide, jds,jde, kds,kde,                                  &
                                ims,ime, jms,jme, kms,kme,                                  &
                                its,ite, jts,jte, kts,kte                                   )
@@ -243,15 +251,22 @@ is_allocated : &
    REAL,  DIMENSION( ims:ime , kms:kme , jms:jme )         ,        &
          INTENT(INOUT ) ::                                cldfra
 
-   REAL,  DIMENSION( ims:ime , jms:jme )         ,                  &
-         INTENT(INOUT ) ::                                hno3_col_mdel
+! 20131125 acd_ck_washout start
+!   REAL,  DIMENSION( ims:ime , jms:jme )         ,                  &
+!         INTENT(INOUT ) ::                                hno3_col_mdel
+
+   REAL,  DIMENSION( ims:ime , jms:jme, num_chem )         ,           &
+         INTENT(OUT ) ::                                delta_mass_col
+! 20131125 acd_ck_washout end
 
 !----------------------------------------------------------------------
 !  local variables
 !----------------------------------------------------------------------
    real, parameter    :: t0 = 298.
-   real, parameter    :: ph = 1.e-5
-   real, parameter    :: ph_inv = 1./ph
+!  real, parameter    :: ph = 1.e-5
+!  real, parameter    :: hp_inv = 1./ph
+   real, parameter    :: hion = 1.e-5
+   real, parameter    :: hion_inv = 1./hion
    real, parameter    :: henry_thres = 1.e4
 
    integer :: i, j, k, ktem1, m, m1
@@ -277,6 +292,7 @@ is_allocated : &
    REAL :: tfac(kts:kte)
    REAL :: dk1s(kts:kte)
    REAL :: dk2s(kts:kte)
+   REAL :: kh(kts:kte)
    REAL :: diff(its:ite,kts:kte,jts:jte)
    REAL :: hno3(kts:kte)
    REAL :: wrk_mass(hetcnt)
@@ -285,6 +301,10 @@ is_allocated : &
 
    logical :: is_hno3
    logical :: tckaqb(hetcnt)
+
+!++mmb
+   REAL :: reteff(hetcnt)
+!--mmb
 
    character(len=128) :: message
 
@@ -306,7 +326,10 @@ has_wet_scav : &
      diff(:,:,:) = 0.
      cld_col_cnt = 0
      precip_col_cnt = 0
-     hno3_col_mdel(:,:) = 0.
+! 20131125 acd_ck_washout start
+!     hno3_col_mdel(:,:) = 0.
+     delta_mass_col(:,:,:) = 0.
+! 20131125 acd_ck_washout end
      max_rls       = 0.
 jloop : &
      do j = jts,jte
@@ -349,37 +372,33 @@ species_loop : &
              wrk_mass(m)    = sum( trc_mass(kts:ktem1,m) )
              e298 = wet_scav_tab(m1)%heff(1)
              dhr  = wet_scav_tab(m1)%heff(2)
-             heff(kts:ktem1,m) = e298 * exp( dhr*tfac(kts:ktem1) )
-             if( wet_scav_tab(m1)%heff(3) /= 0. .and. &
-                 wet_scav_tab(m1)%heff(5) == 0. ) then
-               e298 = wet_scav_tab(m1)%heff(3)
-               dhr  = wet_scav_tab(m1)%heff(4)
+             kh(kts:ktem1) = e298 * exp( dhr*tfac(kts:ktem1) )
+             e298 = wet_scav_tab(m1)%heff(3)
+             dhr  = wet_scav_tab(m1)%heff(4)
+             if( e298 /= 0. ) then
                dk1s(kts:ktem1) = e298*exp( dhr*tfac(kts:ktem1) )
-               where( heff(kts:ktem1,m) /= 0. )
-                 heff(kts:ktem1,m) = heff(kts:ktem1,m)*(1. + dk1s(kts:ktem1)*ph_inv)
-               elsewhere
-                 heff(kts:ktem1,m) = dk1s(kts:ktem1)*ph_inv
-               endwhere
+             else
+               dk1s(kts:ktem1) = 0.
              endif
+             e298 = wet_scav_tab(m1)%heff(5)
+             dhr  = wet_scav_tab(m1)%heff(6)
+             if( e298 /= 0. ) then
+               dk2s(kts:ktem1) = e298*exp( dhr*tfac(kts:ktem1) )
+             else
+               dk2s(kts:ktem1) = 0.
+             endif
+             if( pndx /= p_nh3 ) then
+               heff(kts:ktem1,m) = kh(kts:ktem1)*(1. + dk1s(kts:ktem1)*hion_inv*(1. + dk2s(kts:ktem1)*hion_inv))
+             else
 !----------------------------------------------------------------------
-!  special handling for nh3 and co2
+!  special handling for nh3
 !----------------------------------------------------------------------
-             if( pndx == p_nh3 .or. pndx == p_co2 ) then
-               if( wet_scav_tab(m1)%heff(5) /= 0. ) then
-                 e298 = wet_scav_tab(m1)%heff(3)
-                 dhr  = wet_scav_tab(m1)%heff(4)
-                 dk1s(kts:ktem1) = e298*exp( dhr*tfac(kts:ktem1) )
-                 e298 = wet_scav_tab(m1)%heff(5)
-                 dhr  = wet_scav_tab(m1)%heff(6)
-                 dk2s(kts:ktem1) = e298*exp( dhr*tfac(kts:ktem1) )
-                 if( pndx == p_co2 ) then
-                   heff(kts:ktem1,m) = heff(kts:ktem1,m)*(1. + dk1s(:)*ph_inv)*(1. + dk2s(:)*ph_inv)
-                 elseif( pndx == p_nh3 ) then
-                   heff(kts:ktem1,m) = heff(kts:ktem1,m)*(1. + dk1s(:)*ph/dk2s(:))
-                 endif
-               endif
+               heff(kts:ktem1,m) = kh(kts:ktem1)*(1. + dk1s(kts:ktem1)*hion/dk2s(kts:ktem1))
              endif
              tckaqb(m) = any( heff(kts:ktem1,m) > henry_thres )
+!++mmb
+             reteff(m) = wet_scav_tab(m1)%reteff
+!--mmb
            end do species_loop
 
 !----------------------------------------------------------------------
@@ -388,16 +407,23 @@ species_loop : &
            CALL washout( kte-kts+1, hetcnt, dtstep, trc_mass, layer_mass, &
                          p, dz8w(i,kts:kte,j), rls, qc_b4mp(i,kts:kte,j), qi_b4mp(i,kts:kte,j), &
                          cldfra(i,kts:kte,j), t, evaprate, area, heff, &
-                         mol_wght, tckaqb, ice_uptake, i, j )
+!++mmb
+!                        mol_wght, tckaqb, ice_uptake, i, j )
+                         mol_wght, tckaqb, ice_uptake, i, j, reteff )
+!--mmb
 
 species_loop1 : &
            do m = 1,hetcnt
              m1 = wrf2tab(m)
              pndx = wet_scav_tab(m1)%p_ndx
              is_hno3 = pndx == p_hno3
-             if( is_hno3 ) then
-               hno3_col_mdel(i,j) = sum( trc_mass(kts:ktem1,m) ) - wrk_mass(m)
-             endif
+! 20131125 acd_ck_washout start
+!             if( is_hno3 ) then
+!              hno3_col_mdel(i,j) = sum( trc_mass(kts:ktem1,m) ) - wrk_mass(m)
+!            endif
+             delta_mass_col(i,j,pndx) = sum( trc_mass(kts:ktem1,m) ) - wrk_mass(m)
+! 20131125 acd_ck_washout end
+
              wrk(kts:ktem1) = 1.e6*mwdry*trc_mass(kts:ktem1,m)/mol_wght(m)
              chem(i,kts:ktem1,j,pndx) = wrk(kts:ktem1)/layer_mass(kts:ktem1)
              if( is_hno3 ) then
@@ -682,7 +708,10 @@ has_cloud : &
    subroutine WASHOUT( LPAR, NTRACE, DTSCAV, QTTJFL, QM, &
                        POFL, DELZ, RLS, CLWC, CIWC, &
                        CFR, TEM, EVAPRATE, GAREA, HSTAR, &
-                       TCMASS, TCKAQB, TCNION, ii, jj )
+!++mmb
+!                      TCMASS, TCKAQB, TCNION, ii, jj )
+                       TCMASS, TCKAQB, TCNION, ii, jj, RETEFF )
+!--mmb
 !-----------------------------------------------------------------------
 !---p-conde 5.4 (2007)   -----called from main-----
 !---called from pmain to calculate rainout and washout of tracers
@@ -715,6 +744,9 @@ has_cloud : &
       real,  intent(inout) :: QTTJFL(LPAR,NTRACE)
       logical, intent(in)  :: TCKAQB(NTRACE)
       logical, intent(in)  :: TCNION(NTRACE)
+!++mmb
+      real,  intent(in)    :: RETEFF(NTRACE)
+!--mmb
 
 !-----------------------------------------------------------------------
 !  local variables
@@ -1097,7 +1129,10 @@ is_freezing : &
                      RRAIN = RPRECIP*GAREA                                  !kg/s local
                      call DISGAS( CLWX, CFXX(L), TCMASS(N), HSTAR(L,N), &
                                   TEM(L),POFL(L),QM(L),                 &
-                                  QTT(L)*CFXX(L),QTDISCF )
+!++mmb
+!                                 QTT(L)*CFXX(L),QTDISCF )
+                                  QTT(L)*CFXX(L),QTDISCF, is_hno3, RETEFF(N) )
+!--mmb
                      call RAINGAS( RRAIN, DTSCAV, CLWX, CFXX(L),        &
                                    QM(L), QTT(L), QTDISCF, QTRAIN )
                      WRK       = QTRAIN/CFXX(L)
@@ -1125,7 +1160,10 @@ is_freezing : &
                      QTCXA = QTT(L)*FCXA
                      call DISGAS( CLWX*(FCXA/CFXX(L)), FCXA, TCMASS(N),   &
                                   HSTAR(L,N), TEM(L), POFL(L),            &
-                                  QM(L), QTCXA, QTDISRIME )       
+!++mmb
+!                                 QM(L), QTCXA, QTDISRIME )       
+                                  QM(L), QTCXA, QTDISRIME, is_hno3, RETEFF(N) )       
+!--mmb
                      QTDISSTAR = (QTDISRIME*QTCXA)/(QTDISRIME + QTCXA)
                      QTRIMECXA = QTCXA*                             &
                         (one - exp((-COLEFFSNOW/(DCA*1.e-3))*       &
@@ -1191,7 +1229,10 @@ is_freezing : &
                    RRAIN = (RPRECIP*GAREA) !kg/s local
                    call DISGAS( CLWX, CFXX(L), TCMASS(N), HSTAR(L,N), &
                                 TEM(L), POFL(L), QM(L),               &
-                                QTT(L)*CFXX(L), QTDISCF )
+!++mmb
+!                               QTT(L)*CFXX(L), QTDISCF )
+                                QTT(L)*CFXX(L), QTDISCF, is_hno3, RETEFF(N) )
+!--mmb
                    call RAINGAS( RRAIN, DTSCAV, CLWX, CFXX(L),        &
                                  QM(L), QTT(L), QTDISCF, QTRAIN )
                    WRK       = QTRAIN/CFXX(L)
@@ -1208,7 +1249,10 @@ is_freezing : &
                    QTCXA = QTT(L)*FCXA
                    call DISGAS( CLWX*(FCXA/CFXX(L)), FCXA, TCMASS(N),    &
                                 HSTAR(L,N), TEM(L), POFL(L),             &
-                                QM(L), QTCXA, QTDISRIME )
+!++mmb
+!                               QM(L), QTCXA, QTDISRIME )
+                                QM(L), QTCXA, QTDISRIME, is_hno3, RETEFF(N) )
+!--mmb
                    QTDISSTAR = (QTDISRIME*QTCXA)/(QTDISRIME + QTCXA)
                    QTRIMECXA = QTCXA*                              &
                       (one - exp(-0.24*COLEFFRAIN*                 &
@@ -1350,7 +1394,10 @@ is_freezing_a : &
 !-----------------------------------------------------------------------
                      call DISGAS( (MASSLOSS/QM(L)), FCXA, TCMASS(N),   &
                                    HSTAR(L,N), TEM(L), POFL(L),        &
-                                   QM(L), QTT(L), QTEVAPCXA )
+!++mmb
+!                                  QM(L), QTT(L), QTEVAPCXA )
+                                   QM(L), QTT(L), QTEVAPCXA, is_hno3, RETEFF(N) )
+!--mmb
                      QTEVAPCXA = min( QTTOPCA,QTEVAPCXA )
                    else
                      QTEVAPCXA = zero
@@ -1366,7 +1413,10 @@ is_freezing_a : &
                    if( QTT(L) > zero ) then
                      call DISGAS( CLWX*(FCXA/CFXX(L)), FCXA, TCMASS(N),   &
                                   HSTAR(L,N), TEM(L), POFL(L),            &
-                                  QM(L), QTCXA, QTDISCXA )
+!++mmb
+!                                 QM(L), QTCXA, QTDISCXA )
+                                  QM(L), QTCXA, QTDISCXA, is_hno3, RETEFF(N) )
+!--mmb
                      if( QTCXA > QTDISCXA ) then
                        QTWASHCXA = (QTCXA - QTDISCXA)*(one - exp( -0.24*COLEFFAER*((RCXA)**0.75)*DTSCAV )) !local
                      else
@@ -1605,7 +1655,10 @@ end subroutine WASHOUT
 
 subroutine DISGAS( CLWX, CFX, MOLMASS, HSTAR, &
                    TM, PR, QM, &
-                   QT, QTDIS )
+!++mmb
+!                  QT, QTDIS )
+                   QT, QTDIS, is_hno3, RETEFF )
+!--mmb
 
 !-----------------------------------------------------------------------
 !  dummy arguments
@@ -1618,11 +1671,21 @@ subroutine DISGAS( CLWX, CFX, MOLMASS, HSTAR, &
       real, intent(in) :: QM          !air mass in box (kg)
       real, intent(in) :: QT          !tracer in box (kg)
       real, intent(out) :: QTDIS      !tracer dissolved in aqueous phase 
+
+!++mmb      
+      logical, intent(in) :: is_hno3
+      real, intent(in) :: RETEFF      !Ice retention parameter
+!--mmb
  
 !-----------------------------------------------------------------------
 !  local variables
 !-----------------------------------------------------------------------
-      real, parameter  :: RETEFF = 0.5
+
+!++mmb
+!     real, parameter  :: RETEFF = 0.5
+!     real, parameter  :: RETEFF = 1.0
+!--mmb
+
       real  :: MUEMP
 
 !-----------------------------------------------------------------------
@@ -1637,7 +1700,10 @@ subroutine DISGAS( CLWX, CFX, MOLMASS, HSTAR, &
 !-----------------------------------------------------------------------
       if( TM >= TICE ) then
         QTDIS = (HSTAR*(QT/(QM*CFX))*0.029*(PR/1.0e3))*(CLWX*QM)
-      elseif( TM <= TMIX ) then
+!++mmb
+!     elseif( TM <= TMIX ) then
+      elseif( TM <= TMIX .and. is_hno3 ) then
+!--mmb
         MUEMP = exp( -14.2252 + TM*(1.55704e-1 - 7.1929e-4*TM) )
         QTDIS = MUEMP*(MOLMASS/18.)*(CLWX*QM)
       else
@@ -1812,10 +1878,10 @@ end function DEMPIRICAL
 
 function GAMMA( X )
 !-----------------------------------------------------------------------
-!       Purpose: Compute the gamma function â(x)
-!       Input :  x  --- Argument of â(x)
-!                       ( x is not equal to 0,-1,-2,úúú )
-!       Output:  GA --- â(x)
+!       Purpose: Compute the gamma function Ahat(x)
+!       Input :  x  --- Argument of Ahat(x)
+!                       ( x is not equal to 0,-1,-2, ... )
+!       Output:  GA --- Ahat(x)
 !-----------------------------------------------------------------------
 
 !-----------------------------------------------------------------------

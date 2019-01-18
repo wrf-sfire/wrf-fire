@@ -4,7 +4,9 @@
                config_flags,gmt,julday,t_phy,moist,p8w,t8w,gd_cldfr,   &
                p_phy,chem,rho_phy,dz8w,dx,g,z,z_at_w,xlat,xlong,vdrog3,&
                vcsulf_old,vcso2_old,vch2o2_old,ttday,tcosz,            &
-               ph_macr,ph_o31d,ph_o33p,ph_no2,ph_no3o2,ph_no3o,ph_hno2,&
+               ph_macr,ph_o31d,ph_o33p,ph_no2,                         &
+               ph_cl2,ph_hocl,ph_clno2,ph_fmcl,                        &
+               ph_no3o2,ph_no3o,ph_hno2,                               &
                ph_hno3,ph_hno4,ph_h2o2,ph_ch2or,ph_ch2om,ph_ch3cho,    &
                ph_ch3coch3,ph_ch3coc2h5,ph_hcocho,ph_ch3cocho,         &
                ph_hcochest,ph_ch3o2h,ph_ch3coo2h,ph_ch3ono2,ph_hcochob,&
@@ -52,7 +54,9 @@
 !
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                       &
          INTENT(INOUT ) ::                                             &
-           ph_macr,ph_o31d,ph_o33p,ph_no2,ph_no3o2,ph_no3o,ph_hno2,    &
+           ph_macr,ph_o31d,ph_o33p,ph_no2,                             &
+           ph_cl2,ph_hocl,ph_clno2,ph_fmcl,                            &
+           ph_no3o2,ph_no3o,ph_hno2,                                   &
            ph_hno3,ph_hno4,ph_h2o2,ph_ch2or,ph_ch2om,ph_ch3cho,        &
            ph_ch3coch3,ph_ch3coc2h5,ph_hcocho,ph_ch3cocho,             &
            ph_hcochest,ph_ch3o2h,ph_ch3coo2h,ph_ch3ono2,ph_hcochob,    &
@@ -104,7 +108,7 @@
 ! select chemical mechanism
 !
    chem_select: SELECT CASE(config_flags%chem_opt)
-     CASE (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2_KPP,GOCARTRADM2)
+     CASE (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2)
        CALL wrf_debug(15,'calling gocart chem from mechanism_driver')
        call gocart_chem_driver(curr_secs,dtstepc,config_flags,        &
          gmt,julday,t_phy,moist,                                      &
@@ -137,16 +141,16 @@
                ids,ide, jds,jde, kds,kde,                              &
                ims,ime, jms,jme, kms,kme,                              &
                its,ite, jts,jte, kts,kte                               )
-
-     CASE (RACMSORG_KPP,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM_KPP,RACM_ESRLSORG_AQCHEM_KPP,RACM_ESRLSORG_KPP,RACM_SOA_VBS_KPP)
-       vcsulf_old(its:ite,kts:kte,jts:jte) = &
+     CASE(RACMSORG_KPP,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM_KPP,  &
+          RACM_ESRLSORG_AQCHEM_KPP,RACM_ESRLSORG_KPP,RACM_SOA_VBS_KPP, &
+          RACM_SOA_VBS_HET_KPP)
+         vcsulf_old(its:ite,kts:kte,jts:jte) = &
           max(chem(its:ite,kts:kte,jts:jte,p_sulf),epsilc)
 
      CASE (CBMZ, CBMZ_BB, CBMZ_MOSAIC_4BIN, CBMZ_MOSAIC_8BIN,      &
                  CBMZ_MOSAIC_4BIN_AQ,     CBMZ_MOSAIC_8BIN_AQ,     &
                  CBMZ_MOSAIC_DMS_4BIN,    CBMZ_MOSAIC_DMS_8BIN,    &
                  CBMZ_MOSAIC_DMS_4BIN_AQ, CBMZ_MOSAIC_DMS_8BIN_AQ, &
-                 CBMZ_MOSAIC_4BIN_VBS2_KPP,                        &
                  CBMZSORG, CBMZSORG_AQ, CBMZ_CAM_MAM3_NOAQ,        &
                  CBMZ_CAM_MAM3_AQ,CBMZ_CAM_MAM7_NOAQ,              &
                  CBMZ_CAM_MAM7_AQ)
@@ -164,6 +168,32 @@
                ids,ide, jds,jde, kds,kde,                              &
                ims,ime, jms,jme, kms,kme,                              &
                its,ite, jts,jte, kts,kte                               )
+
+     CASE (CB05_SORG_AQ_KPP)
+       chem(its:ite,kts:kte,jts:jte,p_apin) = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.248
+       chem(its:ite,kts:kte,jts:jte,p_bpin) = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.294
+       chem(its:ite,kts:kte,jts:jte,p_lim)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.164
+       chem(its:ite,kts:kte,jts:jte,p_ter)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.006
+       chem(its:ite,kts:kte,jts:jte,p_oci)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.213
+       chem(its:ite,kts:kte,jts:jte,p_hum)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.074
+       chem(its:ite,kts:kte,jts:jte,p_ch4) = 1.7
+       chem(its:ite,kts:kte,jts:jte,p_h2) = 0.5
+
+       vcsulf_old(its:ite,kts:kte,jts:jte) = &
+          max(chem(its:ite,kts:kte,jts:jte,p_sulf),epsilc)
+
+     CASE (CB05_SORG_VBS_AQ_KPP)
+       chem(its:ite,kts:kte,jts:jte,p_apin) = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.248
+       chem(its:ite,kts:kte,jts:jte,p_bpin) = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.294
+       chem(its:ite,kts:kte,jts:jte,p_lim)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.164
+       chem(its:ite,kts:kte,jts:jte,p_ter)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.006
+       chem(its:ite,kts:kte,jts:jte,p_oci)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.213
+       chem(its:ite,kts:kte,jts:jte,p_hum)  = chem(its:ite,kts:kte,jts:jte,p_terp) * 0.074
+       chem(its:ite,kts:kte,jts:jte,p_ch4) = 1.7
+       chem(its:ite,kts:kte,jts:jte,p_h2) = 0.5
+
+       vcsulf_old(its:ite,kts:kte,jts:jte) = &
+          max(chem(its:ite,kts:kte,jts:jte,p_sulf),epsilc)
 
      CASE DEFAULT
                                                      

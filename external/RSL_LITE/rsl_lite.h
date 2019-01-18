@@ -2,10 +2,14 @@
 # ifdef NOUNDERSCORE
 #      define RSL_LITE_ERROR_DUP1 rsl_error_dup1
 #      define BYTE_BCAST byte_bcast
+#      define BYTE_BCAST_FROM_ROOT byte_bcast_from_root
 #      define RSL_LITE_INIT_EXCH rsl_lite_init_exch
 #      define RSL_LITE_EXCH_Y rsl_lite_exch_y
 #      define RSL_LITE_EXCH_X rsl_lite_exch_x
 #      define RSL_LITE_PACK  rsl_lite_pack
+#if ( WRFPLUS == 1 )
+#      define RSL_LITE_PACK_AD  rsl_lite_pack_ad
+#endif
 #      define RSL_LITE_BCAST_MSGS rsl_lite_bcast_msgs
 #      define RSL_LITE_TO_CHILD_MSG rsl_lite_to_child_msg
 #      define RSL_LITE_TO_CHILD_INFO rsl_lite_to_child_info
@@ -34,15 +38,26 @@
 #      define F_PACK_INT f_pack_int
 #      define F_UNPACK_LINT f_unpack_lint
 #      define F_UNPACK_INT f_unpack_int
+#if ( WRFPLUS == 1 )
+#      define F_PACK_LINT_AD f_pack_lint_ad
+#      define F_PACK_INT_AD f_pack_int_ad
+#      define F_UNPACK_LINT_AD f_unpack_lint_ad
+#      define F_UNPACK_INT_AD f_unpack_int_ad
+#endif
 #      define RSL_LITE_GET_HOSTNAME rsl_lite_get_hostname
+#      define RSL_LITE_NESTING_RESET rsl_lite_nesting_reset
 # else
 #   ifdef F2CSTYLE
 #      define RSL_LITE_ERROR_DUP1 rsl_error_dup1__
 #      define BYTE_BCAST byte_bcast__
+#      define BYTE_BCAST_FROM_ROOT byte_bcast_from_root__
 #      define RSL_LITE_INIT_EXCH rsl_lite_init_exch__
 #      define RSL_LITE_EXCH_Y rsl_lite_exch_y__
 #      define RSL_LITE_EXCH_X rsl_lite_exch_x__
 #      define RSL_LITE_PACK  rsl_lite_pack__
+#if ( WRFPLUS == 1 )
+#      define RSL_LITE_PACK_AD  rsl_lite_pack_ad__
+#endif
 #      define RSL_LITE_BCAST_MSGS rsl_lite_bcast_msgs__
 #      define RSL_LITE_TO_CHILD_MSG rsl_lite_to_child_msg__
 #      define RSL_LITE_TO_CHILD_INFO rsl_lite_to_child_info__
@@ -71,14 +86,25 @@
 #      define F_PACK_INT f_pack_int__
 #      define F_UNPACK_LINT f_unpack_lint__
 #      define F_UNPACK_INT f_unpack_int__
+#if ( WRFPLUS == 1 )
+#      define F_PACK_LINT_AD f_pack_lint_ad__
+#      define F_PACK_INT_AD f_pack_int_ad__
+#      define F_UNPACK_LINT_AD f_unpack_lint_ad__
+#      define F_UNPACK_INT_AD f_unpack_int_ad__
+#endif
 #      define RSL_LITE_GET_HOSTNAME rsl_lite_get_hostname__
+#      define RSL_LITE_NESTING_RESET rsl_lite_nesting_reset__
 #   else
 #      define RSL_LITE_ERROR_DUP1 rsl_error_dup1_
 #      define BYTE_BCAST byte_bcast_
+#      define BYTE_BCAST_FROM_ROOT byte_bcast_from_root_
 #      define RSL_LITE_INIT_EXCH rsl_lite_init_exch_
 #      define RSL_LITE_EXCH_Y rsl_lite_exch_y_
 #      define RSL_LITE_EXCH_X rsl_lite_exch_x_
 #      define RSL_LITE_PACK  rsl_lite_pack_
+#if ( WRFPLUS == 1 )
+#      define RSL_LITE_PACK_AD  rsl_lite_pack_ad_
+#endif
 #      define RSL_LITE_BCAST_MSGS rsl_lite_bcast_msgs_
 #      define RSL_LITE_TO_CHILD_MSG rsl_lite_to_child_msg_
 #      define RSL_LITE_TO_CHILD_INFO rsl_lite_to_child_info_
@@ -107,7 +133,14 @@
 #      define F_PACK_INT f_pack_int_
 #      define F_UNPACK_LINT f_unpack_lint_
 #      define F_UNPACK_INT f_unpack_int_
+#if ( WRFPLUS == 1 )
+#      define F_PACK_LINT_AD f_pack_lint_ad_
+#      define F_PACK_INT_AD f_pack_int_ad_
+#      define F_UNPACK_LINT_AD f_unpack_lint_ad_
+#      define F_UNPACK_INT_AD f_unpack_int_ad_
+#endif
 #      define RSL_LITE_GET_HOSTNAME rsl_lite_get_hostname_
+#      define RSL_LITE_NESTING_RESET rsl_lite_nesting_reset_
 #   endif
 # endif
 #endif
@@ -128,7 +161,7 @@
 
 
 #define RSL_MALLOC(T,N)  (T *)rsl_malloc(__FILE__,__LINE__,(sizeof(T))*(N))
-#define RSL_FREE(P)      rsl_free(P)
+#define RSL_FREE(P)      rsl_free(&(P))
 
 char * buffer_for_proc ( int P, int size, int code ) ;
 void * rsl_malloc( char * f, int l, int s ) ;
@@ -146,12 +179,6 @@ typedef int * int_p ;
 # define RSL_TEST_ERR(T,M) {if(T){fprintf(stderr,"rsl_lite error (\"%s\":%d) %s\n",__FILE__,__LINE__,M);RSL_FATAL(5);}}
 #else
 # define RSL_TEST_ERR(T,M) {if(T){RSL_FATAL(5);}}
-#endif
-
-#ifndef MPI2_SUPPORT
-typedef int MPI_Fint;
-#  define MPI_Comm_c2f(comm) (MPI_Fint)(comm)
-#  define MPI_Comm_f2c(comm) (MPI_Comm)(comm)
 #endif
 
 typedef struct rsl_list {

@@ -2,6 +2,8 @@ include ../../configure.wrf
 
 all_wrfvar: wrfvar be da_utils
 
+gen_be: be
+
 setup : depend
 
 # preserve this makefile from overwriting
@@ -18,11 +20,11 @@ links :
 	@ $(LN) ../external/lapack/* .
 	@ $(LN) ../../arch/*.sed .
 	@ $(LN) ../../external/esmf_time_f90/* .
-	@ $(LN) ../convertor/da_module_convert_tool/* .
-	@ $(LN) ../convertor/kma_wave2grid/* .
-	@ $(LN) ../convertor/wave2grid_kma/* .
-	@ $(LN) ../convertor/kma_netcdf/* .
-	@ $(LN) ../convertor/decode_l2_airs/* .
+#	@ $(LN) ../convertor/da_module_convert_tool/* .
+#	@ $(LN) ../convertor/kma_wave2grid/* .
+#	@ $(LN) ../convertor/wave2grid_kma/* .
+#	@ $(LN) ../convertor/kma_netcdf/* .
+#	@ $(LN) ../convertor/decode_l2_airs/* .
 	@ mv makefile.old makefile
 	@ touch links
 
@@ -50,7 +52,7 @@ include decode_l2_airs.make
 libwrfvar.a : $(WRFVAR_OBJS)
 	rm -f libwrfvar.a
 	$(AR) $(ARFLAGS) libwrfvar.a $(WRFVAR_OBJS)
-	$(RANLIB) libwrfvar.a
+	$(RANLIB) $(RLFLAGS) libwrfvar.a
 
 .f90.o:
 	$(RM) $@

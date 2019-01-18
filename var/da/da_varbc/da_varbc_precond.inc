@@ -19,9 +19,9 @@
    real*8, allocatable 		    :: eignvec(:,:), eignval(:)
    real                             :: hessian_local, bgerr_local, pred_i, pred_j
    
-   if (trace_use) call da_trace_entry("da_varbc_precond")
-   
    if ( iv%num_inst < 1 ) RETURN
+
+   if (trace_use) call da_trace_entry("da_varbc_precond")
    
    write(unit=stdout,fmt='(A)') 'VARBC: Estimate Hessian for preconditioning'
 
@@ -31,14 +31,18 @@
       allocate ( hessian(npredmax, npredmax) )
       allocate ( eignvec(npredmax, npredmax) )
       allocate ( eignval(npredmax)           )
-	 
+
       do k = 1, iv%instid(inst)%nchan         ! loop for channels
          npred = iv%instid(inst)%varbc(k)%npred
-         if (npred   <= 0) cycle	      ! VarBC channel only     
+         if (npred   <= 0) cycle              ! VarBC channel only     
 
          num_rad        = iv%instid(inst)%num_rad
-         num_rad_active = COUNT( (iv%instid(inst)%info%proc_domain(1,1:num_rad)) &
-	                    .AND.(iv%instid(inst)%tb_qc(k,1:num_rad) > qc_varbc_bad) )
+         if (num_rad > 0) then
+            num_rad_active = COUNT( (iv%instid(inst)%info%proc_domain(1,1:num_rad)) &
+                               .AND.(iv%instid(inst)%tb_qc(k,1:num_rad) > qc_varbc_bad) )
+         else
+            num_rad_active = 0
+         end if
          iv%instid(inst)%varbc(k)%nobs  = wrf_dm_sum_integer(num_rad_active)
 	    
          if ( satinfo(inst)%iuse(k) == 1 ) &
@@ -139,9 +143,6 @@
 	       end do
 	    end if
 	 end if   
-!         do i = 1, npred
-!	    print*,inst,k,i,(iv%instid(inst)%varbc(k)%vtox(i,j),j=1,npred)
-!	 end do
       end do                     !  end loop for channels	
       deallocate(hessian, eignvec, eignval)   
    end do                        !  end loop for sensor

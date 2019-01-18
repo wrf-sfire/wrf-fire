@@ -7,6 +7,9 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
    !           Added the time range check when reading in observations.
    !       Syed RH Rizvi NCAR/NESL/MMM/DAS Date:  02/21/2013 
    !          Updated with thinning option
+   !
+   !      12-2017 - Jamie Bresch
+   !      Add a call to da_gpseph_create_ob for gpseph
    !---------------------------------------------------------------------------
 
    implicit none
@@ -37,10 +40,15 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
    real                  :: dx,dy,dxm,dym,zk
    real                  :: v_p(kms:kme),v_h(kms:kme)
 
+   ! for gpseph
+   type(ob_in_mean_h) :: pseudo_ob
+   integer            :: lowest_level
+
    if (trace_use) call da_trace_entry("da_scan_obs_ascii")
 ! Initialize 
       if ( thin_conv_ascii ) then
           do n = 1, num_ob_indexes
+             if ( n == radar ) cycle
              call cleangrids_conv(n)
           end do
       end if
@@ -61,6 +69,13 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
       call da_free_unit(iunit)
       if (trace_use) call da_trace_exit("da_scan_obs_ascii")
       return
+   end if
+
+   if ( use_gpsephobs ) then
+      allocate (pseudo_ob%ref(kds:kde))
+      allocate (pseudo_ob%lat(kds:kde))
+      allocate (pseudo_ob%lon(kds:kde))
+      allocate (pseudo_ob%azim(kds:kde))
    end if
 
    ! read header
@@ -146,19 +161,44 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
          platform%loc%slp%inv, platform%loc%slp%qc, platform%loc%slp%error, &
          platform%loc%pw%inv, platform%loc%pw%qc, platform%loc%pw%error
 
-      ! levels < 1 and .not.GPSPW and .not.GPSZTD, go back to reports
-
-      if ((platform%info%levels < 1) .AND.            &
-         ( (index(platform%info%platform, 'GPSPW') <= 0) .and. &
-           (index(platform%info%platform, 'GPSZD') <= 0) )) then
-         cycle reports
-      end if
-
       ! read each level
 
       nlevels= platform%info%levels 
+      if (nlevels > max_ob_levels) then
+         write(unit=message(1), fmt='(4(2a,2x),a,2f8.2,2x,2(a,f9.2,2x),2(a,i0,2x))') &
+            'Station: ', trim(platform%info%name), &
+            'ID: ', trim(platform%info%id), &
+            'Platform: ', trim(platform%info%platform), &
+            'Date: ', trim(platform%info%date_char), &
+            'At Location (lat, lon): ', platform%info%lat, platform%info%lon, &
+            'At elevation: ', platform%info%elv, &
+            'with pstar: ', platform%info%pstar, &
+            'Has ', platform%info%levels, &
+            'levels, which is greater than max_ob_levels: ', max_ob_levels
+
+         write (unit=message(2), fmt = '(A,1X,A,1X,A,1X,I4,2f9.3,f9.1,1X,A)') &
+            platform%info%name,        &
+            platform%info%platform,    &
+            platform%info%date_char,   &
+            platform%info%levels,      &
+            platform%info%lat,         &
+            platform%info%lon,         &
+            platform%info%elv,         &
+            platform%info%id
+
+         write (unit=message(3), fmt = '(A,I4,A)')'Only the first ',max_ob_levels,' levels will be used!'
+
+         call da_warning(__FILE__,__LINE__,message(1:3))
+      end if
 
       do i = 1, platform%info%levels
+         if (i > max_ob_levels) then
+            ! platform%each only has size "max_ob_levels", so if we exceed this limit
+            ! we should just read past these lines and not assign them to platform%each
+            read (unit = iunit, fmt = trim (fmt_each))
+            cycle
+         end if
+
          platform%each (i) = each_level_type(missing_r, missing, -1.0, & ! height
             field_type(missing_r, missing, missing_r, missing, missing_r), & ! u
             field_type(missing_r, missing, missing_r, missing, missing_r), & ! v
@@ -389,7 +429,8 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
          case (88)    ;
             ! Geostationary or Polar orbitting Satellite AMVs:
             if (index(platform%info%name, 'MODIS') > 0 .or. &
-                index(platform%info%name, 'modis') > 0)  then
+                index(platform%info%name, 'modis') > 0 .or. &
+                index(platform%info%id, 'AVHRR') > 0 )  then
                if (.not.use_polaramvobs .or. iv%info(polaramv)%ntotal == max_polaramv_input) cycle reports
                if (n==1) iv%info(polaramv)%ntotal = iv%info(polaramv)%ntotal + 1
                if (outside) cycle reports
@@ -482,6 +523,33 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
             else
                iv%info(gpsref)%nlocal = iv%info(gpsref)%nlocal + 1
             end if
+
+         case (118) ;
+            if (.not.use_gpsephobs .or. iv%info(gpseph)%ntotal == max_gpseph_input) cycle reports
+            if (n==1) iv%info(gpseph)%ntotal = iv%info(gpseph)%ntotal + 1
+            if ( gpseph_loadbalance ) then
+               if ( myproc /= mod( (iv%info(gpseph)%ntotal-1), num_procs ) ) cycle reports
+            else
+               if (outside) cycle reports
+            endif
+            if (gpsro_drift ==  0) then
+               ! lat stored in speed, lon stored in v
+               ! replacing all levels with one lat/lon for gpsro_drift=0
+               platform%each(1:nlevels)%speed%inv = platform%info%lat
+               platform%each(1:nlevels)%v%inv = platform%info%lon
+            end if
+            !create pseudo_ob on grid mean altitude for gpseph
+            call da_gpseph_create_ob(              &
+               nlevels,                            &
+               platform%each(1:nlevels)%height,    &
+               platform%each(1:nlevels)%td%inv,    & ! ref stored in td
+               platform%each(1:nlevels)%speed%inv, & ! lat stored in speed
+               platform%each(1:nlevels)%v%inv,     & ! lon stored in v
+               platform%each(1:nlevels)%rh%inv,    & ! azim stored in rh
+               pseudo_ob, lowest_level)
+            ! cycle when no valid levels
+            if ( lowest_level < 1 ) cycle reports
+            iv%info(gpseph)%nlocal = iv%info(gpseph)%nlocal + 1
 
           case (121) ;
             ! SSM/T1 temperatures
@@ -583,12 +651,21 @@ subroutine da_scan_obs_ascii (iv, filename, grid)
       end do        !  loop over duplicate
    end do reports
 
+   if ( use_gpsephobs ) then
+      deallocate (pseudo_ob%ref)
+      deallocate (pseudo_ob%lat)
+      deallocate (pseudo_ob%lon)
+      deallocate (pseudo_ob%azim)
+   end if
+
    iv%info(sonde_sfc)%max_lev=1
    iv%info(tamdar_sfc)%max_lev=1
    iv%info(synop)%max_lev=1   ! To prevent some bad observations with more than 1 level, should I add more?
    iv%info(ships)%max_lev=1   
    iv%info(qscat)%max_lev=1   
    iv%info(metar)%max_lev=1   
+
+   iv%info(gpseph)%max_lev= kde-kds+1
 
    close(iunit)
 

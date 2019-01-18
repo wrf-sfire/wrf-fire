@@ -19,8 +19,7 @@ CONTAINS
    CHARACTER*128             :: DataSet, tmp
    LOGICAL                   :: anyway
    CALL wrf_open_for_read ( fname ,                     &
-                            grid%communicator ,         &
-                            grid%iocommunicator ,       &
+                            grid ,                      &
                             sysdepinfo ,                &
                             id ,                        &
                             ierr )
@@ -45,8 +44,7 @@ CONTAINS
      write(sysdepinfo_tmp,'(a,i2)')TRIM(sysdepinfo)//',GRIDID=',grid%id
    ENDIF
    CALL wrf_open_for_write_begin ( fname ,     &
-                                   grid%communicator ,         &
-                                   grid%iocommunicator ,       &
+                                   grid ,      &
                                    sysdepinfo_tmp ,            &
                                    id ,                        &
                                    ierr )
@@ -57,8 +55,7 @@ CONTAINS
    ENDIF
    IF ( ierr .LE. 0 ) THEN
      CALL wrf_debug ( 100 , 'calling wrf_open_for_write_commit in open_w_dataset' )
-     CALL wrf_open_for_write_commit ( id ,                        &
-                                      ierr )
+     CALL wrf_open_for_write_commit ( id , ierr )
      CALL wrf_debug ( 100 , 'back from wrf_open_for_write_commit in open_w_dataset' )
    ENDIF
   END SUBROUTINE open_w_dataset
@@ -75,8 +72,7 @@ CONTAINS
    LOGICAL                   :: anyway
    CALL wrf_debug ( 100 , 'calling wrf_open_for_read_begin in open_u_dataset' )
    CALL wrf_open_for_read_begin ( fname ,     &
-                                   grid%communicator ,         &
-                                   grid%iocommunicator ,       &
+                                   grid ,     &
                                    sysdepinfo ,                &
                                    id ,                        &
                                    ierr )
@@ -86,8 +82,7 @@ CONTAINS
    ENDIF
    IF ( ierr .LE. 0 ) THEN
      CALL wrf_debug ( 100 , 'calling wrf_open_for_read_commit in open_u_dataset' )
-     CALL wrf_open_for_read_commit ( id ,                        &
-                                       ierr )
+     CALL wrf_open_for_read_commit ( id , ierr )
      CALL wrf_debug ( 100 , 'back from wrf_open_for_read_commit in open_u_dataset' )
    ENDIF
   END SUBROUTINE open_u_dataset
@@ -207,16 +202,52 @@ SUBROUTINE construct_filename2a( result , basename , fld1 , len1 , date_char )
 
   result=basename
   CALL zero_pad ( t1 , fld1 , len1 )
-  i = index( basename , '<domain>' )
-  l = len(trim(basename))
-  IF ( i .GT. 0 ) THEN
-    result = basename(1:i-1) // TRIM(t1) // basename(i+8:l)
-  ENDIF
+
+
+! The string name length 12345678  including < > ----|
+!                        ||||||||                    |
+  i = index( result   , '<domain>' )       ! is this |
+  DO WHILE ( i .GT. 0 )                    ! value   |
+    l = len(trim(result))                  !        \/
+    result = result  (1:i-1) // TRIM(t1) // result(i+8:l)
+    i = index( result   , '<domain>' ) 
+  END DO
+
   i = index( result , '<date>' )
-  l = len(trim(result))
-  IF ( i .GT. 0 ) THEN
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
     result = result(1:i-1) // TRIM(date_char) // result(i+6:l)
-  ENDIF
+    i = index( result , '<date>' )
+  END DO
+
+  i = index( result , '<year>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char( 1: 4)) // result(i+6:l)
+    i = index( result , '<year>' )
+  END DO
+
+  i = index( result , '<month>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char( 6: 7)) // result(i+7:l)
+    i = index( result , '<month>' )
+  END DO
+
+  i = index( result , '<day>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char( 9:10)) // result(i+5:l)
+    i = index( result , '<day>' )
+  END DO
+
+  i = index( result , '<hour>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char(12:13)) // result(i+6:l)
+    i = index( result , '<hour>' )
+  END DO
+
   CALL maybe_remove_colons(result)
   RETURN
 END SUBROUTINE construct_filename2a
@@ -268,6 +299,8 @@ SUBROUTINE construct_filename4( result , basename , fld1 , len1 , date_char , io
      ext = '.nc '
   ELSE IF ( use_package(io_form) .EQ. IO_PNETCDF ) THEN
     ext = '.nc '
+  ELSE IF ( use_package(io_form) .EQ. IO_PIO ) THEN
+    ext = '.nc '
   ELSE IF ( use_package(io_form) .EQ. IO_GRIB1 ) THEN
      ext = '.gb '
   ELSE
@@ -300,6 +333,8 @@ SUBROUTINE construct_filename4a( result , basename , fld1 , len1 , date_char , i
      ext = '.nc '
   ELSE IF ( use_package(io_form) .EQ. IO_PNETCDF ) THEN
     ext = '.nc '
+  ELSE IF ( use_package(io_form) .EQ. IO_PIO ) THEN
+    ext = '.nc '
   ELSE IF ( use_package(io_form) .EQ. IO_GRIB1 ) THEN
      ext = '.gb '
   ELSE
@@ -307,17 +342,52 @@ SUBROUTINE construct_filename4a( result , basename , fld1 , len1 , date_char , i
   END IF
   l = len(trim(basename))
   result = basename(1:l) // TRIM(ext)
-  i = index( result , '<domain>' )
-  l = len(trim(result))
-  IF ( i .GT. 0 ) THEN
-    result = result(1:i-1) // TRIM(t1) // result(i+8:l)
-  ENDIF
+
+! The string name length 12345678  including < >   ----|
+!                        ||||||||                      |
+  i = index( result   , '<domain>' )       !   is this |
+  DO WHILE ( i .GT. 0 )                    !   value   |
+    l = len(trim(result  ))                !          \/
+    result = result  (1:i-1) // TRIM(t1) // result  (i+8:l)
+    i = index( result   , '<domain>' )
+  END DO
+
   i = index( result , '<date>' )
-  l = len(trim(result))
-  IF ( i .GT. 0 ) THEN
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
     result = result(1:i-1) // TRIM(date_char) // result(i+6:l)
-  ENDIF
+    i = index( result , '<date>' )
+  END DO
+
+  i = index( result , '<year>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char( 1: 4)) // result(i+6:l)
+    i = index( result , '<year>' )
+  END DO
+
+  i = index( result , '<month>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char( 6: 7)) // result(i+7:l)
+    i = index( result , '<month>' )
+  END DO
+
+  i = index( result , '<day>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char( 9:10)) // result(i+5:l)
+    i = index( result , '<day>' )
+  END DO
+
+  i = index( result , '<hour>' )
+  DO WHILE ( i .GT. 0 )
+    l = len(trim(result))
+    result = result(1:i-1) // TRIM(date_char(12:13)) // result(i+6:l)
+    i = index( result , '<hour>' )
+  END DO
   CALL maybe_remove_colons(result)
+
   RETURN
 END SUBROUTINE construct_filename4a
 
@@ -403,6 +473,9 @@ SUBROUTINE maybe_remove_colons( FileName )
     DO i = 3, l
       IF ( FileName(i:i) .EQ. ':' ) THEN
         FileName(i:i) = '_'
+! Remove this modification to filename - dashes are OK
+!      ELSE IF ( FileName(i:i) .EQ. '-' ) THEN
+!        FileName(i:i) = '_'
       ENDIF
     ENDDO
   ENDIF

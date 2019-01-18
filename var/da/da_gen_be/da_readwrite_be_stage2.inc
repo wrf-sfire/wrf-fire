@@ -45,6 +45,7 @@ subroutine da_readwrite_be_stage2(outunit, nk)
    integer, allocatable:: bin(:,:,:)                 ! Bin assigned to each 3D point.
    integer, allocatable:: bin2d(:,:)                 ! Bin assigned to each 2D point.
 
+   logical             :: allow_missing_dates        ! If data from stage 0 is not contiguous, attempt to continue
 
    real, allocatable   :: regcoeff_psi_chi(:)        ! chi/psi regression cooefficient.
    real, allocatable   :: regcoeff_psi_ps(:,:)       ! ps/psi regression cooefficient.
@@ -60,7 +61,7 @@ subroutine da_readwrite_be_stage2(outunit, nk)
    integer :: iunit, namelist_unit
 
    namelist / gen_be_stage2_nl / start_date, end_date, interval, &
-                                 ne, testing_eofs, num_passes, rf_scale, cv_options
+                                 ne, testing_eofs, num_passes, rf_scale, cv_options, allow_missing_dates
 
    start_date = '2004030312'
    end_date = '2004033112'
@@ -70,6 +71,7 @@ subroutine da_readwrite_be_stage2(outunit, nk)
    num_passes = 0
    rf_scale = 1.0
    cv_options = 5
+   allow_missing_dates = .false.
 
    call da_get_unit(namelist_unit)
 
@@ -78,6 +80,7 @@ subroutine da_readwrite_be_stage2(outunit, nk)
         form='formatted', status='old', action='read')
    read(namelist_unit, gen_be_stage2_nl)
    close(namelist_unit)
+   call da_free_unit(namelist_unit)
   
    ! Read in the coefficients:
 
@@ -100,6 +103,12 @@ subroutine da_readwrite_be_stage2(outunit, nk)
    allocate( regcoeff_t_u_rh(1:nk,1:nk,1:num_bins2d) )
 
    if( cv_options == 5) then
+   read(iunit)regcoeff_psi_chi
+   read(iunit)regcoeff_psi_ps
+   read(iunit)regcoeff_psi_t
+   end if
+
+   if( cv_options == 7) then
    read(iunit)regcoeff_psi_chi
    read(iunit)regcoeff_psi_ps
    read(iunit)regcoeff_psi_t
@@ -170,6 +179,12 @@ subroutine da_readwrite_be_stage2(outunit, nk)
    ! Write out the coefficients:
 
    if( cv_options == 5) then
+   write(outunit)regcoeff_psi_chi
+   write(outunit)regcoeff_psi_ps
+   write(outunit)regcoeff_psi_t
+   end if
+
+   if( cv_options == 7) then
    write(outunit)regcoeff_psi_chi
    write(outunit)regcoeff_psi_ps
    write(outunit)regcoeff_psi_t
