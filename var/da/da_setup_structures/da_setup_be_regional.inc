@@ -1,4 +1,4 @@
-subroutine da_setup_be_regional(xb, be)
+subroutine da_setup_be_regional(xb, be, grid)
 
    !---------------------------------------------------------------------------
    ! Purpose: Define and allocate components of background errors
@@ -13,6 +13,7 @@ subroutine da_setup_be_regional(xb, be)
 
    type (xb_type), intent(in)    :: xb                    ! First guess structure.
    type (be_type), intent(inout) :: be                    ! Back. errors structure.
+   type (domain),  intent(in)    :: grid
 
    logical                do_normalize1      ! Test do_normalize.
    integer             :: i, j, k, m         ! Loop counters.
@@ -754,9 +755,11 @@ subroutine da_setup_be_regional(xb, be)
     read (be_unit, IOSTAT=k) variable
          if (print_detail_be)&
           write(unit=stdout,fmt='(2a)')' Reading lengthscale for: ',trim(adjustl(variable))
-         if( k/=0 ) &
-            print'("Error ",I0," reading namv(",I0,")=",A,"/=",A,", do_normalize=",L2)', &
-               k,i,namv(i),variable,do_normalize
+         if( k/=0 ) then
+            write(unit=message(1),fmt='(A,I0,A,I0,A,A)') 'Error ',k,' reading namv(', &
+                i,')=',namv(i)
+            call da_warning(__FILE__,__LINE__,message(1:1))
+         end if
    select case( trim(adjustl(variable)) )
    case ('psi')
      read(be_unit) rfls1_be
@@ -831,16 +834,16 @@ subroutine da_setup_be_regional(xb, be)
       enddo
 #ifdef CLOUD_CV
       if (print_detail_be) then
-      print*,'length scale'
-      print*,'be1= ',be1_rf_lengthscale
-      print*,'be2= ',be2_rf_lengthscale
-      print*,'be3= ',be3_rf_lengthscale
-      print*,'be4= ',be4_rf_lengthscale
-      print*,'be5= ',be5_rf_lengthscale
-      print*,'be6= ',be6_rf_lengthscale
-      print*,'be7= ',be7_rf_lengthscale
-      print*,'be8= ',be8_rf_lengthscale
-      print*,'be9= ',be9_rf_lengthscale
+         print*,'length scale'
+         print*,'be1= ',be1_rf_lengthscale
+         print*,'be2= ',be2_rf_lengthscale
+         print*,'be3= ',be3_rf_lengthscale
+         print*,'be4= ',be4_rf_lengthscale
+         print*,'be5= ',be5_rf_lengthscale
+         print*,'be6= ',be6_rf_lengthscale
+         print*,'be7= ',be7_rf_lengthscale
+         print*,'be8= ',be8_rf_lengthscale
+         print*,'be9= ',be9_rf_lengthscale
       end if
 #endif
 
@@ -920,10 +923,10 @@ subroutine da_setup_be_regional(xb, be)
       deallocate ( rfls3_be )
       deallocate ( rfls4_be )
 #ifdef CLOUD_CV
-      deallocate (rfls6_be(1:nk))
-      deallocate (rfls7_be(1:nk))
-      deallocate (rfls8_be(1:nk))
-      deallocate (rfls9_be(1:nk))
+      deallocate (rfls6_be)
+      deallocate (rfls7_be)
+      deallocate (rfls8_be)
+      deallocate (rfls9_be)
 #endif
    ! 3.3.4 Assign the Regression coefficients for model BE:
  
@@ -1236,7 +1239,6 @@ subroutine da_setup_be_regional(xb, be)
          if( m==1 )then
 !           Possibly reassign namelist do_normalize value:
             read(be_unit)do_normalize,namw,lf,nb
-!           print*,namv(m),nb,namw,lf
             allocate(nij(0:nb,0:1,0:2))
             read(be_unit)nij	! wavelet indexes
             write(*,'(A,": ")',advance="no")__FILE__
@@ -1244,7 +1246,6 @@ subroutine da_setup_be_regional(xb, be)
                write(*,'(i2,"{",2(i3,","),i3,";",2(i3,","),i3,"}")',advance="no")&
                   i,transpose(nij(i,:,:))
             enddo
-            print*
             allocate(be%wsd(nij(0,1,2),nij(0,0,2),sum(mzs)), &
 !____________________max of {,i}dwtai wavelet scratch workspace sizes:
                      ws(max(maxval(nij(0,:,2)), &
@@ -1301,7 +1302,8 @@ subroutine da_setup_be_regional(xb, be)
 
       if (max_ext_its > 1) then
 
-          print '(/5x,">>> Save the variances and scale-lengths in outer-loop",i2/)', it
+          write(unit=message(1),fmt='(A,I4)') '>>> Save the variances and scale-lengths in outer-loop', it
+          call da_message(message(1:1))
           write(be_rf_unit)  kz, jy, ix, be % v1 % mz, be % v2 % mz, be% v3 % mz, &
                                      be % v4 % mz, be % v5 % mz, xb % ds
           write(be_rf_unit) be % v1 % val, be % v2 % val, be% v3 % val, &
@@ -1485,6 +1487,14 @@ subroutine da_setup_be_regional(xb, be)
 !     Alpha eigenvalues and eigenvectors:
       allocate (be % alpha % val(1:jy,1:mz)) ! Not using jy dimension but here for consistency.
       allocate (be % alpha % evec(1:nj,1:nk,1:mz))
+
+      if ( anal_type_hybrid_dual_res ) then
+         deallocate(be % alpha % val, be % alpha % evec)
+         allocate (be % alpha % val(jds_int:jde_int,1:mz))
+         allocate (be % alpha % evec(jds_int:jde_int,1:nk,1:mz))
+      endif
+
+
       do m = 1, mz
          be % alpha % val(:,m) = sigma_alpha * alpha_val(m)
          do k = 1, nk
@@ -1497,7 +1507,13 @@ subroutine da_setup_be_regional(xb, be)
       allocate (be % alpha % rf_alpha(1:mz))
       allocate (alpha_rf_scale_factor(1:mz))
 
-      alpha_rf_lengthscale(1:mz) = 1000.0 * alpha_corr_scale / xb % ds ! Convert km to grid spacings.
+
+      if ( anal_type_hybrid_dual_res ) then
+         alpha_rf_lengthscale(1:mz) = 1000.0 * alpha_corr_scale / (grid%intermediate_grid % dx )
+      else
+         alpha_rf_lengthscale(1:mz) = 1000.0 * alpha_corr_scale / xb % ds ! Convert km to grid spacings.
+      endif
+
 
       call da_calculate_rf_factors( alpha_rf_lengthscale(:), be % alpha % rf_alpha(:), &
                                     alpha_rf_scale_factor(:) )

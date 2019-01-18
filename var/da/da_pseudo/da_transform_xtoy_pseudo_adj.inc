@@ -9,7 +9,7 @@ subroutine da_transform_xtoy_pseudo_adj(iv, jo_grad_y, jo_grad_x)
    implicit none
 
    type (iv_type), intent(in)    :: iv          ! obs. inc vector (o-b).
-   type (y_type) , intent(in)    :: jo_grad_y   ! grad_y(jo)
+   type (y_type) , intent(inout) :: jo_grad_y   ! grad_y(jo)
    type (x_type) , intent(inout) :: jo_grad_x   ! grad_x(jo)
 
    integer :: n        ! Loop counter.
@@ -61,7 +61,6 @@ subroutine da_transform_xtoy_pseudo_adj(iv, jo_grad_y, jo_grad_x)
    call da_interp_lin_3d_adj(jo_grad_x%t, iv%info(pseudo), t)
 
 #ifdef CLOUD_CV
-!   print*,'pseudo observatin =',pseudo_var(1:3)
    select case(pseudo_var(1:3))
    case ('qcw', 'QCW')
         call da_interp_lin_3d_adj(jo_grad_x%qcw, iv%info(pseudo), qw)

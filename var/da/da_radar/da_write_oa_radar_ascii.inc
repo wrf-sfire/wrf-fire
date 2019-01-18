@@ -1,4 +1,4 @@
-subroutine da_write_oa_radar_ascii ( ob, iv, re )
+subroutine da_write_oa_radar_ascii ( ob, iv, re, it )
 
    !---------------------------------------------------------------------------
    ! Purpose: write out OMB and OMA vector structure for radar data.
@@ -9,6 +9,7 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
    type (y_type),     intent(in)  :: ob       ! Observation structure.
    type (iv_type),    intent(in)  :: iv       ! O-B structure.
    type (y_type),     intent(in)  :: re       ! O-A structure.
+   integer,           intent(in)  :: it       ! external iteration counter
 
    integer                        :: n , num_obs       ! Loop counter.
    integer                        :: i, k     ! Index dimension.
@@ -18,17 +19,21 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
    character(len=filename_len)  :: filename , file 
    integer            :: ndomain
    character(len=filename_len), allocatable     ::filename1(:) 
-   INTEGER :: it, m, kk, l 
+   INTEGER :: m, kk, l 
    REAL :: rv_obs, rv_inv, rv_error , rf_obs, rf_inv, rf_error, rf_inc, rv_inc 
    INTEGER :: rv_qc, rf_qc, levels, num, error 
-   REAL :: lat,lon,press 
+   REAL :: lat,lon,press, zk 
    CHARACTER(len=5) :: stn_id 
 
     if (trace_use) call da_trace_entry("da_write_oa_radar_ascii")
+
+    write(unit=message(1),fmt='(A)') 'Writing radar OMA ascii file'
+    call da_message(message(1:1))
+
 #ifdef DM_PARALLEL
-      write(unit=filename, fmt='(a,i4.4)') 'radar_omb_oma.', myproc
+   write(unit=filename, fmt='(a,i2.2,a,i4.4)') 'radar_omb_oma_',it,'.', myproc
 #else
-      write(unit=filename, fmt='(a)') 'radar_omb_oma.000'
+   write(unit=filename, fmt='(a,i2.2,a)') 'radar_omb_oma_',it,'.0000'
 #endif
 
    call da_get_unit(oma_radar_unit)
@@ -51,7 +56,7 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
                num_obs = num_obs + 1
                write(oma_radar_unit,'(i8)') iv % info(radar) % levels(n)
                do k = 1, iv % info(radar) % levels(n)
-                 write(oma_radar_unit,'(2i8,a5,2f9.2,f17.7,2(2f17.7,i8,2f17.7))')&
+                 write(oma_radar_unit,'(2i8,a5,2f9.2,f17.7,2(2f17.7,i8,2f17.7),f17.7)')&
                     num_obs , k, 'RADAR', &  
                     iv % info (radar)% lat(1,n), &       ! Latitude
                     iv % info (radar) % lon(1,n), &       ! Longitude
@@ -61,7 +66,7 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
                     re%radar(n)%rv(k), &! O, O-B, O-A rv
                     ob%radar(n)%rf(k), &
                     iv%radar(n)%rf(k)%inv,iv%radar(n)%rf(k)%qc,iv%radar(n)%rf(k)%error,&
-                    re%radar(n)%rf(k)   ! O, O-B, O-A rf
+                    re%radar(n)%rf(k),iv%info(radar)%zk(k,n)   ! O, O-B, O-A rf
                end do
             end if
          end do
@@ -83,17 +88,15 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
   call da_get_unit(omb_radar_unit)
   allocate (filename1(0:num_procs-1)) 
       do k = 0,num_procs-1
-        write(unit=filename1(k),fmt ='(a,i4.4)')'radar_omb_oma.',k 
+         write(unit=filename1(k),fmt ='(a,i2.2,a,i4.4)')'radar_omb_oma_',it,'.',k
       end do
    call da_get_unit(omb_radar_iter_unit)
-   write(unit=file,fmt ='(a,i2.2)')'radar_omb_oma_',1
+   write(unit=file,fmt ='(a,i2.2)')'radar_omb_oma_',it
    open(omb_radar_iter_unit,file=trim(file),form='formatted', status='replace', iostat=ios)
      if (ios /= 0) call da_error(__FILE__,__LINE__, &
          (/"Cannot open file "//file/))
   ENDIF
  
-
-
   num_obs = 0
   IF (iv % info(radar)%nlocal  >0 ) then
       do n = 1, iv% info(radar)%nlocal
@@ -113,8 +116,9 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
 
       read(omb_radar_unit, '(20x,i8)', iostat=error)num_obs
       IF(error /= 0)THEN
-      PRINT*, "Error reading for process " , k, "will cycle"
-      cycle
+         write(unit=message(1),fmt='(A,A)') 'Nothing to read from ',filename1(k)
+         call da_message(message(1:1))
+         cycle
       ENDIF   
          if (num_obs > 0) then
            do  n = 1, num_obs    
@@ -122,16 +126,16 @@ subroutine da_write_oa_radar_ascii ( ob, iv, re )
                   write(omb_radar_iter_unit,'(i8)')levels
                   num = num + 1 
                do m = 1, levels
-                  read(omb_radar_unit,'(2i8,a5,2f9.2,f17.7,5(2f17.7,i8,2f17.7))')&
+                  read(omb_radar_unit,'(2i8,a5,2f9.2,f17.7,2(2f17.7,i8,2f17.7),f17.7)')&
                       kk,l, stn_id, &          ! Station
                       lat, lon, press, &       ! Lat/lon, dummy    
                       rv_obs, rv_inv, rv_qc, rv_error, rv_inc, & 
-                      rf_obs, rf_inv, rf_qc, rf_error, rf_inc
-                     write(omb_radar_iter_unit,'(2i8,a5,2f9.2,f17.7,5(2f17.7,i8,2f17.7))')&
+                      rf_obs, rf_inv, rf_qc, rf_error, rf_inc, zk
+                     write(omb_radar_iter_unit,'(2i8,a5,2f9.2,f17.7,2(2f17.7,i8,2f17.7),f17.7)')&
                         num,m,stn_id, &          ! Station
                          lat, lon, press, &       ! Lat/lon, dummy    
                      rv_obs, rv_inv, rv_qc, rv_error, rv_inc, & 
-                      rf_obs, rf_inv, rf_qc, rf_error, rf_inc
+                     rf_obs, rf_inv, rf_qc, rf_error, rf_inc, zk
                end do
             enddo
          endif                 

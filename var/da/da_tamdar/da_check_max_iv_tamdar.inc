@@ -27,10 +27,10 @@ subroutine da_check_max_iv_tamdar(iv, it,num_qcstat_conv)
          call da_get_print_lvl(iv%tamdar(n)%p(k),ipr) 
 
          if(.not. qc_rej_both)then
-            if(var_wind)then
+            if(wind_sd_tamdar)then
                failed=.false.
                if( iv%tamdar(n)%u(k)%qc >= obs_qc_pointer ) then
-                   call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%u(k), max_error_sp,failed)
+                   call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%u(k), max_error_spd,failed)
                    if( iv%info(tamdar)%proc_domain(k,n) ) then
                        num_qcstat_conv(1,tamdar,1,ipr) = num_qcstat_conv(1,tamdar,1,ipr) + 1
                        if(failed) then
@@ -81,8 +81,8 @@ subroutine da_check_max_iv_tamdar(iv, it,num_qcstat_conv)
                  end if
               end if
 
-              if(var_wind)then
-                 if(iv%tamdar(n)%u(k)%qc == fails_error_max .or. abs(iv%tamdar(n)%u(k)%inv) >= max_omb_sp) then
+              if(wind_sd_tamdar)then
+                 if(iv%tamdar(n)%u(k)%qc == fails_error_max .or. abs(iv%tamdar(n)%u(k)%inv) >= max_omb_spd) then
                     iv%tamdar(n)%u(k)%qc = fails_error_max
                     iv%tamdar(n)%u(k)%inv = 0.0
                  endif
@@ -96,12 +96,12 @@ subroutine da_check_max_iv_tamdar(iv, it,num_qcstat_conv)
               failed2=.false.
 
               if( iv%tamdar(n)%v(k)%qc >= obs_qc_pointer .or. iv%tamdar(n)%u(k)%qc >= obs_qc_pointer )  then
-                  if(.not. var_wind)then
+                  if(wind_sd_tamdar)then
+                     call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%u(k), max_error_spd,failed1)
+                     call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%v(k), max_error_dir,failed2)
+                  else
                      call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%u(k), max_error_uv,failed1)
                      call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%v(k), max_error_uv,failed2)
-                  else
-                     call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%u(k), max_error_sp,failed1)
-                     call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%v(k), max_error_dir,failed2)
                   endif
               endif
 
@@ -119,16 +119,16 @@ subroutine da_check_max_iv_tamdar(iv, it,num_qcstat_conv)
                   endif
                endif
 
-               if(.not. var_wind)then
-                  if(iv%tamdar(n)%u(k)%qc == fails_error_max .or. iv%tamdar(n)%v(k)%qc == fails_error_max ) then
+               if(wind_sd_tamdar)then
+                  if(iv%tamdar(n)%u(k)%qc == fails_error_max .or. iv%tamdar(n)%v(k)%qc == fails_error_max .or. &
+                     abs(iv%tamdar(n)%v(k)%inv) >= max_omb_dir .or. abs(iv%tamdar(n)%u(k)%inv) >= max_omb_spd )then
                      iv%tamdar(n)%u(k)%qc = fails_error_max
                      iv%tamdar(n)%v(k)%qc = fails_error_max
                      iv%tamdar(n)%u(k)%inv = 0.0
                      iv%tamdar(n)%v(k)%inv = 0.0
                   endif
                else
-                  if(iv%tamdar(n)%u(k)%qc == fails_error_max .or. iv%tamdar(n)%v(k)%qc == fails_error_max .or. &
-                     abs(iv%tamdar(n)%v(k)%inv) >= max_omb_dir .or. abs(iv%tamdar(n)%u(k)%inv) >= max_omb_sp )then
+                  if(iv%tamdar(n)%u(k)%qc == fails_error_max .or. iv%tamdar(n)%v(k)%qc == fails_error_max ) then
                      iv%tamdar(n)%u(k)%qc = fails_error_max
                      iv%tamdar(n)%v(k)%qc = fails_error_max
                      iv%tamdar(n)%u(k)%inv = 0.0
@@ -151,10 +151,16 @@ subroutine da_check_max_iv_tamdar(iv, it,num_qcstat_conv)
          end if
 
          failed=.false.
-         if( iv%tamdar(n)%q(k)%qc >= obs_qc_pointer )  then
-         call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%q(k), max_error_q ,failed)
+         if( iv%tamdar(n)%q(k)%qc >= obs_qc_pointer ) then
+          if( iv%tamdar(n)%t(k)%qc == fails_error_max ) then
+          failed=.true.
+          iv%tamdar(n)%q(k)%qc  = fails_error_max
+          iv%tamdar(n)%q(k)%inv = 0.0
+          else
+          call da_max_error_qc (it,iv%info(tamdar), n, iv%tamdar(n)%q(k), max_error_q ,failed)
+          endif
          if( iv%info(tamdar)%proc_domain(k,n) ) then
-             num_qcstat_conv(1,tamdar,4,ipr) = num_qcstat_conv(1,tamdar,4,ipr) + 1
+                    num_qcstat_conv(1,tamdar,4,ipr) = num_qcstat_conv(1,tamdar,4,ipr) + 1
          if(failed) then
          num_qcstat_conv(2,tamdar,4,ipr) = num_qcstat_conv(2,tamdar,4,ipr) + 1
            write(qcstat_conv_unit,'(2x,a10,2x,a4,3f12.2)')&

@@ -1,6 +1,10 @@
 #define WRF_PORT
-#define MODAL_AERO
-#include "../chem/MODAL_AERO_CPP_DEFINES.h"
+#if defined ( WRF_CHEM )
+#       include "../chem/MODAL_AERO_CPP_DEFINES.h"
+#else
+#       define MODAL_AERO
+#       define MODAL_AERO_3MODE
+#endif
 ! Updated to CESM1.0.3 (CAM5.1.01) by Balwinder.Singh@pnnl.gov
 module microp_aero
 
@@ -1508,11 +1512,11 @@ subroutine nucleati(wbar, tair, relhum, cldn, qc, nfice, rhoair, &
 !    You may use, copy, modify this code for any purpose and 
 !    without fee. You may distribute this ORIGINAL package.
 
-      function derf(x)
+      real(r8) function derf(x)
       implicit real (a - h, o - z)
 ! pjj/cray function type
 !     real(r8) a,b,x
-      real(r8) a,b,x,derf
+      real(r8) a,b,x
       dimension a(0 : 64), b(0 : 64)
       integer i,k
       data (a(i), i = 0, 12) / & 

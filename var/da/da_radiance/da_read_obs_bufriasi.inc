@@ -34,7 +34,7 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
   logical           :: outside, outside_all, iuse,outside_fov
 ! Variables for BUFR IO    
   real(r_double),dimension(5)  :: linele
-  real(r_double),dimension(13) :: allspot
+  real(r_double),dimension(14) :: allspot
   real(r_double),dimension(2,n_totchan) :: allchan
   real(r_double),dimension(3,10):: cscale
   real(r_double),dimension(6):: cloud_frac
@@ -44,7 +44,6 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
   character(len=8)  :: subset
   character(len=4)  :: senname
   character(len=80) :: allspotlist
-  character(len=10),parameter :: jsatid    =  'metop-a' 
   integer(i_kind)   :: nchanlr,jstart
   integer(i_kind)   :: iret,ireadsb,ireadmg,irec,isub,next
   integer(i_kind)   :: size,size_tmp
@@ -70,12 +69,12 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
   real(r_kind),dimension(10) :: sscale
   real(r_kind),dimension(n_totchan) :: temperature
   real(r_kind),allocatable,dimension(:):: data_all
-  real(r_kind) disterr,disterrmax,rlon00,rlat00
+  real(r_kind) disterr,disterrmax,rlon00,rlat00,Effective_Temperature
 
   logical          :: assim,valid
   logical          :: iasi
   logical          :: data_on_edges,luse
-  integer(i_kind)  :: nreal, ityp,ityp2, isflg
+  integer(i_kind)  :: nreal, ksatid
   integer(i_kind)  :: ifov, instr, iscn, ioff, ilat, ilon, sensorindex
   integer(i_kind)  :: num_iasi_file
   integer(i_kind)  :: num_iasi_local, num_iasi_global, num_iasi_used, num_iasi_thinned 
@@ -102,7 +101,6 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
 !  0.0  Initialize variables
 !-----------------------------------
   platform_id  = 10   ! metop series
-  satellite_id = 2   ! metop-a
   sensor_id = 16 !iasi
   disterrmax=zero
   ntest=0
@@ -117,7 +115,7 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
   senname = 'IASI'
   nchanlr = nchan
   allspotlist= &
-   'SIID YEAR MNTH DAYS HOUR MINU SECO CLATH CLONH SAZA BEARAZ SOZA SOLAZI'  
+   'SIID YEAR MNTH DAYS HOUR MINU SECO CLATH CLONH SAZA BEARAZ SOZA SOLAZI SAID'
   num_bufr(:)=0
   numbufr=0
   allocate(nread(1:rtminit_nsensor))
@@ -159,7 +157,7 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
          write(filename,fmt='(A,2I1,A)') trim(infile),0,num_bufr(ibufr),'.bufr'
       end if
    end if 
-   lnbufr = 10
+   lnbufr = 95
    open(unit=lnbufr,file=trim(filename),form='unformatted', &
       iostat = iost, status = 'old')
    if (iost /= 0) then
@@ -180,8 +178,8 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
    sensorindex=1  
    write(unit=date,fmt='( i10)') idate
    read(unit=date,fmt='(i4,3i2)') iy,im,idd,ihh
-   write(unit=stdout,fmt=*) &
-      'Bufr file date is ',iy,im,idd,ihh,infile
+   write(unit=stdout,fmt='(a,4i4,2x,a)') &
+      'Bufr file date is ',iy,im,idd,ihh,trim(infile)
 
    ! Loop to read bufr file and assign information to a sequential structure
    !-------------------------------------------------------------------------
@@ -205,7 +203,6 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
 !    Read IASI FOV information
          call ufbint(lnbufr,linele,5,1,iret,'FOVN SLNM QGFQ MJFC SELV')				
          if ( linele(3) /= zero) then
-!	   print*, 'problem with profile (QGFQ)'	   
 	         cycle read_loop  
 	     end if
          if ( bad_line == nint(linele(2))) then
@@ -214,8 +211,24 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
          else
            bad_line = -1
          end if
-          call ufbint(lnbufr,allspot,13,1,iret,allspotlist)
+          call ufbint(lnbufr,allspot,14,1,iret,allspotlist)
          if(iret /= 1) cycle read_loop
+
+         ksatid = nint(allspot(14))
+         ! SAID 3 is metop-b (metop-1)
+         ! SAID 4 is metop-a (metop-2)
+         ! SAID 5 is metop-c (metop-3)
+         if ( ( ksatid > 5) .or. ( ksatid < 3) ) then 
+            write(unit=message(1),fmt='(A,I6)') 'Unknown platform: ', ksatid
+            call da_warning(__FILE__,__LINE__,message(1:1))
+         end if
+         if ( ksatid == 3 ) then
+             satellite_id = 1
+         else if ( ksatid == 4 ) then
+             satellite_id = 2
+         else if ( ksatid == 5 ) then
+             satellite_id = 3
+         end if
 
 !    Check observing position
          info%lat  =  allspot(8)  ! latitude
@@ -371,7 +384,18 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
                     exit scaleloop
                  end if
               end do scaleloop
-              call crtm_planck_temperature(inst,i,radi,temperature(i))			  
+              if (rtm_option == rtm_option_crtm) then
+#ifdef CRTM
+                 call CRTM_Planck_Temperature(inst,i,radi,temperature(i))
+#endif
+              else if (rtm_option == rtm_option_rttov) then
+#ifdef RTTOV
+                 Effective_Temperature = LOG( ( coefs(inst)%coef%planck1(i) / radi ) + 1 )
+                 Effective_Temperature = coefs(inst)%coef%planck2(i)/Effective_Temperature
+                 temperature(i) = ( Effective_Temperature - coefs(inst)%coef%ff_bco(i) ) / &
+                                  coefs(inst)%coef%ff_bcs(i)
+#endif
+              end if
               if(temperature(i) < tbmin .or. temperature(i) > tbmax ) then
                  temperature(i) = min(tbmax,max(zero,temperature(i)))
 
@@ -384,7 +408,7 @@ subroutine da_read_obs_bufriasi (obstype,iv,infile)
          end do
          if(iskip > 0)write(6,*) ' READ_IASI : iskip > 0 ',iskip
 !         if( iskip >= 10 )cycle read_loop 		
-         data_all(5) = sat_zenang*deg2rad     ! satellite zenith angle (rad)
+         data_all(5) = sat_zenang             ! satellite zenith angle (deg)
          data_all(6) = allspot(11)            ! satellite azimuth angle (deg)
          data_all(9) = allspot(12)            ! solar zenith angle (deg)
          data_all(10)= allspot(13)            ! solar azimuth angle (deg)
@@ -528,10 +552,9 @@ deallocate(data_all) ! Deallocate data arrays
       call da_warning(__FILE__,__LINE__,message(1:1))
    endif
 
-   write(unit=stdout,fmt='(a)') 'num_iasi_file, num_iasi_global, num_iasi_local, num_iasi_used, num_iasi_thinned'
-   write(stdout,*) num_iasi_file, num_iasi_global, num_iasi_local, num_iasi_used, num_iasi_thinned
-
-  
+   write(unit=message(1),fmt='(a)') '   num_iasi_file num_iasi_global  num_iasi_local   num_iasi_used num_iasi_thinned'
+   write(unit=message(2),fmt='(5(6x,i10))') num_iasi_file, num_iasi_global, num_iasi_local, num_iasi_used, num_iasi_thinned
+   call da_message(message(1:2))
 
    !  5.0 allocate innovation radiance structure
    !----------------------------------------------------------------  

@@ -62,6 +62,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
    iv % airep_ef_u = 1.0
    iv % airep_ef_v = 1.0
    iv % airep_ef_t = 1.0
+   iv % airep_ef_q = 1.0
 
    iv % pilot_ef_u = 1.0
    iv % pilot_ef_v = 1.0
@@ -139,7 +140,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
          ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
          rh_error = iv%synop(n)%q%error ! q error is rh at this stage!
 
          ! if((ob % synop(n) % p > iv%ptop) .AND. &
@@ -156,7 +157,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          if (iv%synop(n)% q % error == missing_r) iv%synop(n)% q % qc = missing_data
 
          ! end if
-         end if   !cys_add
+         end if
       end do      
    end if
 
@@ -172,7 +173,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
          ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
          rh_error = iv%metar(n)%q%error ! q error is rh at this stage!
          call da_get_q_error(iv % metar(n) % p % inv, &
                               ob % metar(n) % t, &
@@ -182,7 +183,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          iv % metar(n) % q % error = q_error
          if (iv%metar(n)% q % error == missing_r) &
             iv%metar(n)% q % qc = missing_data
-         end if   !cys_add
+         end if
       end do
    end if
 
@@ -198,7 +199,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
          ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
          rh_error = iv%ships(n)%q%error ! q error is rh at this stage!
          call da_get_q_error(iv % ships(n) % p % inv, &
                               ob % ships(n) % t, &
@@ -208,7 +209,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          iv % ships(n) % q % error = q_error
 
          if(iv%ships(n)% q % error == missing_r) iv%ships(n)% q % qc = missing_data
-         end if   !cys_add
+         end if
       end do
       
    end if
@@ -282,7 +283,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
             ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
             rh_error = iv%sound(n)%q(k)%error ! q error is rh at this stage!
             call da_get_q_error(iv % sound(n) % p(k), &
                                  ob % sound(n) % t(k), &
@@ -293,8 +294,13 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
             iv % sound(n) % q(k) % error = q_error
          if (iv%sound(n)% q(k) % error == missing_r) &
             iv%sound(n)% q(k) % qc = missing_data
-         end if   !cys_add
+         end if
          end do
+      end do
+   end if
+
+   if (iv%info(sonde_sfc)%nlocal > 0) then
+      do n = 1, iv%info(sonde_sfc)%nlocal
          ob % sonde_sfc(n) % u = iv % sonde_sfc(n) % u % inv
          ob % sonde_sfc(n) % v = iv % sonde_sfc(n) % v % inv
          ob % sonde_sfc(n) % t = iv % sonde_sfc(n) % t % inv
@@ -303,7 +309,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
          ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
          rh_error = iv%sonde_sfc(n)%q%error ! q error is rh at this stage!
          call da_get_q_error(iv % sonde_sfc(n) % p % inv, &
                               ob % sonde_sfc(n) % t, &
@@ -312,7 +318,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
                               rh_error, iv % sonde_sfc(n) % q % error)
          if (iv%sonde_sfc(n)% q % error == missing_r) &
             iv%sonde_sfc(n)% q % qc = missing_data
-         end if   !cys_add
+         end if
       end do
    end if
 
@@ -324,6 +330,20 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
             ob % airep(n) % u(k) = iv % airep(n) % u(k) % inv
             ob % airep(n) % v(k) = iv % airep(n) % v(k) % inv
             ob % airep(n) % t(k) = iv % airep(n) % t(k) % inv
+            ob % airep(n) % q(k) = iv % airep(n) % q(k) % inv
+
+            if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
+                rh_error = iv%airep(n)%q(k)%error ! q error is rh at this stage!
+                call da_get_q_error(iv % airep(n) % p(k), &
+                                    ob % airep(n) % t(k), &
+                                    ob % airep(n) % q(k), &
+                                    iv % airep(n) % t(k) % error, &
+                                    rh_error, q_error)
+
+                iv % airep(n) % q(k) % error = q_error
+                if (iv%airep(n)% q(k) % error == missing_r) &
+                    iv%airep(n)% q(k) % qc = missing_data
+            end if
          end do
       end do
    end if
@@ -429,7 +449,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
          ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
          rh_error = iv%buoy(n)%q%error ! q error is rh at this stage!
          call da_get_q_error(iv % buoy(n) % p % inv, &
                               ob % buoy(n) % t, &
@@ -439,7 +459,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          iv % buoy(n) % q % error = q_error
 
          if(iv%buoy (n)% q % error == missing_r) iv%buoy (n)% q % qc = missing_data
-         end if   !cys_add
+         end if
       end do
    end if
 
@@ -506,7 +526,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
 
             ! Calculate q error from rh error:
 
-         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then   !cys_add
+         if (.not. present(uvq_direct) .or. (present(uvq_direct) .and. (.not. uvq_direct))) then
             rh_error = iv%airsr(n)%q(k)%error ! q error is rh at this stage!
             call da_get_q_error(iv % airsr(n) % p(k), &
                                  ob % airsr(n) % t(k), &
@@ -517,7 +537,7 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
             iv % airsr(n) % q(k) % error = q_error
             if (iv%airsr(n)% q(k) % error == missing_r) &
                iv%airsr(n)% q(k) % qc = missing_data
-         end if   !cys_add
+         end if
          end do
       end do
    end if
@@ -563,6 +583,12 @@ subroutine da_fill_obs_structures(iv, ob, uvq_direct)
          if (iv%tamdar(n)% q(k) % error == missing_r) &
             iv%tamdar(n)% q(k) % qc = missing_data
          end do
+      end do
+   end if
+
+   if (iv%info(tamdar_sfc)%nlocal > 0) then
+      do n = 1, iv%info(tamdar_sfc)%nlocal
+
          ob % tamdar_sfc(n) % u = iv % tamdar_sfc(n) % u % inv
          ob % tamdar_sfc(n) % v = iv % tamdar_sfc(n) % v % inv
          ob % tamdar_sfc(n) % t = iv % tamdar_sfc(n) % t % inv

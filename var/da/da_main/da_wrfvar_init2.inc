@@ -8,7 +8,9 @@ subroutine da_wrfvar_init2
 
    integer :: i
    character(len=80) :: filename
-   logical :: ex
+   logical           :: isfile
+   logical           :: ex
+
 
    if (trace_use) call da_trace_entry("da_wrfvar_init2")
 
@@ -52,6 +54,20 @@ subroutine da_wrfvar_init2
       global = .false.
    end if
 
+   if ( hybrid_dual_res .and. ensdim_alpha.ge.1 ) then
+      anal_type_hybrid_dual_res = .true.
+   else
+      anal_type_hybrid_dual_res = .false.
+   endif
+
+   if ( anal_type_hybrid_dual_res ) then
+      call nl_set_shw( 1 , 0 )
+      call nl_set_shw( 2 , 0 )
+      write(unit=message(1),fmt='(A,I0)') "Resetting shw for dual-res hybrid to shw = ",shw
+      call da_message(message(1:1))
+   endif
+
+
    !<DESCRIPTION>
    ! Among the configuration variables read from the namelist is
    ! debug_level. This is retrieved using nl_get_debug_level (Registry
@@ -70,7 +86,8 @@ subroutine da_wrfvar_init2
    nullify(null_domain)
 
 
-   if (max_dom > 1) then
+!  if (max_dom > 1 ) then 
+   if (max_dom > 1 .and. ( .not. anal_type_hybrid_dual_res) ) then
       call da_error(__FILE__,__LINE__, (/'nesting not available for wrfvar'/))
    end if
 
@@ -93,13 +110,13 @@ subroutine da_wrfvar_init2
 
    call da_trace("da_wrfvar_init2",message="calling alloc_and_configure_domain")
 
-   call alloc_and_configure_domain (domain_id=1, grid=head_grid, parent=null_domain, kid=-1)
+   call alloc_and_configure_domain (domain_id=1, grid=head_grid, parent=null_domain, kid=-1)  
 
    call da_trace("da_wrfvar_init2",message="calling model_to_grid_config_rec")
-   call model_to_grid_config_rec (head_grid%id, model_config_rec, config_flags)
+   call model_to_grid_config_rec (head_grid%id, model_config_rec, config_flags)  
 
    call da_trace("da_wrfvar_init2",message="calling set_scalar_indices_from_config")
-   call set_scalar_indices_from_config (head_grid%id , idum1, idum2)
+   call set_scalar_indices_from_config (head_grid%id , idum1, idum2) 
 
    call da_trace("da_wrfvar_init2",message="calling init_wrfio")
    call init_wrfio
@@ -110,7 +127,33 @@ subroutine da_wrfvar_init2
    call set_config_as_buffer (configbuf, configbuflen)
 #endif
 
-   call setup_timekeeping (head_grid)
+   call setup_timekeeping (head_grid) 
+
+   if ( anal_type_hybrid_dual_res ) then
+      inquire(file=input_file_ens, exist=isfile)
+      if ( .not. isfile ) then
+         write(unit=message(1),fmt='(a)') 'File ',input_file_ens,' is missing.'
+         call da_error(__FILE__,__LINE__,message(1:1))
+      endif
+      call da_med_initialdata_input (head_grid, config_flags, 'fg_ens')
+      parent_grid => head_grid
+      call alloc_and_configure_domain (domain_id=2, grid=another_grid, parent=parent_grid, kid=1)
+      call model_to_grid_config_rec (another_grid%id, model_config_rec, config_flags)
+      call set_scalar_indices_from_config (another_grid%id , idum1, idum2)
+      call init_wrfio
+#ifdef DM_PARALLEL
+	 call get_config_as_buffer (configbuf, configbuflen, nbytes)
+	 call wrf_dm_bcast_bytes (configbuf, nbytes)
+	 call set_config_as_buffer (configbuf, configbuflen)
+#endif
+      call setup_timekeeping (another_grid)
+
+      input_grid => another_grid
+      ensemble_grid => head_grid
+   else
+      input_grid => head_grid 
+      ensemble_grid => head_grid
+   endif
 
    !<DESCRIPTION>
    ! The head grid is initialized with read-in data through the call to <a
@@ -140,13 +183,13 @@ subroutine da_wrfvar_init2
 #ifdef VAR4D
       if ( var4d_lbc ) then
          call da_med_initialdata_input (head_grid, config_flags, 'fg02')
-         inquire(file=trim('ana02'), exist=ex)
-         if ( .not. ex ) then
-            write(unit=message(1),fmt='(a)') 'A template of ana02 should be copied from fg02. '
-            call da_message(message(1:1))
-            write(unit=message(1),fmt='(a)') 'ana02 does not exist '
-            call da_error(__FILE__,__LINE__,message(1:1))
-         end if
+!        inquire(file=trim('ana02'), exist=ex)
+!        if ( .not. ex ) then
+!           write(unit=message(1),fmt='(a)') 'A template of ana02 should be copied from fg02. '
+!           call da_message(message(1:1))
+!           write(unit=message(1),fmt='(a)') 'ana02 does not exist '
+!           call da_error(__FILE__,__LINE__,message(1:1))
+!        end if
          ALLOCATE(u6_2(head_grid%sm31:head_grid%em31,head_grid%sm32:head_grid%em32,head_grid%sm33:head_grid%em33))
          ALLOCATE(v6_2(head_grid%sm31:head_grid%em31,head_grid%sm32:head_grid%em32,head_grid%sm33:head_grid%em33))
          ALLOCATE(w6_2(head_grid%sm31:head_grid%em31,head_grid%sm32:head_grid%em32,head_grid%sm33:head_grid%em33))
@@ -167,7 +210,8 @@ subroutine da_wrfvar_init2
          psfc6 = head_grid%psfc
       endif 
 #endif
-      call da_med_initialdata_input (head_grid, config_flags, 'fg')
+!     call da_med_initialdata_input (head_grid, config_flags, 'fg')
+      call da_med_initialdata_input (input_grid, config_flags, 'fg')
       if ( var4d ) then
          call med_latbound_in ( head_grid, config_flags )
          call close_dataset ( head_grid%lbc_fid , config_flags , "DATASET=BOUNDARY" )

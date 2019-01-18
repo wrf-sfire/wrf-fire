@@ -92,8 +92,7 @@ subroutine da_read_obs_bufr (iv)
        type(datalink_BUFR), pointer :: next
    end type datalink_BUFR
 
-   type(datalink_BUFR),pointer  :: head, plink
-
+   type(datalink_BUFR),pointer  :: head=>null(), plink=>null()
 
    if (trace_use) call da_trace_entry("da_read_obs_bufr")
 
@@ -731,6 +730,7 @@ bufrfile:  do ibufr=1,numbufr
             end if
          end if
          if ( tqm == 8 .or. tqm == 9 .or. tqm == 15 ) then
+            if ( obs(3,1) < r8bfms ) then
             platform%each(1)%t%inv = obs(3,1)
             platform%each(1)%t%qc  = 88
             if ( use_errtable ) then
@@ -738,8 +738,10 @@ bufrfile:  do ibufr=1,numbufr
             else
                platform%each(1)%t%error = 2.0
             end if
+            end if
          end if
          if ( qqm == 8 .or. qqm == 9 .or. qqm == 15 ) then
+            if ( obs(2,1) > 0.0 .and. obs(2,1) < r8bfms ) then
             platform%each(1)%q%inv = obs(2,1)
             platform%each(1)%q%qc  = 88
             if ( use_errtable ) then
@@ -747,17 +749,20 @@ bufrfile:  do ibufr=1,numbufr
             else
                platform%each(1)%q%error = 10   ! RH percent
             end if
+            end if
          end if
       end if
       ! assign tpw obs errors for gpspw
       if ( t29 == 74 ) then
          if ( pwq == 8 .or. pwq  == 9 .or. pwq  == 15) then
+            if ( obs(7,1) > 0.0 .and. obs(7,1) < r8bfms ) then
             platform%loc%pw%inv   = obs(7,1) * 0.1    ! convert to cm
             platform%loc%pw%qc    = 88
             if ( use_errtable ) then
                platform%loc%pw%error = pwe
             else
                platform%loc%pw%error = 0.2     ! hardwired to 0.2 cm
+            end if
             end if
          end if
       end if
@@ -996,7 +1001,7 @@ bufrfile:  do ibufr=1,numbufr
                end if
                fm = 88
                
-         case (582, 583)      ! QuikSCAT 582 and WindSat 583
+         case (581, 582, 583, 584)      ! ERS 581, QuikSCAT 582, WindSat 583, ASCAT 584
                if (.not.use_qscatobs) cycle reports
                
                if (n==1) iv%info(qscat)%ntotal = iv%info(qscat)%ntotal + 1
@@ -1381,7 +1386,7 @@ end do bufrfile
                end if
                fm = 88
                
-         case (582, 583)      ! QuikSCAT 582 and WindSat 583
+         case (581, 582, 583, 584)      ! ERS 581, QuikSCAT 582, WindSat 583, ASCAT 584
                if (.not.use_qscatobs) then
                       plink => plink%next
                       cycle reports2
@@ -1739,7 +1744,7 @@ end if
                allocate (iv%airep(ilocal(airep))%u(1:iv%info(airep)%max_lev))
                allocate (iv%airep(ilocal(airep))%v(1:iv%info(airep)%max_lev))
                allocate (iv%airep(ilocal(airep))%t(1:iv%info(airep)%max_lev))
-               
+               allocate (iv%airep(ilocal(airep))%q(1:iv%info(airep)%max_lev))
             end if
             do i = 1, plink%nlevels_BUFR
                iv % airep (ilocal(airep)) % h(i) = plink%platform_BUFR % each(i) % height
@@ -1747,7 +1752,7 @@ end if
                iv % airep (ilocal(airep)) % u(i) = plink%platform_BUFR % each(i) % u
                iv % airep (ilocal(airep)) % v(i) = plink%platform_BUFR % each(i) % v
                iv % airep (ilocal(airep)) % t(i) = plink%platform_BUFR % each(i) % t
-               
+               iv % airep (ilocal(airep)) % q(i) = plink%platform_BUFR % each(i) % q
             end do
 
          case (522,523);        ! Ships
@@ -1925,7 +1930,7 @@ end if
                
             end do
 
-          case (582, 583)
+          case (581, 582, 583, 584)      ! ERS 581, QuikSCAT 582, WindSat 583, ASCAT 584
           if (.not.use_qscatobs) then
                    plink => plink%next
                    cycle reports3
@@ -2203,26 +2208,30 @@ end if
 
         if ( ntotal(n)>0 ) then
 
-#ifdef DM_PARALLEL
-            ! Get minimum crit and associated processor index.
             allocate ( in  (thinning_grid_conv(n)%itxmax) )
             allocate ( out (thinning_grid_conv(n)%itxmax) )
             do i = 1, thinning_grid_conv(n)%itxmax
                in(i) = thinning_grid_conv(n)%score_crit(i)
             end do
+#ifdef DM_PARALLEL
+            ! Get minimum crit and associated processor index.
 
             call mpi_reduce(in, out, thinning_grid_conv(n)%itxmax, true_mpi_real, mpi_min, root, comm, ierr)
             call wrf_dm_bcast_real (out, thinning_grid_conv(n)%itxmax)
-
+#else
+            out = in
+#endif
             do i = 1, thinning_grid_conv(n)%itxmax
                if ( abs(out(i)-thinning_grid_conv(n)%score_crit(i)) > 1.0E-10 ) then
                   thinning_grid_conv(n)%ibest_obs(i) = 0
+               else
+                  if(thinning_grid_conv(n)%score_crit(i) < 9.99e6 ) &
+                  iv%info(n)%thin_ntotal=  iv%info(n)%thin_ntotal + 1
                end if
             end do
 
             deallocate( in  )
             deallocate( out )
-#endif
          
             do j = (1+tp(n)), nlocal(n)
                found = .false.
@@ -2230,6 +2239,7 @@ end if
                   if ( thinning_grid_conv(n)%ibest_obs(i) == j .and.         &
                        thinning_grid_conv(n)%score_crit(i) < 9.99e6 ) then
                      found = .true.
+                     iv%info(n)%thin_nlocal =  iv%info(n)%thin_nlocal + 1
                      exit
                   end if
                end do
@@ -2241,6 +2251,18 @@ end if
          tp(n)=nlocal(n) 
          end if
       end do
+       if (num_fgat_time >1 ) then
+          do n = 1, num_ob_indexes
+              iv%info(n)%thin_plocal(kk)=iv%info(n)%thin_nlocal
+              iv%info(n)%thin_ptotal(kk)=iv%info(n)%thin_ntotal
+          end do
+       else
+          do n = 1, num_ob_indexes
+             iv%info(n)%thin_plocal(1)=iv%info(n)%thin_nlocal
+             iv%info(n)%thin_ptotal(1)=iv%info(n)%thin_ntotal
+           end do
+        end if
+
    end if  ! thin_conv
 
  end do  !kk cycle

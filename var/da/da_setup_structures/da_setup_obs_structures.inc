@@ -43,7 +43,7 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
       use_amsubobs .OR. use_airsobs .OR. use_eos_amsuaobs .OR. &
       use_hsbobs .OR. use_kma1dvar .OR. use_filtered_rad .OR. &
       use_ssmisobs .OR. use_hirs4obs .OR. use_mhsobs .OR. use_pseudo_rad .OR. &
-      use_mwtsobs  .OR. use_mwhsobs .OR. use_atmsobs .OR. use_simulated_rad .OR. use_iasiobs) then
+      use_mwtsobs  .OR. use_mwhsobs .OR. use_atmsobs .OR. use_simulated_rad .OR. use_iasiobs .OR. use_seviriobs) then
       use_rad = .true.
    else
       use_rad = .false.
@@ -98,6 +98,9 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
       use_airsretobs       = .false.
       use_rainobs          = .false.
       use_iasiobs          = .false.	  
+      use_radarobs         = .false.
+      use_radar_rv         = .false.
+      use_radar_rf         = .false.
    end if
     
    if (use_pseudo_rad .or. num_pseudo > 0) then
@@ -142,6 +145,9 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
       use_airsretobs       = .false.
       use_rainobs          = .false.
       use_iasiobs          = .false.	  
+      use_radarobs         = .false.
+      use_radar_rv         = .false.
+      use_radar_rf         = .false.
       ob_format = ob_format_ascii
    end if
 
@@ -161,6 +167,13 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
       call da_error(__FILE__,__LINE__,message(1:1))
    end if
 
+   if ( use_gpsrefobs ) then
+      if ( ob_format_gpsro == ob_format_bufr .and.  &
+           ob_format       == ob_format_ascii ) then
+         call da_message((/'ob_format=2 while ob_format_gpsro=1, will be reading GPSRO data from gpsro.bufr'/))
+      end if
+   end if
+
    !---------------------------------------------------------------------------      
    ! [1.0] Setup and read in fields from first guess:
    !----------------------------------------------------------------------------     
@@ -173,9 +186,13 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
 
    iv%info(:)%nlocal = 0
    iv%info(:)%ntotal = 0
+   iv%info(:)%thin_nlocal = 0
+   iv%info(:)%thin_ntotal = 0
    do i=1,num_ob_indexes
       iv%info(i)%plocal(:) = 0
       iv%info(i)%ptotal(:) = 0
+      iv%info(i)%thin_plocal(:) = 0
+      iv%info(i)%thin_ptotal(:) = 0
    end do
    iv%num_inst  = 0 
 
@@ -194,7 +211,7 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
    if (use_obsgts) then
       ! Conventional obs can be in BUFR or ascii format
       if (ob_format == ob_format_bufr) then
-         call da_message((/'Using BUFR format observation input'/))
+         call da_message((/'Using PREPBUFR format observation input'/))
          call da_setup_obs_structures_bufr (grid, ob, iv)
       else if (ob_format == ob_format_ascii) then
          call da_message((/'Using ASCII format observation input'/))
@@ -232,9 +249,19 @@ subroutine da_setup_obs_structures( grid, ob, iv, j_cost)
          else
             ob_name = obs_names(j)
          endif
-         write(unit=stdout, fmt='(6x,a,i10,a,i8,a)') &
-            ob_name, iv%info(j)%ptotal(i) - iv%info(j)%ptotal(i-1), ' global,', &
-            iv%info(j)%plocal(i) - iv%info(j)%plocal(i-1), ' local'
+         if(iv%info(j)%ptotal(i) - iv%info(j)%ptotal(i-1) > 0) then          
+         if ( thin_conv_ascii .and. ob_format == ob_format_ascii ) then
+            if ( j == radiance ) cycle !temporary fix to not print incorrect counts for radiance
+            write(unit=stdout, fmt='(2x,2(a,i10),a,i8,a)') &
+               ob_name, iv%info(j)%ptotal(i) - iv%info(j)%ptotal(i-1), ' global, ', &
+               iv%info(j)%thin_ptotal(i) - iv%info(j)%thin_ptotal(i-1), ' global (post-thinning), ', &
+               iv%info(j)%thin_plocal(i) - iv%info(j)%thin_plocal(i-1), ' local (post-thinning)'
+         else
+            write(unit=stdout, fmt='(6x,a,i10,a,i8,a)') &
+               ob_name, iv%info(j)%ptotal(i) - iv%info(j)%ptotal(i-1), ' global,', &
+               iv%info(j)%plocal(i) - iv%info(j)%plocal(i-1), ' local'
+         end if ! thin_conv_ascii
+         end if
       end do
    end do
    write(unit=stdout, fmt='(a)') ' '

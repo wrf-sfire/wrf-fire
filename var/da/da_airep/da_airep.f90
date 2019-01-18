@@ -4,12 +4,13 @@ module da_airep
    
    use da_control, only : obs_qc_pointer,max_ob_levels,missing_r, missing_data, &
       check_max_iv_print, check_max_iv_unit, v_interp_p, v_interp_h, &
-      check_max_iv, missing, max_error_uv, max_error_t, rootproc, &
+      check_max_iv, missing, max_error_uv, max_error_t, max_error_q, rootproc, &
       airep, anal_type_verify, kms,kme,kts,kte, trace_use_dull, &
       position_lev_dependant,qcstat_conv_unit,ob_vars, fails_error_max, &
-      convert_fd2uv, convert_uv2fd, max_error_sp, max_error_dir, var_wind, max_omb_sp, max_omb_dir, pi, qc_rej_both
-   use da_grid_definitions, only : da_ffdduv, da_ffdduv2, da_cal_sd, da_uv_wind_adj, da_uv_wind_tgl
-
+      convert_fd2uv, convert_uv2fd, max_error_spd, max_error_dir, max_omb_spd, max_omb_dir, pi, qc_rej_both, &
+      wind_sd_airep, wind_stats_sd
+   use da_grid_definitions, only : da_ffdduv, da_ffdduv_model,da_ffdduv_diagnose 
+   use da_physics, only : da_uv_to_sd_lin, da_uv_to_sd_adj
    use da_define_structures, only : maxmin_type, iv_type, y_type, jo_type, &
       bad_data_type, x_type, number_type, bad_data_type
    use da_interpolation, only : da_interp_lin_3d, da_to_zk, &
@@ -27,10 +28,11 @@ module da_airep
       real          :: u                        ! u-wind.
       real          :: v                        ! v-wind.
       real          :: t                        ! temperature
+      real          :: q                        ! q
    end type residual_airep1_type
 
    type maxmin_airep_stats_type
-      type (maxmin_type)         :: u, v, t 
+      type (maxmin_type)         :: u, v, t, q 
    end type maxmin_airep_stats_type
 
    type stats_airep_type

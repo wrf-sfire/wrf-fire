@@ -24,14 +24,14 @@ subroutine da_transform_xtoy_tamdar_sfc (grid, iv, y)
    if (trace_use_dull) call da_trace_entry("da_transform_xtoy_tamdar_sfc")
 
    if (sfc_assi_options == sfc_assi_options_1) then
-      allocate (model_u(1,iv%info(tamdar)%n1:iv%info(tamdar)%n2))
-      allocate (model_v(1,iv%info(tamdar)%n1:iv%info(tamdar)%n2))
-      allocate (model_t(1,iv%info(tamdar)%n1:iv%info(tamdar)%n2))
-      allocate (model_q(1,iv%info(tamdar)%n1:iv%info(tamdar)%n2))
-      allocate (model_psfc(iv%info(tamdar)%n1:iv%info(tamdar)%n2))
+      allocate (model_u(1,iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
+      allocate (model_v(1,iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
+      allocate (model_t(1,iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
+      allocate (model_q(1,iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
+      allocate (model_psfc(iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
 
-      allocate (ub(1,iv%info(tamdar)%n1:iv%info(tamdar)%n2))
-      allocate (vb(1,iv%info(tamdar)%n1:iv%info(tamdar)%n2))
+      allocate (ub(1,iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
+      allocate (vb(1,iv%info(tamdar_sfc)%n1:iv%info(tamdar_sfc)%n2))
 
       ! [1.2] Interpolate horizontally:
 #ifdef A2C
@@ -49,19 +49,16 @@ subroutine da_transform_xtoy_tamdar_sfc (grid, iv, y)
       call da_interp_lin_3d (grid%xb%u, iv%info(tamdar_sfc), ub)
       call da_interp_lin_3d (grid%xb%v, iv%info(tamdar_sfc), vb)
 
-      do n=iv%info(tamdar)%n1,iv%info(tamdar)%n2
-
-         y%tamdar_sfc(n)%t = model_t(1,n)
-         y%tamdar_sfc(n)%q = model_q(1,n)
-         y%tamdar_sfc(n)%p = model_psfc(n)
-
-         if(var_wind)then
-                call da_uv_wind_tgl(y%tamdar_sfc(n)%u,y%tamdar_sfc(n)%v,model_u(1,n),model_v(1,n),ub(1,n),vb(1,n))
+      do n=iv%info(tamdar_sfc)%n1,iv%info(tamdar_sfc)%n2
+         if(wind_sd_tamdar)then
+            call da_uv_to_sd_lin(y%tamdar_sfc(n)%u,y%tamdar_sfc(n)%v,model_u(1,n),model_v(1,n),ub(1,n),vb(1,n))
          else
             y%tamdar_sfc(n)%u = model_u(1,n)
             y%tamdar_sfc(n)%v = model_v(1,n)
          end if
-
+         y%tamdar_sfc(n)%t = model_t(1,n)
+         y%tamdar_sfc(n)%q = model_q(1,n)
+         y%tamdar_sfc(n)%p = model_psfc(n)
       end do
 
       deallocate (model_u)

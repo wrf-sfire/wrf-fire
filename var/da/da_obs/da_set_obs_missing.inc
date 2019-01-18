@@ -10,11 +10,8 @@ subroutine da_set_obs_missing (iv, n)
    integer,       intent(in)    :: n    ! obs index
 
    integer :: i, k
-   real    :: xmiss
 
    if (trace_use) call da_trace_entry("da_set_obs_missing")
-
-   xmiss = -888.0
 
    do i = 1, iv%info(n)%nlocal
       if ( iv%info(n)%thinned(1,i) ) then
@@ -87,6 +84,7 @@ subroutine da_set_obs_missing (iv, n)
             iv%airep(i)%u(:) = field_type(missing_r, missing_data, xmiss, missing_r, missing_r)
             iv%airep(i)%v(:) = field_type(missing_r, missing_data, xmiss, missing_r, missing_r)
             iv%airep(i)%t(:) = field_type(missing_r, missing_data, xmiss, missing_r, missing_r)
+            iv%airep(i)%q(:) = field_type(missing_r, missing_data, xmiss, missing_r, missing_r)
          end if
       end do
    case(gpspw)

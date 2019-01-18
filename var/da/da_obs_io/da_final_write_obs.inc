@@ -1,7 +1,7 @@
 subroutine da_final_write_obs(it,iv)
 
    !-------------------------------------------------------------------------
-   ! Purpose: Writes full diagnostics for O, (O-B) & OMA togather
+   ! Purpose: Writes full diagnostics for O, (O-B) & OMA together
    !-------------------------------------------------------------------------   
 
    implicit none
@@ -10,9 +10,11 @@ subroutine da_final_write_obs(it,iv)
    type (iv_type), intent(in)    :: iv      ! O-B structure.
    integer                       :: n, k, iunit
    integer                       :: ios  ! Error code from MPI routines.
-   integer                       :: num_obs, num_sound_obs, num_tamdar_obs
+   integer                       :: num_obs
+   logical                       :: if_wind_sd
    character(len=filename_len), allocatable     :: filename(:)
    character(len=filename_len)                  :: file
+
 
    if (trace_use) call da_trace_entry("da_final_write_obs")
 
@@ -41,11 +43,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_synop) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'synop', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'synop',5)
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'synop',5,if_wind_sd)
       end do
    end if
 
@@ -60,11 +64,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_metar) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,20i8)')'metar', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'metar',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'metar',5,if_wind_sd)    
       end do
    end if
 
@@ -79,11 +85,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_ships) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'ships', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'ships',5)
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'ships',5,if_wind_sd)
       end do
    end if
 
@@ -98,11 +106,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_geoamv) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'geoamv', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'geoamv',6)
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'geoamv',6,if_wind_sd)
       end do
    end if
 
@@ -117,11 +127,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_polaramv) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'polaramv', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'polaramv',8) 
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'polaramv',8,if_wind_sd) 
       end do
    end if
 
@@ -136,11 +148,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'gpspw', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'gpspw',5)     
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'gpspw',5,if_wind_sd)     
       end do
    end if
 
@@ -155,19 +168,29 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_sound) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'sound', num_obs  
-      num_sound_obs = num_obs
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'sound',5)     
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'sound',5,if_wind_sd) 
       end do
+   end if
 
-      ! writing Sonde_sfc  
-      write(omb_unit,'(a20,i8)')'sonde_sfc', num_sound_obs  
-      num_obs = 0 
+!  Now sonde_sfc
+   num_obs = 0
+   if (iv%info(sonde_sfc)%nlocal > 0) then
+      do n = 1, iv%info(sonde_sfc)%nlocal
+         if(iv%info(sonde_sfc)%proc_domain(1,n)) num_obs = num_obs + 1
+      end do
+   end if
+   call da_proc_sum_int(num_obs)
+   if (num_obs > 0 .and. rootproc) then
+      write(omb_unit,'(a20,i8)')'sonde_sfc', num_obs
+      num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'sonde_sfc',9)
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'sonde_sfc',9,if_wind_sd)
       end do
    end if
 
@@ -182,11 +205,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_airep) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'airep', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'airep',5)   
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'airep',5,if_wind_sd)
       end do
    end if
 
@@ -201,11 +226,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_pilot) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'pilot', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'pilot',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'pilot',5,if_wind_sd)    
       end do
    end if
 
@@ -220,11 +247,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'ssmir', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmir',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmir',5,if_wind_sd)    
       end do
    end if
 
@@ -239,11 +267,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'ssmiT', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmiT',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmiT',5,if_wind_sd)    
       end do
    end if
 
@@ -258,11 +287,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'satem', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'satem',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'satem',5,if_wind_sd)    
       end do
    end if
 
@@ -277,11 +307,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'ssmt1', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmt1',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmt1',5,if_wind_sd)    
       end do
    end if
 
@@ -296,11 +327,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'ssmt2', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmt2',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'ssmt2',5,if_wind_sd)    
       end do
    end if
 
@@ -315,11 +347,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_qscat) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'qscat', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'qscat',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'qscat',5,if_wind_sd)    
       end do
    end if
 
@@ -334,11 +368,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_profiler) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'profiler', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'profiler',8)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'profiler',8,if_wind_sd)    
       end do
    end if
 
@@ -353,11 +389,13 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_buoy) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'buoy', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'buoy',4)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'buoy',4,if_wind_sd)    
       end do
    end if
 
@@ -372,11 +410,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'bogus', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'bogus',5)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'bogus',5,if_wind_sd)    
       end do
    end if
 
@@ -391,14 +430,31 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
+   if (wind_sd_tamdar) if_wind_sd = .true.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'tamdar', num_obs
-       num_tamdar_obs = num_obs
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'tamdar',6)
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'tamdar',6,if_wind_sd)
       end do
 
+   end if
+
+!  Now tamdar_sfc
+   num_obs = 0
+   if (iv%info(tamdar_sfc)%nlocal > 0) then
+      do n = 1, iv%info(tamdar_sfc)%nlocal
+         if(iv%info(tamdar_sfc)%proc_domain(1,n)) num_obs = num_obs + 1
+      end do
+   end if
+   call da_proc_sum_int(num_obs)
+   if (num_obs > 0 .and. rootproc) then
+      write(omb_unit,'(a20,i8)')'tamdar_sfc', num_obs  
+      num_obs = 0
+      do k = 0,num_procs-1
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'tamdar_sfc',10,if_wind_sd)
+      end do
    end if
 
    !------------------------------------------------------------------
@@ -412,11 +468,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'airsr', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'airsr',5)
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'airsr',5,if_wind_sd)
       end do
    end if
 
@@ -431,11 +488,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'gpsref', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'gpsref',6)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'gpsref',6,if_wind_sd)    
       end do
    end if
 
@@ -450,11 +508,12 @@ subroutine da_final_write_obs(it,iv)
       end do
    end if
    call da_proc_sum_int(num_obs)
+   if_wind_sd = .false.
    if (num_obs > 0 .and. rootproc) then
       write(omb_unit,'(a20,i8)')'rain', num_obs  
       num_obs = 0
       do k = 0,num_procs-1
-         call da_read_omb_tmp(filename(k),iunit,num_obs,'rain',4)    
+         call da_read_omb_tmp(filename(k),iunit,num_obs,'rain',4,if_wind_sd)    
       end do
    end if
 

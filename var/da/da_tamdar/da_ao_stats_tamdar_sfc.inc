@@ -9,12 +9,12 @@ subroutine da_ao_stats_tamdar_sfc (stats_unit, iv, re, ob)
    integer,        intent (in)    :: stats_unit    ! Output unit for stats.
    type (iv_type), intent (inout) :: iv            ! iv
    type  (y_type), intent (in)    :: re            ! A - O
-   type(y_type),   intent (in) :: ob       ! Observation structure.
+   type(y_type),   intent (in)    :: ob            ! Observation structure.
 
-   type (stats_tamdar_sfc_type)      :: stats
+   type (stats_tamdar_sfc_type)     :: stats
    integer                          :: nu, nv, nt, np, nq
    integer                          :: n
-   real                             :: u_inv, v_inv, sp_inv, dir_inv
+   real                             :: u_inc, v_inc, u_obs, v_obs
 
    if (trace_use_dull) call da_trace_entry("da_ao_stats_tamdar_sfc")
 
@@ -37,22 +37,27 @@ subroutine da_ao_stats_tamdar_sfc (stats_unit, iv, re, ob)
    stats%average = residual_tamdar_sfc1_type(0.0, 0.0, 0.0, 0.0, 0.0)
    stats%rms_err = stats%average
 
-   do n=1, iv%info(tamdar)%nlocal
+   do n=1, iv%info(tamdar_sfc)%nlocal
       if (iv%info(tamdar_sfc)%proc_domain(1,n)) then
-         u_inv = re%tamdar_sfc(n)%u
-         v_inv = re%tamdar_sfc(n)%v
-         if(var_wind) then
-            sp_inv = re%tamdar_sfc(n)%u
-            dir_inv = re%tamdar_sfc(n)%v
-            call da_cal_sd (ob%tamdar_sfc(n)%u, ob%tamdar_sfc(n)%v, &
-                            u_inv, v_inv, sp_inv, dir_inv)
-         end if
+
+         u_inc = re%tamdar_sfc(n)%u
+         v_inc = re%tamdar_sfc(n)%v
+         u_obs = ob%tamdar_sfc(n)%u
+         v_obs = ob%tamdar_sfc(n)%v
+
+         if (.not. wind_sd_tamdar .and. wind_stats_sd) &
+            call da_ffdduv_diagnose(u_obs, u_obs, u_inc, v_obs, v_obs, v_inc, &
+                                    iv%tamdar_sfc(n)%u%qc, iv%tamdar_sfc(n)%v%qc, convert_uv2fd)
+         if (wind_sd_tamdar .and. .not. wind_stats_sd) &
+            call da_ffdduv_diagnose(u_obs, u_obs, u_inc, v_obs, v_obs, v_inc, &
+                                    iv%tamdar_sfc(n)%u%qc, iv%tamdar_sfc(n)%v%qc, convert_fd2uv)
+
          call da_stats_calculate (n, 0, iv%tamdar_sfc(n)%u%qc,  & 
-            u_inv, nu, & 
+            u_inc, nu, & 
             stats%minimum%u, stats%maximum%u, &
             stats%average%u, stats%rms_err%u)
          call da_stats_calculate (n, 0, iv%tamdar_sfc(n)%v%qc,  & 
-            v_inv, nv, & 
+            v_inc, nv, & 
             stats%minimum%v, stats%maximum%v, &
             stats%average%v, stats%rms_err%v)
          call da_stats_calculate (n, 0, iv%tamdar_sfc(n)%t%qc,  & 
@@ -76,7 +81,7 @@ subroutine da_ao_stats_tamdar_sfc (stats_unit, iv, re, ob)
    call da_proc_sum_int (nt)
    call da_proc_sum_int (np)
    call da_proc_sum_int (nq)
-   iv%nstats(tamdar) = iv%nstats(tamdar) + nu + nv + nt + np + nq
+   iv%nstats(tamdar_sfc) =  nu + nv + nt + np + nq
 
    call da_proc_stats_combine(stats%average%u, stats%rms_err%u, &
       stats%minimum%u%value, stats%maximum%u%value, &

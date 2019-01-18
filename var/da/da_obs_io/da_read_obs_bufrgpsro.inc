@@ -24,7 +24,6 @@ subroutine da_read_obs_bufrgpsro (iv)
 
    real,    parameter   :: r8bfms = 9.0D08  ! BUFR missing value threshold
    integer, parameter   :: maxlevs = 500
-   real,    parameter   :: xmiss = -888.0
    integer              :: iunit, iost, idate, iret, nlev1, nlev2,k,i,ii
    integer              :: num_report, num_outside_all, num_outside_time
    integer              :: iyear,imonth,iday,ihour,imin
@@ -57,10 +56,12 @@ subroutine da_read_obs_bufrgpsro (iv)
        integer                  :: obs_global_index
        type(datalink_gpsro), pointer :: next
    end type datalink_gpsro
-   type(datalink_gpsro),pointer  :: head, plink
+   type(datalink_gpsro),pointer  :: head=>null(), plink=>null()
+   integer(i_kind)      :: iprof
 
    if (trace_use) call da_trace_entry("da_read_obs_bufrgosro")
 
+   iprof  = 0
    nlocal = 0
    ntotal = 0
    num_report       = 0
@@ -182,7 +183,9 @@ bufrfile:  do ibufr=1,numbufr
             if (obs_time >= time_slots(ifgat-1) .and.  &
                 obs_time  < time_slots(ifgat)) exit
          end do  
-         
+
+      iprof = iprof + 1
+
       lev_loop: do k = 1, nlev1
 
          info%lat  = rdata1(1,k)
@@ -280,14 +283,15 @@ bufrfile:  do ibufr=1,numbufr
             end if
          end if
 
-         write(info%name, '(a,i6.6,a,a)') 'NCEP_GPSRO_', nlocal, '_', date_char
+         !write(info%name, '(a,i6.6,a,a)') 'NCEP_GPSRO_', nlocal, '_', date_char
+         write(info%name, '(a,i6.6,a,a)') 'NCEP_GPSRO_', iprof, '_', date_char
 
          if ( print_detail_obs ) then
             write(unit=stdout,fmt='(a,1x,a,1x,i4.4,4i2.2,2f8.2,f8.1,f8.2,i3,f9.5)')  &
                info%name,id(1:5),iyear,imonth,iday,ihour,imin, &
                info%lat,info%lon,height,ref_data,ref_qc,ref_error 
          end if
-         
+        
          if (.not. associated(head)) then
              nullify ( head )
              allocate ( head )
@@ -468,6 +472,9 @@ end do bufrfile
       ntotal_ifgat(kk)=ntotal_ifgat(kk)+ntotal_ifgat(kk-1)
       iv%info(gpsref)%ptotal(kk)=ntotal_ifgat(kk)
       iv%info(gpsref)%plocal(kk)=nlocal
+      ! thinning is not applied to GPSRO BUFR, simply make a copy from total number
+      iv%info(gpsref)%thin_ptotal(kk)=ntotal_ifgat(kk)
+      iv%info(gpsref)%thin_plocal(kk)=nlocal
    end do 
 
    write(unit=message(1),fmt='(A,3(1x,i7))') &
