@@ -3,9 +3,16 @@ subroutine init_4dvar
 
    implicit none
 
-   integer :: idum1, idum2
+   integer :: idum1, idum2, run_seconds ,rc
+   TYPE(WRFU_TimeInterval) :: run_length
 
    if (trace_use_dull) call da_trace_entry("init_4dvar")
+
+   run_length = head_grid%stop_subtime - head_grid%start_subtime
+   CALL WRFU_TimeIntervalGet( run_length, S=run_seconds, rc=rc )
+
+   if ( run_seconds .gt. config_flags%interval_seconds ) &
+      CALL wrf_error_fatal('In 4D-Var assimilation window, lateral boundary update is not allowed.')   
 
    ! Save the some physics options, as they will be changed in TL and AD model.
    call nl_get_mp_physics (head_grid%id, original_mp_physics) 
@@ -14,11 +21,11 @@ subroutine init_4dvar
    call nl_get_sf_sfclay_physics (head_grid%id, original_sf_sfclay_physics)
    call nl_get_bl_pbl_physics (head_grid%id, original_bl_pbl_physics)
    call nl_get_cu_physics (head_grid%id, original_cu_physics)
-   call nl_get_mp_zero_out (head_grid%id, original_mp_zero_out)
-   call nl_get_sf_surface_physics (head_grid%id, original_sf_surface_physics)
+   !call nl_get_mp_zero_out (head_grid%id, original_mp_zero_out)
+   !call nl_get_sf_surface_physics (head_grid%id, original_sf_surface_physics)
    call nl_get_ifsnow (head_grid%id, original_ifsnow)
    call nl_get_icloud (head_grid%id, original_icloud)
-   call nl_get_isfflx (head_grid%id, original_isfflx)
+   !call nl_get_isfflx (head_grid%id, original_isfflx)
 
    ! Initialize linked list for trajectory
    call xtraj_io_initialize
@@ -188,4 +195,3 @@ subroutine upsidedown_ad_forcing
    if (trace_use_dull) call da_trace_entry("upsidedown_ad_forcing")
 
 end subroutine upsidedown_ad_forcing
-

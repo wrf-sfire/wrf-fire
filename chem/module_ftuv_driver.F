@@ -33,7 +33,7 @@
         real(dp), pointer :: day_of_year(:)
         real(dp), pointer :: o3_col_dens(:,:,:,:)
         real(dp), pointer :: o2_col_dens(:,:,:,:)
-        logical           :: allocated
+        logical           :: is_allocated
       end type column_density
 
       type(column_density), private, allocatable :: col_dens(:)
@@ -132,6 +132,8 @@
                               ph_alkooh,ph_mekooh,ph_tolooh,           &
                               ph_terpooh,ph_n2o5,ph_mvk,ph_glyald,     &
                               ph_hyac, ivgtyp,                         &
+                              ph_radfld, ph_adjcoe, ph_prate,          &
+                              wc_x, zref_x,                            &
                               ids,ide, jds,jde, kds,kde,               &
                               ims,ime, jms,jme, kms,kme,               &
                               its,ite, jts,jte, kts,kte                )
@@ -141,7 +143,7 @@
       use module_model_constants
       use module_data_sorgam, only : mw_so4_aer
 
-      use module_wave_data, only : tuv_jmax
+      use module_wave_data, only : tuv_jmax, nw, wc
       use module_ftuv_subs, only : calc_zenith
 
       implicit none
@@ -195,6 +197,17 @@
                              ph_alkooh,ph_mekooh,ph_tolooh,ph_terpooh, &
                              ph_n2o5,ph_mvk,ph_glyald,ph_hyac
 
+      real, dimension( ims:ime, nref, jms:jme, nw-1 ),                 &
+            intent(out  ) :: ph_radfld
+      real, dimension( ims:ime, nref, jms:jme, tuv_jmax ),             &
+            intent(out  ) :: ph_adjcoe
+      real, dimension( ims:ime, nref, jms:jme, tuv_jmax ),             &
+            intent(out  ) :: ph_prate
+      real, dimension(nw-1),             &
+            intent(out  ) :: wc_x
+      real, dimension(nref),             &
+            intent(out  ) :: zref_x
+
 !----------------------------------------------------
 !     local parameters
 !----------------------------------------------------
@@ -205,7 +218,7 @@
 !----------------------------------------------------
 !     local scalars
 !----------------------------------------------------
-      integer     :: i, j, k, kp1
+      integer     :: i, j, k, kp1, m
       integer     :: astat, istat
       integer     :: isorg
       integer     :: lu
@@ -215,7 +228,6 @@
       real(dp)    :: o3top
       real(dp)    :: o2top
       real(dp)    :: atm_mass_den
-
 
 !----------------------------------------------------
 !     local arrays
@@ -231,11 +243,16 @@
       real(dp) :: o2_exo_col(its:ite,jts:jte)
       real(dp) :: o3_exo_col(its:ite,jts:jte)
       real(dp) :: prate(kts:kte+1,tuv_jmax)
+      real(dp) :: radfld(nz,nw-1)
+      real(dp) :: adjcoe(nz,tuv_jmax)
+      real(dp) :: prate0(nz,tuv_jmax)
 
 !----------------------------------------------------
 !     set o3,o2 column densities at model top
 !----------------------------------------------------
-      if( config_flags%chem_opt == MOZART_KPP .or. config_flags%chem_opt == MOZCART_KPP ) then
+      if( config_flags%chem_opt == MOZART_KPP .or. &
+          config_flags%chem_opt == MOZCART_KPP .or. &
+          config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
          p_jtop(its:ite,jts:jte) = Pa2hPa * p_phy(its:ite,kte,jts:jte)
          call p_interp( o2_exo_col, o3_exo_col, p_jtop, &
                         id, its, ite, jts, jte )
@@ -246,7 +263,7 @@
 
       isorg=0
       aer_select: SELECT CASE(config_flags%chem_opt)
-         CASE (RADM2SORG,RADM2SORG_KPP,RACMSORG_KPP,RACM_ESRLSORG_KPP,RACMSORG_AQ,CBMZSORG,CBMZSORG_AQ)
+         CASE (RADM2SORG,RADM2SORG_KPP,RACMSORG_KPP,RACM_ESRLSORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM,CBMZSORG,CBMZSORG_AQ)
              isorg=1
              CALL wrf_debug(15,'SORGAM aerosols initialization ')
          CASE DEFAULT
@@ -263,7 +280,7 @@
       gmtp  = mod( xhour, 24.0_dp )
       gmtp  = gmtp + xmin/m2s
 
-      xlwc(:) = 0  !initialize in case no cloud water is present
+      xlwc(:) = 0._dp  !initialize in case no cloud water is present
 
 !----------------------------------------------------
 !     set photolysis rates
@@ -274,7 +291,9 @@
 !----------------------------------------------------
 !     set land use type
 !----------------------------------------------------
-        if( config_flags%chem_opt == MOZART_KPP .or. config_flags%chem_opt == MOZCART_KPP ) then
+        if( config_flags%chem_opt == MOZART_KPP .or. &
+            config_flags%chem_opt == MOZCART_KPP .or. &
+            config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
            if( ivgtyp(i,j) /= 16 ) then
               lu = 1
            else
@@ -284,12 +303,15 @@
            lu = 1
         endif
 
+        if( config_flags%chem_opt == MOZART_KPP .or. &
+            config_flags%chem_opt == MOZCART_KPP .or. &
+            config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
+           o3top = o3_exo_col(i,j)
+           o2top = o2_exo_col(i,j)
+        endif
+
 level_loop : &
         do k = kts, kte
-          if( config_flags%chem_opt == MOZART_KPP .or. config_flags%chem_opt == MOZCART_KPP ) then
-             o3top = o3_exo_col(i,j)
-             o2top = o2_exo_col(i,j)
-          endif
           kp1       = k + 1
           temp(kp1) = t_phy(i,k,j)                            ! temperature(K)
           air(kp1)  = xair_kg*rho_phy(i,k,j)                  ! air num.(molecules/cm^3)
@@ -326,33 +348,43 @@ level_loop : &
 !
 !=======================================================
           
+          acb1(kp1) = 0._dp
+          acb2(kp1) = 0._dp
+          aoc1(kp1) = 0._dp
+          aoc2(kp1) = 0._dp
+          aant(kp1) = 0._dp
+          aso4(kp1) = 0._dp
+          asal(kp1) = 0._dp
           if( isorg == 1 ) then
              acb1(kp1) = chem(i,k,j,p_ecj)
-             acb2(kp1) = 0.0_dp
+!            acb2(kp1) = 0.0_dp
 !            aoc1(kp1) = chem(i,k,j,p_orgpaj) + chem(i,k,j,p_orgbaj) + chem(i,k,j,p_orgaj)
              aoc1(kp1) = chem(i,k,j,p_orgpaj)
-             aoc2(kp1) = 0.0_dp
+!            aoc2(kp1) = 0.0_dp
              aant(kp1) = chem(i,k,j,p_no3aj) + chem(i,k,j,p_nh4aj)
              aso4(kp1) = chem(i,k,j,p_so4aj)
              asal(kp1) = chem(i,k,j,p_seas)
-          elseif( config_flags%chem_opt == MOZCART_KPP ) then
+          elseif( config_flags%chem_opt == MOZART_KPP .or. &
+                  config_flags%chem_opt == MOZCART_KPP ) then
+             aso4(kp1) = chem(i,k,j,p_sulf)*air(kp1)*real(mw_so4_aer,kind=dp)*kg_per_amu*1.e-9_dp
+            if( config_flags%chem_opt == MOZCART_KPP ) then
              atm_mass_den = rho_phy(i,k,j)
              acb1(kp1) = chem(i,k,j,p_bc1)*atm_mass_den
              acb2(kp1) = chem(i,k,j,p_bc2)*atm_mass_den
              aoc1(kp1) = chem(i,k,j,p_oc1)*atm_mass_den
              aoc2(kp1) = chem(i,k,j,p_oc2)*atm_mass_den
-             aant(kp1) = 0._dp
-             aso4(kp1) = chem(i,k,j,p_so4)*air(kp1)*real(mw_so4_aer,kind=dp)*kg_per_amu*1.e-9_dp
+!            aant(kp1) = 0._dp
              asal(kp1) = (chem(i,k,j,p_seas_1) + chem(i,k,j,p_seas_2) &
                           + chem(i,k,j,p_seas_3) + chem(i,k,j,p_seas_4))*atm_mass_den
-          else
-             acb1(kp1) = 0._dp
-             acb2(kp1) = 0._dp
-             aoc1(kp1) = 0._dp
-             aoc2(kp1) = 0._dp
-             aant(kp1) = 0._dp
-             aso4(kp1) = 0._dp
-             asal(kp1) = 0._dp
+            endif
+!         else
+!            acb1(kp1) = 0._dp
+!            acb2(kp1) = 0._dp
+!            aoc1(kp1) = 0._dp
+!            aoc2(kp1) = 0._dp
+!            aant(kp1) = 0._dp
+!            aso4(kp1) = 0._dp
+!            asal(kp1) = 0._dp
           endif
         enddo level_loop
 
@@ -403,7 +435,10 @@ level_loop : &
                    aant,                 &
                    aso4,                 &
                    asal,                 &
-                   prate )
+                   prate,                &
+                   radfld,               &
+                   adjcoe,               &
+                   prate0 )
 
         do k = kts, kte
           ph_no2(i,k,j)   = max( 0._dp,prate(k,pid_no2)*m2s )
@@ -431,7 +466,25 @@ level_loop : &
           ph_ch3coc2h5(i,k,j) = max( 0._dp,prate(k,23)*m2s )
         enddo
 
-        if( config_flags%chem_opt == MOZART_KPP .or. config_flags%chem_opt == MOZCART_KPP ) then
+        do m = 1,nw-1
+          do k = 1,nz
+            ph_radfld(i,k,j,m) = radfld(k,m)
+          end do
+        end do
+
+        do m = 1,tuv_jmax
+          do k = 1,nz
+            ph_adjcoe(i,k,j,m) = adjcoe(k,m)
+            ph_prate (i,k,j,m) = prate0(k,m)
+          end do
+        end do
+
+        wc_x(1:nw-1) = wc(1:nw-1)
+        zref_x(1:nref) = zref(1:nref)
+
+        if( config_flags%chem_opt == MOZART_KPP .or. &
+            config_flags%chem_opt == MOZCART_KPP .or. &
+            config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
           do k = kts, kte
             ph_n2o(i,k,j)  = max( 0._dp,prate(k,pid_n2o)*m2s )
             ph_n2o5(i,k,j) = max( 0._dp,prate(k,pid_n2o5)*m2s )
@@ -454,13 +507,14 @@ level_loop : &
       end subroutine ftuv_driver
 
       subroutine ftuv_init( id,ips, ipe, jps, jpe, kte, &
-                            ide, jde, chem_opt )
+                            ide, jde, config_flags )
 !---------------------------------------------------------------------
 !	... new initialization routine for ftuv
 !---------------------------------------------------------------------
 
-      use module_state_description, only : mozart_kpp, mozcart_kpp
+      use module_state_description, only : mozart_kpp, mozcart_kpp, mozart_mosaic_4bin_vbs0_kpp
       use module_ftuv_subs, only         : aer_init
+      use module_configure, only         : grid_config_rec_type
 
       implicit none
 
@@ -470,7 +524,7 @@ level_loop : &
       integer, intent(in) :: id
       integer, intent(in) :: ips, ipe, jps, jpe, kte
       integer, intent(in) :: ide, jde
-      integer, intent(in) :: chem_opt
+      type(grid_config_rec_type),  intent(in   ) :: config_flags
 
 !---------------------------------------------------------------------
 !	... local variables
@@ -480,13 +534,14 @@ level_loop : &
       integer :: dimid
       integer :: varid
       integer :: max_dom
+      integer :: cpos
       integer :: iend, jend
       integer :: lon_e, lat_e
       integer :: ncoldens_levs
       integer :: ndays_of_year
       real, allocatable :: coldens(:,:,:,:)
       character(len=128) :: err_msg
-      character(len=32)  :: filename
+      character(len=64)  :: filename
       character(len=3)   :: id_num
 
       LOGICAL , EXTERNAL      :: wrf_dm_on_monitor
@@ -495,7 +550,9 @@ level_loop : &
 include 'netcdf.inc'
 #define DM_BCAST_MACRO(A) CALL wrf_dm_bcast_bytes ( A , size ( A ) * DWORDSIZE )
 #else
-      if( chem_opt == MOZART_KPP .or. chem_opt == MOZCART_KPP ) then
+      if( config_flags%chem_opt == MOZART_KPP .or. &
+          config_flags%chem_opt == MOZCART_KPP .or. &
+          config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
          call wrf_message( 'ftuv_init: mozart,mozcart chem option requires netcdf' )
          call wrf_abort
       end if
@@ -507,11 +564,13 @@ include 'netcdf.inc'
       if( id == 1 .and. .not. photo_inti_initialized ) then
         write(err_msg,*) 'ftuv_init: calling photo_inti for id = ',id
         call wrf_message( trim(err_msg) )
-        call photo_inti( chem_opt, kte, 20._dp )
+        call photo_inti( config_flags%chem_opt, kte, 20._dp )
       endif
 #ifdef NETCDF
 is_mozart : &
-      if( chem_opt == MOZART_KPP .or. chem_opt == MOZCART_KPP ) then
+      if( config_flags%chem_opt == MOZART_KPP .or. &
+          config_flags%chem_opt == MOZCART_KPP .or. &
+          config_flags%chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
 !---------------------------------------------------------------------
 !	... allocate column_density type
 !---------------------------------------------------------------------
@@ -524,16 +583,21 @@ is_mozart : &
           end if
           write(err_msg,*) 'ftuv_init: intializing ',max_dom,' domains'
           call wrf_message( trim(err_msg) )
-          col_dens(:)%allocated = .false.
+          col_dens(:)%is_allocated = .false.
         endif
 !---------------------------------------------------------------------
 !	... open column density netcdf file
 !---------------------------------------------------------------------
 col_dens_allocated : &
-        if( .not. col_dens(id)%allocated ) then
+        if( .not. col_dens(id)%is_allocated ) then
           if( wrf_dm_on_monitor() ) then
-            write(id_num,'(i3)') 100+id
-            filename = 'exo_coldens_d' // id_num(2:3)
+            cpos = index( config_flags%exo_coldens_inname, '<domain>' )
+            if( cpos > 0 ) then
+              write(id_num,'(i3)') 100+id
+              filename = config_flags%exo_coldens_inname(:cpos-1) // 'd' // id_num(2:3)
+            else
+              filename = trim( config_flags%exo_coldens_inname )
+            endif
             err_msg = 'ftuv_init: intializing domain ' // id_num(2:3)
             call wrf_message( trim(err_msg) )
             err_msg = 'ftuv_init: failed to open file ' // trim(filename)
@@ -592,7 +656,7 @@ col_dens_allocated : &
             call wrf_message( 'ftuv_init: failed to allocate o3_col_dens,o2_col_dens' )
             call wrf_abort
           end if
-          col_dens(id)%allocated = .true.
+          col_dens(id)%is_allocated = .true.
 !---------------------------------------------------------------------
 !	... read arrays
 !---------------------------------------------------------------------
@@ -692,7 +756,7 @@ include 'netcdf.inc'
 
       use module_wave_data, only : nw, wl, wave_data_inti
       use module_ftuv_subs, only : nwint, wlint, schu_inti, inter_inti
-      use module_state_description, only : mozart_kpp, mozcart_kpp
+      use module_state_description, only : mozart_kpp, mozcart_kpp, mozart_mosaic_4bin_vbs0_kpp
 
       implicit none
 
@@ -709,7 +773,9 @@ include 'netcdf.inc'
       integer  :: k, kdis, nabv, iw
       real(dp) :: ztop
 
-      if( chem_opt /= MOZART_KPP .and. chem_opt /= MOZCART_KPP ) then
+      if( chem_opt /= MOZART_KPP .and. &
+          chem_opt /= MOZCART_KPP .and. &
+          chem_opt /= MOZART_MOSAIC_4BIN_VBS0_KPP ) then
 !---------------------------------------------------------------------
 !     change unit from m to km
 !---------------------------------------------------------------------
@@ -773,7 +839,9 @@ include 'netcdf.inc'
 !     for IGBP type 17 (ocean water). Source: NASA LARC
 !     (http://www-surf.larc.nasa.gov/surf/pages/explan.html)
 !---------------------------------------------------------------------
-      if( chem_opt == MOZART_KPP .or. chem_opt == MOZCART_KPP ) then
+      if( chem_opt == MOZART_KPP .or. &
+          chem_opt == MOZCART_KPP .or. &
+          chem_opt == MOZART_MOSAIC_4BIN_VBS0_KPP ) then
          albedo(1:17,2) = (/ 0.0747_dp, 0.0755_dp, 0.0767_dp, 0.0783_dp, 0.0802_dp,   &
                              0.0825_dp, 0.0852_dp, 0.0882_dp, 0.0914_dp, 0.0908_dp,   &
                              0.0763_dp, 0.0725_dp, 0.0689_dp, 0.0632_dp, 0.0570_dp,   &
@@ -798,7 +866,7 @@ include 'netcdf.inc'
                         along, o3top, o2top, o3toms, lu, zin, tlevin, &
                         airlevin, rhin, xlwcin, o3in, acb1in, &
                         acb2in, aoc1in, aoc2in, aantin, aso4in, &
-                        asalin, prate )
+                        asalin, prate, radfld, adjcoe, prate0 )
 
       use module_ftuv_subs, only : calc_zenith, photoin
 
@@ -835,6 +903,9 @@ include 'netcdf.inc'
 !     output arguments
 !----------------------------------------------------
       real(dp), intent(out) :: prate(nlev,njout)
+      real(dp), intent(out) :: radfld(nz,nw-1)
+      real(dp), intent(out) :: adjcoe(nz,njout)
+      real(dp), intent(out) :: prate0(nz,njout)
 
 !----------------------------------------------------
 !     local arugments
@@ -885,6 +956,17 @@ include 'netcdf.inc'
 ! 30 glyald + hv -> products
 !-----------------------------------------------------------------------------
 
+!-----------------------------------------------------------------------------
+!     solar zenith angle calculation
+!-----------------------------------------------------------------------------
+      call calc_zenith( alat, along, julday, gmtp, azim, zen )
+      if( zen == 90.0_dp ) then
+        zen = 89.0_dp
+      elseif( zen >= 95.0_dp ) then
+        prate(:,:) = 0.0_dp
+        return
+      endif
+
 !---------------------------------------------------------------------
 !     allocate memory space
 !---------------------------------------------------------------------
@@ -916,17 +998,6 @@ include 'netcdf.inc'
       aso4_ph(:) = 0.0_dp
       asal_ph(:) = 0.0_dp
 
-!-----------------------------------------------------------------------------
-!     solar zenith angle calculation
-!-----------------------------------------------------------------------------
-      call calc_zenith( alat, along, julday, gmtp, azim, zen )
-      if( zen == 90.0_dp ) then
-        zen = 89.0_dp
-      elseif( zen >= 95.0_dp ) then
-        prate(:,:) = 0.0_dp
-        return
-      endif
- 
 !----------------------------------------------------
 !     assgin vertical profiles
 !     model levels first
@@ -969,10 +1040,11 @@ include 'netcdf.inc'
                     o3top, o2top, albedo(:,lu), z_ph, tlev_ph,   & 
                     tlay_ph, airlev_ph, rh_ph, xlwc_ph, o3_ph,   &
                     acb1_ph, acb2_ph, aoc1_ph, aoc2_ph, aant_ph, & 
-                    aso4_ph, asal_ph, ftuv )
+                    aso4_ph, asal_ph, ftuv, adjcoe, radfld )
 
       do n = 1,njout
         prate(1:nlev-1,n) = ftuv(2:nlev,n)
+        prate0(1:nz,n)    = ftuv(1:nz,n) 
       enddo
 
       deallocate( ftuv, z_ph, tlev_ph, tlay_ph, airlev_ph, rh_ph, xlwc_ph, &

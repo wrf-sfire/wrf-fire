@@ -39,7 +39,7 @@ subroutine da_minimise_cg(grid, config_flags,            &
    integer                           :: iter            
    integer                           :: jp_start, jp_end       ! Start/end indices of Jp.
 #ifdef CLOUD_CV
-   integer                           :: mz(10)
+   integer                           :: mz(11)
 #else
    integer                           :: mz(7)
 #endif
@@ -47,7 +47,7 @@ subroutine da_minimise_cg(grid, config_flags,            &
    real                              :: ghat(1:cv_size)        ! cv copy.
    real                              :: ghat0(1:cv_size)       ! cv copy.
    real                              :: phat(1:cv_size)        ! cv copy.
-   real, allocatable                 :: qhat(:,:)              ! cv copy.
+   type(qhat_type), allocatable      :: qhat(:)                ! cv copy.
    real                              :: apdotp,step,rrmold,rrmnew,ratio 
    real                              :: ob_grad, rrmnew_norm, gdot
    real                              :: j_total, j0_total
@@ -57,7 +57,7 @@ subroutine da_minimise_cg(grid, config_flags,            &
    real                              :: g_total, g_partial, jo_partial                          
    integer                           :: i, ii, nv, nn, istart, iend
 #ifdef CLOUD_CV
-   integer                           ::  sz(8)
+   integer                           ::  sz(9)
 #else
    integer                           ::  sz(5)
 #endif
@@ -71,8 +71,8 @@ subroutine da_minimise_cg(grid, config_flags,            &
    ! [1.0] Initialization:
    !-------------------------------------------------------------------------
 #ifdef CLOUD_CV
-   mz = (/ be%v1%mz, be%v2%mz, be%v3%mz, be%v4%mz, be%v5%mz, be%v6%mz, be%v7%mz,be%v8%mz, be%alpha%mz, be % ne /)
-   sz = (/ be%cv%size1, be%cv%size2, be%cv%size3, be%cv%size4, be%cv%size5, be%cv%size6, be%cv%size7,be%cv%size8 /)
+   mz = (/ be%v1%mz, be%v2%mz, be%v3%mz, be%v4%mz, be%v5%mz, be%v6%mz, be%v7%mz,be%v8%mz,be%v9%mz, be%alpha%mz, be % ne /)
+   sz = (/ be%cv%size1, be%cv%size2, be%cv%size3, be%cv%size4, be%cv%size5, be%cv%size6, be%cv%size7,be%cv%size8, be%cv%size9 /)
 #else
    mz = (/ be%v1%mz, be%v2%mz, be%v3%mz, be%v4%mz, be%v5%mz, be%alpha%mz, be % ne /)
    sz = (/ be%cv%size1, be%cv%size2, be%cv%size3, be%cv%size4, be%cv%size5 /)
@@ -96,7 +96,7 @@ subroutine da_minimise_cg(grid, config_flags,            &
       
       iend    = 0
 #ifdef CLOUD_CV
-      do nv = 1, 8
+      do nv = 1, 9
 #else
       do nv = 1, 5
 #endif
@@ -122,14 +122,15 @@ subroutine da_minimise_cg(grid, config_flags,            &
    j_grad_norm_target = sqrt (rrmold)
 
    if (orthonorm_gradient) then
-      allocate(qhat(1:cv_size, 0:ntmax))
-      qhat(:,0) = ghat / sqrt(rrmold)
+      allocate(qhat(0:ntmax))
+      allocate(qhat(0)%values(1:cv_size))
+      qhat(0)%values = ghat / sqrt(rrmold)
    end if
 
    write(unit=stdout,fmt='("Starting outer iteration : ",i3)') it
    write(unit=stdout,fmt=11) j0_total, sqrt(rrmold), eps(it)*j_grad_norm_target
-11 format('Starting cost function: ' ,1PD15.8,', Gradient= ',1PD15.8,/,&
-          'For this outer iteration gradient target is:       ',1PD15.8)
+11 format('Starting cost function: ' ,1PD22.15,', Gradient= ',1PD22.15,/,&
+          'For this outer iteration gradient target is:       ',1PD22.15)
    write(unit=stdout,fmt='(A)') &
       '----------------------------------------------------------'
    write(unit=stdout,fmt='(A)') &
@@ -156,8 +157,8 @@ subroutine da_minimise_cg(grid, config_flags,            &
     ! Orthonormalize new gradient (using modified Gramm-Schmidt algorithm)
       if (orthonorm_gradient) then
          do i = iter-1, 0, -1
-            gdot = da_dot_cv(cv_size, ghat, qhat(:,i), grid, mz, jp_start, jp_end)
-            ghat = ghat - gdot * qhat(:,i)
+            gdot = da_dot_cv(cv_size, ghat, qhat(i)%values, grid, mz, jp_start, jp_end)
+            ghat = ghat - gdot * qhat(i)%values
          end do
       end if
       
@@ -167,29 +168,46 @@ subroutine da_minimise_cg(grid, config_flags,            &
       ratio = 0.0
       if (rrmold .gt. 0.0) ratio = rrmnew/rrmold
 
-      if (orthonorm_gradient) qhat(:,iter) = ghat / rrmnew_norm
+      if (orthonorm_gradient) then
+         allocate(qhat(iter)%values(1:cv_size))
+         qhat(iter)%values = ghat / rrmnew_norm
+      end if
+
       phat         = - precon * ghat       + ratio * phat
 
       rrmold=rrmnew
 
     ! Print Gradient (and Cost Function)
     !-----------------------------------
-      j_total = j0_total + 0.5 * da_dot_cv(cv_size,ghat0,xhat,grid,mz,jp_start,jp_end)
-      write(unit=stdout,fmt=12)iter, j_total, rrmnew_norm, step         	 
-12    format(i3,5x,1PD15.8,5x,1PD15.8,5x,1PD15.8)
 
-      if (rrmnew_norm  < eps(it) * j_grad_norm_target) exit
-
-      if (calculate_cg_cost_fn) &
+      if (calculate_cg_cost_fn) then
          call da_calculate_j(it, iter, cv_size, be%cv%size_jb, be%cv%size_je, be%cv%size_jp, &
 	                     be%cv%size_jl, xbx, be, iv, xhat, cv, re, y, j_cost, fhat, grid, config_flags)
+         j_total = j_cost%total
+      else
+         j_total = j0_total + 0.5 * da_dot_cv(cv_size,ghat0,xhat,grid,mz,jp_start,jp_end)
+      endif
+
+      write(unit=stdout,fmt=12)iter, j_total, rrmnew_norm, step         	 
+      if (rrmnew_norm  < eps(it) * j_grad_norm_target) exit
+
+12    format(i3,5x,1PD22.15,5x,1PD22.15,5x,1PD22.15)
+
    end do
 
    !-------------------------------------------------------------------------
    ! End of the minimization of cost function
    !-------------------------------------------------------------------------
    iter = MIN(iter, ntmax)
-   if (orthonorm_gradient) deallocate(qhat)
+
+   ! Free memory used for reorthonormalization
+   !------------------------------------------
+   if (orthonorm_gradient) then
+      do i = iter-1, 0, -1
+         if (allocated(qhat(i)%values)) deallocate(qhat(i)%values)
+      end do
+      deallocate(qhat)
+   end if
    
    write(unit=stdout,fmt='(A)') &
       '----------------------------------------------------------'
@@ -204,11 +222,9 @@ subroutine da_minimise_cg(grid, config_flags,            &
    rrmnew_norm = SQRT(da_dot_cv(cv_size,ghat,ghat,grid,mz,jp_start,jp_end))
 
     write(unit=stdout,fmt=15) iter, j_cost%total , rrmnew_norm
-15  format('Final: ',I3,' iter, J=',1PD15.8,', g=',1PD15.8)
+15  format('Final: ',I3,' iter, J=',1PD22.15,', g=',1PD22.15)
     write(unit=stdout,fmt='(A)') &
       '----------------------------------------------------------'
-
-   cv = cv + xhat
 
    if (trace_use) call da_trace_exit("da_minimise_cg")
 

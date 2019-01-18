@@ -1,7 +1,7 @@
 module da_obs
 
    use da_define_structures, only : multi_level_type, y_type, iv_type, infa_type, &
-      field_type, each_level_type,da_allocate_y, da_random_seed
+      field_type, each_level_type,da_allocate_y, da_random_seed,da_allocate_y_rain
    use module_domain, only : domain, x_type
 
    use da_airep, only : da_transform_xtoy_airep, da_transform_xtoy_airep_adj 
@@ -20,7 +20,7 @@ module da_obs
       rtm_option_crtm,use_rad, base_temp, base_lapse, base_pres, &
       ob_format,ob_format_ascii,filename_len, trace_use_dull, &
       sound, mtgirs, synop, profiler, gpsref, gpspw, polaramv, geoamv, ships, metar, &
-      satem, radar, ssmi_rv, ssmi_tb, ssmt1, ssmt2, airsr, pilot, airep, sonde_sfc, &
+      satem, radar, ssmi_rv, ssmi_tb, ssmt1, ssmt2, airsr, pilot, airep, sonde_sfc,rain, &
       bogus, buoy, qscat, tamdar, pseudo, num_ob_indexes, its,ite,jds,jts,jte,ids, &
       write_mod_filtered_obs   !cys_add
    ! use_crtm_kmatrix,use_crtm_kmatrix_fast
@@ -41,6 +41,7 @@ module da_obs
    use da_pseudo,    only : da_transform_xtoy_pseudo, da_transform_xtoy_pseudo_adj
    use da_qscat,     only : da_transform_xtoy_qscat,da_transform_xtoy_qscat_adj
    use da_radar,     only : da_transform_xtoy_radar,da_transform_xtoy_radar_adj
+   use da_rain,      only : da_transform_xtoy_rain,da_transform_xtoy_rain_adj
    use da_reporting, only : da_error, message, da_warning
 #ifdef RTTOV
    use da_rttov,     only : da_transform_xtoy_rttov,da_transform_xtoy_rttov_adj
@@ -73,6 +74,7 @@ contains
 #include "da_add_noise_to_ob.inc"
 #include "da_check_missing.inc"
 #include "da_fill_obs_structures.inc"
+#include "da_fill_obs_structures_rain.inc"
 #include "da_random_omb_all.inc"
 #include "da_setup_pseudo_obs.inc"
 #include "da_store_obs_grid_info.inc"

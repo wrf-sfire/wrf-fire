@@ -16,7 +16,7 @@ real function da_dot_cv(cv_size, x, y, grid, mzs, jp_start, jp_end)
    real,             intent(in) :: y(cv_size)        ! 1st vector.
    type(domain),     intent(in) :: grid              ! decomposed dimensions
 #ifdef CLOUD_CV
-   integer,          intent(in) :: mzs(10)            ! mz for each variable
+   integer,          intent(in) :: mzs(11)            ! mz for each variable
                                                      ! (to identify 2D arrays)
 #else
    integer,          intent(in) :: mzs(7)            ! mz for each variable
@@ -78,11 +78,11 @@ real function da_dot_cv(cv_size, x, y, grid, mzs, jp_start, jp_end)
 
       dtemp1(1) = da_dot(cv_size, xx, yy)
       
-      if (.not. global) then
+      !if (.not. global) then
          dtmp = dtemp1(1)
          ! summation across processors:
          dtemp1(1) = wrf_dm_sum_real(dtmp)
-      end if
+      !end if
 
    end if
   

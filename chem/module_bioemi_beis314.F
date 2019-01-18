@@ -1,8 +1,11 @@
-MODULE module_bioemi_beis313
+MODULE module_bioemi_beis314
 
+!
+!  BEIS3.14 Modified to include sesquiterpenes and MBO
 !  BEIS3.13 Emissions Module for WRF-Chem
 !  BEIS3.11 Written by Greg Frost 6/2004
 !
+!  Modified to BEIS3.14 by Stu McKeen 11/9/09 - addition of sesquiterpene total emissions
 !  Modified to BEIS3.13 by Stu McKeen 9/27/07
 ! Note: species to vegetation assignment table (beis3_efac_v0.99_053105.txt) must be
 ! applied to front end for BEIS3.13 reference emission files - done outside of WRF-Chem
@@ -24,15 +27,17 @@ MODULE module_bioemi_beis313
 !23456789 123456789 123456789 123456789 123456789 123456789 123456789 12
 
     CONTAINS
-      SUBROUTINE bio_emissions_beis313(id,config_flags,ktau,curr_secs, &
+      SUBROUTINE bio_emissions_beis314(id,config_flags,ktau,curr_secs, &
                dtstep,julday,gmt,xlat,xlong,t_phy,p_phy,gsw,           &
                sebio_iso,sebio_oli,sebio_api,sebio_lim,sebio_xyl,      &
                sebio_hc3,sebio_ete,sebio_olt,sebio_ket,sebio_ald,      &
                sebio_hcho,sebio_eth,sebio_ora2,sebio_co,sebio_nr,      &
+               sebio_sesq,sebio_mbo,                                   & 
                noag_grow,noag_nongrow,nononag,slai,                    &
                ebio_iso,ebio_oli,ebio_api,ebio_lim,ebio_xyl,           &
                ebio_hc3,ebio_ete,ebio_olt,ebio_ket,ebio_ald,           &
                ebio_hcho,ebio_eth,ebio_ora2,ebio_co,ebio_nr,ebio_no,   &
+               ebio_sesq,ebio_mbo,                                     & ! sesq and mbo are added
                ids,ide, jds,jde, kds,kde,                              &
                ims,ime, jms,jme, kms,kme,                              &
                its,ite, jts,jte, kts,kte                               )
@@ -75,6 +80,7 @@ MODULE module_bioemi_beis313
                sebio_iso,sebio_oli,sebio_api,sebio_lim,sebio_xyl,      &
                sebio_hc3,sebio_ete,sebio_olt,sebio_ket,sebio_ald,      &
                sebio_hcho,sebio_eth,sebio_ora2,sebio_co,sebio_nr,      &
+               sebio_sesq,sebio_mbo,                                   &
                noag_grow,noag_nongrow,nononag
 
 ! Leaf area index for isoprene
@@ -86,8 +92,8 @@ MODULE module_bioemi_beis313
           INTENT(INOUT  ) ::                                           &
                ebio_iso,ebio_oli,ebio_api,ebio_lim,ebio_xyl,           &
                ebio_hc3,ebio_ete,ebio_olt,ebio_ket,ebio_ald,           &
-               ebio_hcho,ebio_eth,ebio_ora2,ebio_co,ebio_nr,ebio_no
-
+               ebio_hcho,ebio_eth,ebio_ora2,ebio_co,ebio_nr,ebio_no,   &
+               ebio_sesq,ebio_mbo   
 
 ! .. Local Scalars .. 
 
@@ -104,6 +110,7 @@ MODULE module_bioemi_beis313
       REAL  :: se_iso,se_oli,se_api,se_lim,se_xyl,      &
                se_hc3,se_ete,se_olt,se_ket,se_ald,      &
                se_hcho,se_eth,se_ora2,se_co,se_nr,      &
+               se_mbo,se_sesq,                          & 
                growagno,ngrowagno,nonagno
 !   leaf area index for isoprene
       REAL  ::  tlai  
@@ -141,7 +148,7 @@ MODULE module_bioemi_beis313
 !   hrno           algorithm to estimate NO emissions; does not include precipitation adjustment
 
 !***************************************
-!   begin body of subroutine bio_emissions_beis313
+!   begin body of subroutine bio_emissions_beis314
                          
 ! hour into integration
 !The old gmtp method will break for runs longer than about 12 days with r4
@@ -149,7 +156,7 @@ MODULE module_bioemi_beis313
       gmtp = curr_secs/3600._8
 !     
       gmtp=mod(gmt+gmtp,24.)
-      write(mesg,*) 'calculate beis313 emissions at gmtp = ',gmtp
+      write(mesg,*) 'calculate beis314 emissions at gmtp = ',gmtp
       call wrf_debug(15,mesg)
       DO 100 j=jts,jte  
       DO 100 i=its,ite  
@@ -175,6 +182,11 @@ MODULE module_bioemi_beis313
            se_ora2  = sebio_ora2(i,j)
            se_co  = sebio_co(i,j)
            se_nr  = sebio_nr(i,j)
+
+           ! SESQ and MBO are added
+           se_sesq  = sebio_sesq(i,j)
+           se_mbo  = sebio_mbo(i,j)
+
            growagno = noag_grow(i,j)
            ngrowagno = noag_nongrow(i,j) 
            nonagno = nononag(i,j)
@@ -272,6 +284,10 @@ MODULE module_bioemi_beis313
            ebio_ora2(i,j)  =  se_ora2 * cfovoc
            ebio_co(i,j)    =  se_co * cfovoc
            ebio_nr(i,j)    =  se_nr * cfovoc
+
+           ! SESQ and MBO are added
+           ebio_sesq(i,j)  =  se_sesq * cfovoc
+           ebio_mbo(i,j)   =  se_mbo * cfovoc
 
 !... NO emissions
 
@@ -384,7 +400,7 @@ MODULE module_bioemi_beis313
             RETURN
             END FUNCTION cguen
 
-      END SUBROUTINE bio_emissions_beis313
+      END SUBROUTINE bio_emissions_beis314
 
 !=================================================================
 
@@ -881,4 +897,4 @@ MODULE module_bioemi_beis313
       END FUNCTION growseason
 
 
-END MODULE module_bioemi_beis313
+END MODULE module_bioemi_beis314

@@ -55,12 +55,14 @@ subroutine da_setup_obs_structures_ascii( ob, iv, grid )
    !--------------------------------------------------------------------------
   
    if (num_fgat_time > 1) then
-      filename = ' '
+!      filename = ' '
 
       do n=1, num_fgat_time
-         iv%time = n
 
-         write(filename(1:10), fmt='(a, i2.2, a)') 'ob', n,'.ascii'
+         iv%time = n
+         filename = ' '
+
+        write(filename(1:10), fmt='(a, i2.2, a)') 'ob', n,'.ascii'
 
          ! scan main body of gts observation file
          call da_scan_obs_ascii (iv, filename)
@@ -77,6 +79,7 @@ subroutine da_setup_obs_structures_ascii( ob, iv, grid )
             call da_scan_obs_radar(iv, filename)
             print*,'scan radar obs ',n,filename(1:10),iv%info(:)%ntotal, iv%info(:)%nlocal
          end if
+
          iv%info(:)%plocal(n) = iv%info(:)%nlocal
          iv%info(:)%ptotal(n) = iv%info(:)%ntotal
       end do
@@ -108,8 +111,10 @@ subroutine da_setup_obs_structures_ascii( ob, iv, grid )
    call da_allocate_observations (iv)
 
    if (num_fgat_time > 1) then
+
       do n=1, num_fgat_time
          iv%time = n
+         filename = ' '  
 
          write(filename(1:10), fmt='(a, i2.2, a)') 'ob', n,'.ascii'
 
@@ -127,6 +132,7 @@ subroutine da_setup_obs_structures_ascii( ob, iv, grid )
             write(filename(1:10), fmt='(a, i2.2, a)') 'ob', n,'.radar'
             call da_read_obs_radar(iv, filename)
          end if
+
       end do
    else
       iv%time = 1

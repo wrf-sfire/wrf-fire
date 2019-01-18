@@ -23,6 +23,8 @@ subroutine da_transform_xtoxa(grid)
    ! [4.0]: Move the following:
    !----------------------------------------------------------------------
 
+   if ( .not. var4d ) then ! for 4dvar the xa%p is come from the model
+
    do j=jts,jte
       do i=its,ite
         if ((fg_format==fg_format_wrf_arw_regional) .or. &
@@ -67,13 +69,10 @@ subroutine da_transform_xtoxa(grid)
       end do
    end do
 
+   endif ! only for 3dvar
+
    call da_pt_to_rho_lin(grid)
  
-   ! If test_transforms = .true., not "XToY" transform needed to do here:
-
-   if (.not.test_transforms) then
-      ! Exchange grid%xa halo region.
-
 #ifdef A2C
   if ((fg_format==fg_format_wrf_arw_regional  .or. &
        fg_format==fg_format_wrf_arw_global  ) .and. ide == ipe ) then
@@ -104,6 +103,11 @@ subroutine da_transform_xtoxa(grid)
      jde = jde - 1
   end if
 #endif
+
+   ! If test_transforms = .true., not "XToY" transform needed to do here:
+
+   if (.not.test_transforms) then
+      ! Exchange grid%xa halo region.
 
       if (sfc_assi_options == 2) then
          call da_transform_xtowtq (grid)
@@ -145,7 +149,7 @@ subroutine da_transform_xtoxa(grid)
    ! Compute w increments using Richardson's eqn.
 
    if ( Use_RadarObs ) then
-      call da_uvprho_to_w_lin(grid)
+      if ( .not. var4d) call da_uvprho_to_w_lin(grid)
 
       do k=kts,kte
          do j=jts,jte
@@ -162,7 +166,6 @@ subroutine da_transform_xtoxa(grid)
 
    if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
     if ( cloud_cv_options == 1 )then
-      print*,'Options: set CLOUD_CV and cloud_cv_options to 2 or 3 !'
       ! Partition of hydrometeor increments via warm rain process
       call da_moist_phys_lin(grid)
     end if

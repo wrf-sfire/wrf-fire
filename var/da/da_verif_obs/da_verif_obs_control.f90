@@ -111,12 +111,15 @@ MODULE da_verif_obs_control
   LOGICAL  :: if_plot_profiler
   LOGICAL  :: if_plot_polaramv 
   LOGICAL  :: if_plot_geoamv   
+  LOGICAL  :: if_plot_tamdar
 
   LOGICAL  :: if_plot_gpspw 
   LOGICAL  :: if_plot_gpsref
   LOGICAL  :: if_plot_airsret 
 ! record5
   character (len=50)    :: file_path_string
+  character (len=512)   :: wrf_file
+  integer  :: istart, iend, jstart, jend
 
   NAMELIST /Record1/ exp_num, exp_dirs, out_dirs
   NAMELIST /Record2/ start_date, end_date, interval
@@ -125,8 +128,9 @@ MODULE da_verif_obs_control
                      if_plot_ships, if_plot_buoy , if_plot_qscat, &
                      if_plot_sound, if_plot_airep, if_plot_pilot, if_plot_profiler, &
                      if_plot_geoamv, if_plot_polaramv, if_plot_gpspw, if_plot_gpsref, &
-                     if_plot_airsret
+                     if_plot_airsret, if_plot_tamdar
   NAMELIST /Record5/ file_path_string
+  NAMELIST /Record6/ wrf_file, istart, iend, jstart, jend
 !
 ! Namelist declaration over
   integer      :: nml_unit, diag_unit_in, diag_unit_out, info_unit, plot_stats_unit

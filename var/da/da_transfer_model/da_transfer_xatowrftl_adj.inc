@@ -12,8 +12,6 @@ subroutine da_transfer_xatowrftl_adj(grid, config_flags, filnam)
 
    character*4, intent(in) :: filnam
 
-#ifdef VAR4D
-
    ! Local variables
 
    integer :: i, j, k, bid, ierr, ii, jj, spec_bdy_width
@@ -39,6 +37,8 @@ subroutine da_transfer_xatowrftl_adj(grid, config_flags, filnam)
 
    if ( .not. adj_sens ) then
 
+#ifdef VAR4D
+
    call kj_swap_reverse (model_grid%a_u_2, grid%a_u_2, &
                  grid%xp%ims, grid%xp%ime, grid%xp%jms, grid%xp%jme, grid%xp%kms, grid%xp%kme)
    call kj_swap_reverse (model_grid%a_v_2, grid%a_v_2, &
@@ -49,8 +49,14 @@ subroutine da_transfer_xatowrftl_adj(grid, config_flags, filnam)
                  grid%xp%ims, grid%xp%ime, grid%xp%jms, grid%xp%jme, grid%xp%kms, grid%xp%kme)
    call kj_swap_reverse (model_grid%a_ph_2, grid%a_ph_2, &
                  grid%xp%ims, grid%xp%ime, grid%xp%jms, grid%xp%jme, grid%xp%kms, grid%xp%kme)
+   call kj_swap_reverse (model_grid%a_p, grid%a_p, &
+                 grid%xp%ims, grid%xp%ime, grid%xp%jms, grid%xp%jme, grid%xp%kms, grid%xp%kme)
 
    grid%a_mu_2 = model_grid%a_mu_2
+   grid%a_rainnc  = model_grid%a_rainnc
+   grid%a_rainncv = model_grid%a_rainncv
+   grid%a_rainc  = model_grid%a_rainc
+   grid%a_raincv = model_grid%a_raincv
 
    do i = PARAM_FIRST_SCALAR, num_moist
       call kj_swap_reverse (model_grid%a_moist(:,:,:,i), grid%a_moist(:,:,:,i), &
@@ -58,6 +64,17 @@ subroutine da_transfer_xatowrftl_adj(grid, config_flags, filnam)
    enddo
 
    call da_transfer_wrftl_lbc_t0_adj ( grid )
+
+   ! output gradient here, without LBC control 
+   if ( .not. trajectory_io .or. var4d_detail_out ) then
+      config_flags%auxhist7_outname = "gradient_d<domain>_<date>"
+      call  med_hist_out ( grid , AUXHIST7_ALARM , config_flags )
+      WRITE(message(1), FMT='(A)') 'Output gradient at 0h (including LBC gradient)'
+      CALL da_message ( message(1:1) )
+      config_flags%auxhist7_outname = "auxhist7_d<domain>_<date>"
+   endif
+
+#endif
 
    else
 
@@ -229,19 +246,30 @@ subroutine da_transfer_xatowrftl_adj(grid, config_flags, filnam)
    !---------------------------------------------------------------------------
 
    a_press(its:ite,jts:jte,kts:kte+1)=0.0
+
    do k=kte,kts,-1
       do j=jts,jte
          do i=its,ite
-            rho_cgrid=-(grid%ph_2(i,j,k+1)-grid%ph_2(i,j,k))*grid%a_ph_2(i,j,k+1)/grid%xb%rho(i,j,k)
-            a_press(i,j,k )=a_press(i,j,k )+grid%a_ph_2(i,j,k+1)/grid%xb%rho(i,j,k)
-            a_press(i,j,k+1)=a_press(i,j,k+1)-grid%a_ph_2(i,j,k+1)/grid%xb%rho(i,j,k)
-            grid%a_ph_2(i,j,k ) =grid%a_ph_2(i,j,k)   +grid%a_ph_2(i,j,k+1)
-            grid%xa%q(i,j,k)=grid%xa%q(i,j,k)-grid%xb%rho(i,j,k)*0.61*rho_cgrid/(1.0+0.61*grid%xb%q(i,j,k))
-            grid%xa%t(i,j,k)=grid%xa%t(i,j,k)-grid%xb%rho(i,j,k)*rho_cgrid/grid%xb%t(i,j,k)
-            grid%xa%p(i,j,k)= grid%xa%p(i,j,k)+grid%xb%rho(i,j,k)*rho_cgrid/grid%xb%p(i,j,k)
+            grid%xa%p(i,j,k)= grid%xa%p(i,j,k)+grid%a_p(i,j,k)
          end do
       end do
    end do
+
+   grid%a_p = 0.0
+
+!  do k=kte,kts,-1
+!     do j=jts,jte
+!        do i=its,ite
+!           rho_cgrid=-(grid%ph_2(i,j,k+1)-grid%ph_2(i,j,k))*grid%a_ph_2(i,j,k+1)/grid%xb%rho(i,j,k)
+!           a_press(i,j,k )=a_press(i,j,k )+grid%a_ph_2(i,j,k+1)/grid%xb%rho(i,j,k)
+!           a_press(i,j,k+1)=a_press(i,j,k+1)-grid%a_ph_2(i,j,k+1)/grid%xb%rho(i,j,k)
+!           grid%a_ph_2(i,j,k ) =grid%a_ph_2(i,j,k)   +grid%a_ph_2(i,j,k+1)
+!           grid%xa%q(i,j,k)=grid%xa%q(i,j,k)-grid%xb%rho(i,j,k)*0.61*rho_cgrid/(1.0+0.61*grid%xb%q(i,j,k))
+!           grid%xa%t(i,j,k)=grid%xa%t(i,j,k)-grid%xb%rho(i,j,k)*rho_cgrid/grid%xb%t(i,j,k)
+!           grid%xa%p(i,j,k)= grid%xa%p(i,j,k)+grid%xb%rho(i,j,k)*rho_cgrid/grid%xb%p(i,j,k)
+!        end do
+!     end do
+!  end do
 
    do k=kts,kte
       do j=jts,jte
@@ -316,9 +344,13 @@ subroutine da_transfer_xatowrftl_adj(grid, config_flags, filnam)
 
    grid%a_moist = 0.0
 
+   grid%a_rainnc = 0.0
+   grid%a_rainncv = 0.0
+   grid%a_rainc = 0.0
+   grid%a_raincv = 0.0
+
    if (trace_use) call da_trace_exit("da_transfer_xatowrftl_adj")
 
-#endif
 end subroutine da_transfer_xatowrftl_adj
 
 

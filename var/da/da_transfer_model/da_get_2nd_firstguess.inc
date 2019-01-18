@@ -32,7 +32,7 @@
                                     grid%sm31, grid%em31, grid%sm32, grid%em32, 1, 1, &
                                     grid%sp31, grid%ep31, grid%sp32, grid%ep32, 1, 1 )
 
-   CALL da_calc_2nd_fg ( grid%u_2 , grid%u_bxs, model_grid%u_bxe, grid%u_bys, grid%u_bye, &
+   CALL da_calc_2nd_fg ( grid%u_2 , grid%u_bxs, grid%u_bxe, grid%u_bys, grid%u_bye, &
                                     grid%u_btxs, grid%u_btxe, grid%u_btys, grid%u_btye,    &
                                     REAL(interval_seconds), 'U' , spec_bdy_width      , &
                                     grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
@@ -59,6 +59,10 @@
                                     grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
                                     grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
                                     grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+
+#ifdef DM_PARALLEL
+#include "HALO_EM_E.inc"
+#endif
 
    CALL decouple ( grid%mu_2 , grid%mub , grid%u_2                 , 'u' , grid%msfuy , &
                                     grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &

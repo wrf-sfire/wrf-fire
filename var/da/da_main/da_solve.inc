@@ -36,6 +36,9 @@
    integer   :: max_yyyy,max_mm,max_dd,max_hh,max_mn,max_ss
    character :: s
    real*8    :: time_min, time_max 
+   integer   :: jl_start, jl_end
+   character(len=256) :: timestr1
+   type(x_type) :: shuffle
    
    if (trace_use) call da_trace_entry("da_solve")
 
@@ -82,6 +85,18 @@
        num_fgat_time = num_fgat_time + 1
        write(unit=message(1),fmt='(a,i10)') 'num_fgat_time is: ', num_fgat_time
        call da_message(message(1:1))
+       if ( use_rainobs ) then
+          allocate (fgat_rain_flags(1:num_fgat_time))
+          fgat_rain_flags = .false.
+          if ( INT(var4d_bin_rain/var4d_bin)*var4d_bin .ne. INT(var4d_bin_rain) ) then
+             write(unit=message(1),fmt='(A,A,2I7)') &
+             'Please change var4d_bin_rain in namelist and rerun==>', 'var4d_bin_rain, var4d_bin:',var4d_bin_rain,var4d_bin
+             call da_error(__FILE__,__LINE__,message(1:1))
+          endif
+          do n = 1, num_fgat_time, INT(var4d_bin_rain/var4d_bin)
+             fgat_rain_flags(n) = .true.
+          end do
+       end if
     endif
 
    !---------------------------------------------------------------------------
@@ -176,7 +191,6 @@
          call da_calculate_residual(iv, y, re)
          call da_calculate_grady(iv, re, jo_grad_y)
          call da_zero_x(grid%xa)
- 
 
          call da_transform_xtoy_adj(cv_size, xhat, grid, iv, jo_grad_y, grid%xa)
          call da_transform_xtoxa_adj(grid)
@@ -203,7 +217,16 @@
    !---------------------------------------------------------------------------
    ! [5.1] Set up background errors (be):
    !---------------------------------------------------------------------------
-   if (use_background_errors) call da_setup_background_errors (grid, be)
+   if (use_background_errors .and. multi_inc /= 1) then
+      call da_setup_background_errors (grid, be)
+   else
+      be % ne = ensdim_alpha
+      be % v1 % mz = 0
+      be % v2 % mz = 0
+      be % v3 % mz = 0
+      be % v4 % mz = 0
+      be % v5 % mz = 0
+   end if
 
    !---------------------------------------------------------------------------
    ! [5.2] Set up observation bias correction (VarBC):
@@ -268,6 +291,9 @@
       if (it > 1 .and. cv_options == 5) then
          print '(/10X,"===> Re-set BE SCALINGS for outer-loop=",i2)', it
          call  da_scale_background_errors ( be, it )
+      else if (it > 1 .and. cv_options == 3) then
+         print '(/10X,"===> Re-set CV3 BE SCALINGS for outer-loop=",i2)', it
+         call  da_scale_background_errors_cv3 ( grid, be, it )
       endif
 
       call da_initialize_cv (cv_size, xhat)
@@ -314,6 +340,10 @@
             model_grid%v_bxe = grid%v_bxe
             model_grid%v_bys = grid%v_bys
             model_grid%v_bye = grid%v_bye
+            model_grid%w_bxs = grid%w_bxs
+            model_grid%w_bxe = grid%w_bxe
+            model_grid%w_bys = grid%w_bys
+            model_grid%w_bye = grid%w_bye
             model_grid%t_bxs = grid%t_bxs
             model_grid%t_bxe = grid%t_bxe
             model_grid%t_bys = grid%t_bys
@@ -339,6 +369,10 @@
             model_grid%v_btxe = grid%v_btxe
             model_grid%v_btys = grid%v_btys
             model_grid%v_btye = grid%v_btye
+            model_grid%w_btxs = grid%w_btxs
+            model_grid%w_btxe = grid%w_btxe
+            model_grid%w_btys = grid%w_btys
+            model_grid%w_btye = grid%w_btye
             model_grid%t_btxs = grid%t_btxs
             model_grid%t_btxe = grid%t_btxe
             model_grid%t_btys = grid%t_btys
@@ -356,7 +390,7 @@
             model_grid%moist_btys = grid%moist_btys
             model_grid%moist_btye = grid%moist_btye
 
-            ! Turn off model boundary reading ad we already provide a new one.
+            ! Turn off model boundary reading as we already provide a new one.
             call da_model_lbc_off
          endif
 
@@ -372,11 +406,23 @@
 
       num_qcstat_conv=0
       call da_get_innov_vector (it, num_qcstat_conv, ob, iv, grid , config_flags)
-      
+      if ( multi_inc == 1 ) return      
 
-      if (test_transforms) then
-         call da_check (grid, config_flags, cv_size, xbx, be, grid%ep, iv, &
+      if (test_transforms .or. test_gradient) then
+
+         if (test_gradient) then
+            call da_allocate_y (iv, re)
+            call da_allocate_y (iv, y)
+            call da_check_gradient (grid, config_flags, cv_size, xhat, cvt, 1.0e-10, 8, &
+                         xbx, be, iv, y, re, j)
+            call da_deallocate_y (re)
+            call da_deallocate_y (y)
+         endif
+
+         if (test_transforms) then
+            call da_check (grid, config_flags, cv_size, xbx, be, grid%ep, iv, &
                         grid%vv, grid%vp, y)
+         endif
 
          ! No point continuing, as data corrupted
          call da_wrfvar_finalize
@@ -399,21 +445,34 @@
       call da_allocate_y (iv, y)
 
       if (use_lanczos) then
-         call da_minimise_lz( grid, config_flags, it, be % cv % size, & 
-            xbx, be, iv, j_grad_norm_target, xhat, qhat, cvt, re, y, j, eignvec, eignval, neign)  
+         if (read_lanczos) then
+            call da_lanczos_io('r',cv_size,ntmax,neign,eignvec,eignval,qhat)
+
+            call da_kmat_mul(grid,config_flags,it,cv_size,xbx, &
+                             be,iv,xhat,qhat,cvt,re,y,j,eignvec,eignval,neign)
+          ! Output Cost Function
+            call da_calculate_j(it, 1, cv_size, be%cv%size_jb, be%cv%size_je, be%cv%size_jp, &
+                             be%cv%size_jl, xbx, be, iv, xhat, cvt, re, y, j, xhat, grid, config_flags)
+         else
+            call da_minimise_lz(grid, config_flags, it, cv_size, xbx,& 
+                             be, iv, j_grad_norm_target, xhat, qhat, cvt, re, y, j, eignvec, eignval, neign)  
+
+         end if
+
+         if (write_lanczos) call da_lanczos_io('w',cv_size,ntmax,neign,eignvec,eignval,qhat)
+
+         if (adj_sens) call da_sensitivity(grid,config_flags,cv_size,xbx, &
+                                           be,iv,xhat,qhat,cvt,y,eignvec,eignval,neign)
+
 	 
-!	 do i = 1, neign
-!	    full_eignvec = SQRT(eignval(i)) * MATMUL(qhat(1:cv_size,1:neign), eignvec(1:neign,i))
-!            call da_transform_vtox (grid,cv_size,xbx,be,grid%ep,full_eignvec,grid%vv,grid%vp)
-!            call da_transform_xtoxa (grid)   
-!            call da_transfer_xatoanalysis (it, xbx, grid, config_flags)
-!            write(UNIT=ci,FMT='(i2.2)') i
-!            call da_med_initialdata_output(grid, config_flags, 'wrfvar_output.e'//trim(ci))	    
-!	 end do   	    
       else
          call da_minimise_cg( grid, config_flags, it, be % cv % size, & 
             xbx, be, iv, j_grad_norm_target, xhat, cvt, re, y, j)
       end if
+ 
+      ! Update outer-loop control variable
+      cvt = cvt + xhat
+
       !------------------------------------------------------------------------
 
       ! reset cv to random noise
@@ -422,7 +481,7 @@
       end if
 
       ! [8.5] Update latest analysis solution:
-
+  
       if (.not. var4d) then
          call da_transform_vtox (grid,cv_size,xbx,be,grid%ep,xhat,grid%vv,grid%vp)
       else
@@ -433,7 +492,7 @@
       ! [8.6] Only when use_radarobs = .false. and calc_w_increment =.true.,
       !       the w_increment need to be diagnosed:
 
-      if (calc_w_increment .and. .not. use_radarobs) then
+      if (calc_w_increment .and. .not. use_radarobs .and. .not. var4d) then
          call da_uvprho_to_w_lin (grid)
 
 #ifdef DM_PARALLEL
@@ -495,11 +554,42 @@
         write(outerloop,'(i2.2)') it
         call da_med_initialdata_output (grid , config_flags, 'wrfvar_output_'//outerloop)
 #ifdef VAR4D
-        if (var4d) call da_med_initialdata_output_lbc (grid , config_flags, 'wrfvar_bdyout_'//outerloop)
+        !if (var4d) call da_med_initialdata_output_lbc (grid , config_flags, 'wrfvar_bdyout_'//outerloop)
 #endif
      end if
 
+     call da_deallocate_y (re)
+     call da_deallocate_y (y)
+
    end do
+
+   ! output wrfvar analysis
+
+   if ((config_flags%real_data_init_type == 1) .or. &
+       (config_flags%real_data_init_type == 3)) then
+      call da_med_initialdata_output (head_grid, config_flags)
+#ifdef VAR4D
+      !if (var4d) call da_med_initialdata_output_lbc (head_grid , config_flags)
+      if ( var4d_lbc ) then
+         call domain_clock_get (grid, stop_timestr=timestr1)
+         call domain_clock_set( grid, current_timestr=timestr1 )
+         call da_med_initialdata_input (grid, config_flags, 'fg02')
+         call da_setup_firstguess(xbx, grid, config_flags)
+         shuffle = grid%xa
+         jl_start    = be%cv%size_jb + be%cv%size_je + be%cv%size_jp + 1
+         jl_end      = be%cv%size_jb + be%cv%size_je + be%cv%size_jp + be%cv%size_jl
+         grid%xa  = grid%x6a
+         call da_transform_vtox(grid, be%cv%size_jl, xbx, be, grid%ep, &
+              xhat(jl_start:jl_end), grid%vv6, grid%vp6)
+         grid%xa  = shuffle
+         call da_transfer_xatoanalysis (it, xbx, grid, config_flags)
+         call da_med_initialdata_output (grid, config_flags,'ana02')
+         call domain_clock_get (grid, start_timestr=timestr1)
+         call domain_clock_set( grid, current_timestr=timestr1 )
+      endif
+#endif
+      call med_shutdown_io (grid, config_flags)
+   end if
 
    !---------------------------------------------------------------------------
    ! [9.0] Tidy up:
@@ -704,9 +794,8 @@
    end if
 #endif
 
+   if (var4d .and. use_rainobs) deallocate(fgat_rain_flags)
    call da_deallocate_observations (iv)
-   call da_deallocate_y (re)
-   call da_deallocate_y (y)
    call da_deallocate_y (ob)
    if (use_background_errors) call da_deallocate_background_errors (be)
 
@@ -739,9 +828,6 @@
          deallocate (sin_xle)
       end if
    end if
-!  rizvi TBD in da_transfer_wrf_nmmtoxb.inc
-   if( fg_format /= fg_format_wrf_nmm_regional ) &
-   deallocate (xbx % latc_mean)
 
 #ifdef DM_PARALLEL
    call mpi_barrier (comm,ierr)

@@ -28,6 +28,7 @@ subroutine da_deallocate_background_errors (be)
       if (be % v6 % mz > 0) deallocate (be % v6 % val)
       if (be % v7 % mz > 0) deallocate (be % v7 % val)
       if (be % v8 % mz > 0) deallocate (be % v8 % val)
+      if (be % v9 % mz > 0) deallocate (be % v9 % val)
 #endif    
       if (be % v1 % mz > 0) deallocate (be % v1 % rf_alpha)
       if (be % v2 % mz > 0) deallocate (be % v2 % rf_alpha)
@@ -38,6 +39,7 @@ subroutine da_deallocate_background_errors (be)
       if (be % v6 % mz > 0) deallocate (be % v6 % rf_alpha)
       if (be % v7 % mz > 0) deallocate (be % v7 % rf_alpha)
       if (be % v8 % mz > 0) deallocate (be % v8 % rf_alpha)
+      if (be % v9 % mz > 0) deallocate (be % v9 % rf_alpha)
 #endif
       if (global) then
          if (be % v1 % mz > 0) deallocate (be % v1 % power)
@@ -59,6 +61,7 @@ subroutine da_deallocate_background_errors (be)
          if (be % v6 % mz > 0) deallocate (be % v6 % evec)
          if (be % v7 % mz > 0) deallocate (be % v7 % evec)
          if (be % v8 % mz > 0) deallocate (be % v8 % evec)
+         if (be % v9 % mz > 0) deallocate (be % v9 % evec)
 #endif
          if (be % v1 % mz > 0) deallocate (be % v1 % evec_g)
          if (be % v2 % mz > 0) deallocate (be % v2 % evec_g)
@@ -69,6 +72,7 @@ subroutine da_deallocate_background_errors (be)
          if (be % v6 % mz > 0) deallocate (be % v6 % evec_g)
          if (be % v7 % mz > 0) deallocate (be % v7 % evec_g)
          if (be % v8 % mz > 0) deallocate (be % v8 % evec_g)
+         if (be % v9 % mz > 0) deallocate (be % v9 % evec_g)
 #endif
          if (be % v1 % mz > 0) deallocate (be % v1 % val_g)
          if (be % v2 % mz > 0) deallocate (be % v2 % val_g)
@@ -79,18 +83,21 @@ subroutine da_deallocate_background_errors (be)
          if (be % v6 % mz > 0) deallocate (be % v6 % val_g)
          if (be % v7 % mz > 0) deallocate (be % v7 % val_g)
          if (be % v8 % mz > 0) deallocate (be % v8 % val_g)
+         if (be % v9 % mz > 0) deallocate (be % v9 % val_g)
 #endif
       end if
 
       deallocate (be % reg_psi_chi)
       deallocate (be % reg_psi_t)
       deallocate (be % reg_psi_ps)
-      deallocate (be % reg_psi_rh)
-      deallocate (be % reg_chi_u_t)
-      deallocate (be % reg_chi_u_ps)
-      deallocate (be % reg_chi_u_rh)
-      deallocate (be % reg_t_u_rh)
-      deallocate (be % reg_ps_u_rh)
+      if ( cv_options == 6 ) then
+         deallocate (be % reg_psi_rh)
+         deallocate (be % reg_chi_u_t)
+         deallocate (be % reg_chi_u_ps)
+         deallocate (be % reg_chi_u_rh)
+         deallocate (be % reg_t_u_rh)
+         deallocate (be % reg_ps_u_rh)
+      end if
 
       ! Deallocate control variable errors (in future uncomment use these to allow 
       ! eg NMC error correlations).

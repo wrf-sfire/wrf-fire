@@ -23,6 +23,7 @@ subroutine da_transfer_wrftl_lbc_t0_adj (grid)
    IF ( ALLOCATED ( pbdy3dtemp1 ) ) DEALLOCATE ( pbdy3dtemp1 )
    IF ( ALLOCATED ( qbdy3dtemp1 ) ) DEALLOCATE ( qbdy3dtemp1 )
    IF ( ALLOCATED ( mbdy2dtemp1 ) ) DEALLOCATE ( mbdy2dtemp1 )
+!  IF ( ALLOCATED ( wbdy3dtemp1 ) ) DEALLOCATE ( wbdy3dtemp1 )
 
    ALLOCATE ( ubdy3dtemp1(ims:ime,jms:jme,kms:kme) )
    ALLOCATE ( vbdy3dtemp1(ims:ime,jms:jme,kms:kme) )
@@ -30,6 +31,7 @@ subroutine da_transfer_wrftl_lbc_t0_adj (grid)
    ALLOCATE ( pbdy3dtemp1(ims:ime,jms:jme,kms:kme) )
    ALLOCATE ( qbdy3dtemp1(ims:ime,jms:jme,kms:kme) )
    ALLOCATE ( mbdy2dtemp1(ims:ime,1:1,    jms:jme) )
+!  ALLOCATE ( wbdy3dtemp1(ims:ime,jms:jme,kms:kme) )
 
    ubdy3dtemp1 = 0.0
    vbdy3dtemp1 = 0.0
@@ -37,65 +39,72 @@ subroutine da_transfer_wrftl_lbc_t0_adj (grid)
    pbdy3dtemp1 = 0.0
    qbdy3dtemp1 = 0.0
    mbdy2dtemp1 = 0.0
+!  wbdy3dtemp1 = 0.0
 
    spec_bdy_width = grid%spec_bdy_width
 
-   if (var4d_lbc) then
+!  CALL a_stuff_bdytend_old ( wbdy3dtemp1 , REAL(interval_seconds) ,                 &
+!                             model_grid%a_w_btxs, model_grid%a_w_btxe,     &
+!                             model_grid%a_w_btys, model_grid%a_w_btye,     &
+!                             'W' , &
+!                             spec_bdy_width      , &
+!                             grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+!                             grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+!                             grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
-      CALL a_stuff_bdytend_old ( ubdy3dtemp1 , REAL(interval_seconds) ,                 &
-                                 model_grid%a_u_btxs, model_grid%a_u_btxe,     &
-                                 model_grid%a_u_btys, model_grid%a_u_btye,     &
-                                 'U' , &
-                                 spec_bdy_width      , &
-                                 grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
-                                 grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
-                                 grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+   CALL a_stuff_bdytend_old ( ubdy3dtemp1 , REAL(interval_seconds) ,                 &
+                              model_grid%a_u_btxs, model_grid%a_u_btxe,     &
+                              model_grid%a_u_btys, model_grid%a_u_btye,     &
+                              'U' , &
+                              spec_bdy_width      , &
+                              grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+                              grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+                              grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
-      CALL a_stuff_bdytend_old ( vbdy3dtemp1 , REAL(interval_seconds) ,                 &
-                                 model_grid%a_v_btxs, model_grid%a_v_btxe,     &
-                                 model_grid%a_v_btys, model_grid%a_v_btye,     &
-                                 'V' , &
-                                 spec_bdy_width      , &
-                                 grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
-                                 grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
-                                 grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+   CALL a_stuff_bdytend_old ( vbdy3dtemp1 , REAL(interval_seconds) ,                 &
+                              model_grid%a_v_btxs, model_grid%a_v_btxe,     &
+                              model_grid%a_v_btys, model_grid%a_v_btye,     &
+                              'V' , &
+                              spec_bdy_width      , &
+                              grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+                              grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+                              grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
-      CALL a_stuff_bdytend_old ( tbdy3dtemp1 , REAL(interval_seconds) ,                 &
-                                 model_grid%a_t_btxs, model_grid%a_t_btxe,     &
-                                 model_grid%a_t_btys, model_grid%a_t_btye,     &
-                                 'T' , &
-                                 spec_bdy_width      , &
-                                 grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
-                                 grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
-                                 grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+   CALL a_stuff_bdytend_old ( tbdy3dtemp1 , REAL(interval_seconds) ,                 &
+                              model_grid%a_t_btxs, model_grid%a_t_btxe,     &
+                              model_grid%a_t_btys, model_grid%a_t_btye,     &
+                              'T' , &
+                              spec_bdy_width      , &
+                              grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+                              grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+                              grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
-      CALL a_stuff_bdytend_old ( pbdy3dtemp1 , REAL(interval_seconds) ,                 &
-                                 model_grid%a_ph_btxs, model_grid%a_ph_btxe,     &
-                                 model_grid%a_ph_btys, model_grid%a_ph_btye,     &
-                                 'W' , &
-                                 spec_bdy_width      , &
-                                 grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
-                                 grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
-                                 grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+   CALL a_stuff_bdytend_old ( pbdy3dtemp1 , REAL(interval_seconds) ,                 &
+                              model_grid%a_ph_btxs, model_grid%a_ph_btxe,     &
+                              model_grid%a_ph_btys, model_grid%a_ph_btye,     &
+                              'W' , &
+                              spec_bdy_width      , &
+                              grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+                              grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+                              grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
-      CALL a_stuff_bdytend_old ( qbdy3dtemp1 , REAL(interval_seconds) ,                 &
-                                 model_grid%a_moist_btxs(:,:,:,P_A_QV), model_grid%a_moist_btxe(:,:,:,P_A_QV),     &
-                                 model_grid%a_moist_btys(:,:,:,P_A_QV), model_grid%a_moist_btye(:,:,:,P_A_QV),     &
-                                 'T' , &
-                                 spec_bdy_width      , &
-                                 grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
-                                 grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
-                                 grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+   CALL a_stuff_bdytend_old ( qbdy3dtemp1 , REAL(interval_seconds) ,                 &
+                              model_grid%a_moist_btxs(:,:,:,P_A_QV), model_grid%a_moist_btxe(:,:,:,P_A_QV),     &
+                              model_grid%a_moist_btys(:,:,:,P_A_QV), model_grid%a_moist_btye(:,:,:,P_A_QV),     &
+                              'T' , &
+                              spec_bdy_width      , &
+                              grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+                              grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+                              grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
-      CALL a_stuff_bdytend_old ( mbdy2dtemp1 , REAL(interval_seconds) ,                 &
-                                 model_grid%a_mu_btxs, model_grid%a_mu_btxe,     &
-                                 model_grid%a_mu_btys, model_grid%a_mu_btye,     &
-                                 'M' , &
-                                 spec_bdy_width      , &
-                                 grid%sd31, grid%ed31, grid%sd32, grid%ed32, 1, 1, &
-                                 grid%sm31, grid%em31, grid%sm32, grid%em32, 1, 1, &
-                                 grid%sp31, grid%ep31, grid%sp32, grid%ep32, 1, 1 )
-   endif
+   CALL a_stuff_bdytend_old ( mbdy2dtemp1 , REAL(interval_seconds) ,                 &
+                              model_grid%a_mu_btxs, model_grid%a_mu_btxe,     &
+                              model_grid%a_mu_btys, model_grid%a_mu_btye,     &
+                              'M' , &
+                              spec_bdy_width      , &
+                              grid%sd31, grid%ed31, grid%sd32, grid%ed32, 1, 1, &
+                              grid%sm31, grid%em31, grid%sm32, grid%em32, 1, 1, &
+                              grid%sp31, grid%ep31, grid%sp32, grid%ep32, 1, 1 )
 
    CALL a_stuff_bdy ( qbdy3dtemp1 , model_grid%a_moist_bxs(:,:,:,P_A_QV), model_grid%a_moist_bxe(:,:,:,P_A_QV),     &
                                     model_grid%a_moist_bys(:,:,:,P_A_QV), model_grid%a_moist_bye(:,:,:,P_A_QV),     &
@@ -134,6 +143,21 @@ subroutine da_transfer_wrftl_lbc_t0_adj (grid)
                                     grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
                                     grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
 
+!  CALL a_stuff_bdy ( wbdy3dtemp1 , model_grid%a_w_bxs, model_grid%a_w_bxe, model_grid%a_w_bys, model_grid%a_w_bye, &
+!                                   'W' , spec_bdy_width      , &
+!                                   grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+!                                   grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+!                                   grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+
+#ifdef DM_PARALLEL
+#include "HALO_EM_E.inc"
+#endif
+
+!  CALL a_couple ( model_config_flags, grid%mu_2 , grid%a_mu_2, grid%mub , wbdy3dtemp1 , grid%w_2, grid%a_w_2, 'h' , grid%msfty , &
+!                                   grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
+!                                   grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
+!                                   grid%sp31, grid%ep31, grid%sp32, grid%ep32, grid%sp33, grid%ep33 )
+
    CALL a_couple ( model_config_flags, grid%mu_2 , grid%a_mu_2, grid%mub , ubdy3dtemp1 , grid%u_2 , grid%a_u_2 , 'u' , grid%msfuy , &
                                     grid%sd31, grid%ed31, grid%sd32, grid%ed32, grid%sd33, grid%ed33, &
                                     grid%sm31, grid%em31, grid%sm32, grid%em32, grid%sm33, grid%em33, &
@@ -166,6 +190,9 @@ subroutine da_transfer_wrftl_lbc_t0_adj (grid)
       END DO
    END DO
 
+#ifdef DM_PARALLEL
+   call da_halo_em_e_ad ( grid%a_mu_2 )
+#endif
 
    DEALLOCATE ( ubdy3dtemp1 )
    DEALLOCATE ( vbdy3dtemp1 )
@@ -173,6 +200,7 @@ subroutine da_transfer_wrftl_lbc_t0_adj (grid)
    DEALLOCATE ( pbdy3dtemp1 )
    DEALLOCATE ( qbdy3dtemp1 )
    DEALLOCATE ( mbdy2dtemp1 )
+!  DEALLOCATE ( wbdy3dtemp1 )
 
    model_grid%a_w_bxs = 0.0
    model_grid%a_w_bxe = 0.0

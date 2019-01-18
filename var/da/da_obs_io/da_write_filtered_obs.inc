@@ -55,7 +55,7 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
    real               :: td, td_error , elv_error, ships_pr_error
 
    real               :: slp_inv,speed_err,dir_err, p,p_err
-   real               :: t, t_err,ref, ref_err
+   real               :: t, t_err,ref, ref_err, geom_h, geop_h
    integer            :: thick_qc, t_qc, td_qc, rh_qc, height_qc
    integer            :: slp_qc, speed_qc, dir_qc,p_qc, ref_qc
 
@@ -112,7 +112,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
       do n = 1, iv%info(synop)%nlocal
          if (.not.iv%info(synop)%proc_domain(1,n)) cycle
          ! Guo .. not write out the data below the lowest model level:
-         if (iv%info(synop)%zk(1,n) == missing_r) cycle
+         if (sfc_assi_options == sfc_assi_options_1 .and.  &
+             iv%info(synop)%zk(1,n) == missing_r) cycle
 
          nlevels = iv%info(synop)%levels(n)
          if (iv%info(synop)%levels(n) > 1) then
@@ -214,7 +215,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
       do n = 1, iv%info(metar)%nlocal
          if (.not. iv%info(metar)%proc_domain(1,n)) cycle
          ! Do not write out the data below the lowest model level:
-         if (iv%info(metar)%zk(1,n) == missing_r) cycle
+         if (sfc_assi_options == sfc_assi_options_1 .and.  &
+             iv%info(metar)%zk(1,n) == missing_r) cycle
 
          nlevels = iv%info(metar)%levels(n)
          if (iv%info(metar)%levels(n)> 1) then
@@ -314,7 +316,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
 
       do n = 1, iv%info(ships)%nlocal
          if (.not. iv%info(ships)%proc_domain(1,n)) cycle
-         if (iv%info(ships)%zk(1,n) == missing_r) cycle
+         if (sfc_assi_options == sfc_assi_options_1 .and.  &
+             iv%info(ships)%zk(1,n) == missing_r) cycle
                
          nlevels = iv%info(ships)%levels(n)
          if (iv%info(ships)%levels(n) > 1) then
@@ -412,7 +415,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
 
       do n = 1, iv%info(buoy)%nlocal
          if (.not. iv%info(buoy)%proc_domain(1,n)) cycle
-         if (iv%info(buoy)%zk(1,n) == missing_r) cycle
+         if (sfc_assi_options == sfc_assi_options_1 .and.  &
+             iv%info(buoy)%zk(1,n) == missing_r) cycle
                 
          nlevels = iv%info(buoy)%levels(n)
          if (iv%info(buoy)%levels(n) > 1) then
@@ -657,7 +661,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
                (/"Mismatch for Sound surface and upper air report"/))
          end if
          nz = 0
-         if (iv%info(sonde_sfc)%zk(1,n) == missing_r) then
+         if (sfc_assi_options == sfc_assi_options_1 .and.  &
+             iv%info(sonde_sfc)%zk(1,n) == missing_r) then
             nz = nz + 1
          end if
 
@@ -698,7 +703,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
          j  = 0
 
          ! Not below the first model level
-         if (iv%info(sonde_sfc)%zk(1,n) == missing_r) then
+         if (sfc_assi_options == sfc_assi_options_1 .and.  &
+             iv%info(sonde_sfc)%zk(1,n) == missing_r) then
             nz = nz + 1
          else
             j = j + 1
@@ -1267,7 +1273,8 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
 
             p    = ob%gpsref(n)%p(k)
             p_qc = iv%gpsref(n)%p(k)%qc 
-            if (iv%gpsref(n)%p(k)%qc <= fails_error_max) then
+            if (iv%gpsref(n)%p(k)%qc <= fails_error_max .and. &
+                .not.(iv%gpsref(n)%p(k)%qc == -5)) then
                p    = missing_r     
                p_qc = missing_data  
             end if
@@ -1287,17 +1294,23 @@ subroutine da_write_filtered_obs(it, grid, ob, iv, &
                ref    = missing_r     
                ref_qc = missing_data  
             end if
-
+!
+!  For GPSREF, convert the geopotential height to geometric height, then write
+!  out to filtered_obs (YRG, 06/15/2011):
+            geop_h = iv%gpsref(n)%h(k) / 1000.0
+            call da_geo2msl1 (geop_h, iv%info(gpsref)%lat(1,n), &
+                              iv%info(gpsref)%lon(1,n), geom_h)
+! ............................................................................
             write(ounit, fmt = trim (fmt_each))             &
                p,  p_qc, slp_error,                         &
                missing_r, missing_data, xmiss,              &
                missing_r, missing_data, xmiss,              &
-               iv%gpsref(n)%h(k), zero, height_error,       &
+               geom_h*1000.0,     zero, height_error,       &
                t, t_qc,  t_err,                             &   
                ref, ref_qc,  ref_err,                       &   
                rh, rh_qc, iv%gpsref(n)%q(k)%error
          end do 
-      end do 
+      end do
    end if
 
    !--------------------------------------------------------------------------

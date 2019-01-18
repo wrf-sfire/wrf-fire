@@ -38,7 +38,8 @@ subroutine da_check_xtoy_adjoint(cv_size, cv, xbx, be, grid, config_flags, iv, y
    real, dimension(ims:ime, jms:jme, kms:kme) :: x6a2_w
    real, dimension(ims:ime, jms:jme)          :: x6a2_psfc
    real, dimension(ims:ime, jms:jme, kms:kme) :: x6a2_qcw, x6a2_qci, x6a2_qrn, x6a2_qsn, x6a2_qgr
-   integer :: nobwin, ndynopt, i, j, k, jl_start, jl_end
+   real, dimension(:,:,:), allocatable :: a_hr_rainc, a_hr_rainnc
+   integer :: nobwin, i, j, k, fgat_rain
    character(len=4) :: filnam
    character(len=256) :: timestr
    integer :: time_step_seconds
@@ -129,14 +130,17 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
       call da_transfer_xatowrftl(grid, config_flags, 'tl01', timestr)
 
       if ( var4d_lbc ) then
-         call da_get_2nd_firstguess ( grid )
-         call da_setup_firstguess( xbx, grid, config_flags)
+         call domain_clock_get (grid, stop_timestr=timestr)
+         call domain_clock_set( grid, current_timestr=timestr )
+         grid%u_2 = u6_2 ; grid%v_2 = v6_2; grid%t_2 = t6_2;
+         grid%w_2 = w6_2 ; grid%mu_2 = mu6_2 ; grid%ph_2 =ph6_2
+         grid%moist = moist6; grid%p = p6; grid%psfc = psfc6
+         call da_transfer_wrftoxb(xbx, grid, config_flags)
 
+         call da_zero_x(grid%x6a)
          shuffle = grid%xa
-         jl_start    = be%cv%size_jb + be%cv%size_je + be%cv%size_jp + 1
-         jl_end      = be%cv%size_jb + be%cv%size_je + be%cv%size_jp + be%cv%size_jl
          grid%xa  = grid%x6a
-         call da_transform_vtox(grid, be%cv%size_jl, xbx, be, grid%ep, cv(jl_start:jl_end), grid%vv6, grid%vp6)
+         call da_setup_testfield(grid)
          grid%xa  = shuffle
 
          x6a2_u(ims:ime, jms:jme, kms:kme) = grid%x6a%u(ims:ime, jms:jme, kms:kme)
@@ -157,11 +161,20 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
          call da_transfer_xatowrftl_lbc(grid, config_flags, 'tl01')
 
          call domain_clock_get( grid, start_timestr=timestr )
+         call domain_clock_set( grid, current_timestr=timestr )
          call da_read_basicstates ( xbx, grid, config_flags, timestr )
-
+      else
+         call da_transfer_xatowrftl_lbc(grid, config_flags, 'tl01')
       endif
 
       call da_tl_model
+
+      if ( use_rainobs .and. num_fgat_time > 1 ) then
+         allocate (a_hr_rainc (ims:ime,jms:jme,1:num_fgat_time))
+         allocate (a_hr_rainnc(ims:ime,jms:jme,1:num_fgat_time))
+         a_hr_rainc =0.0
+         a_hr_rainnc=0.0
+      endif
 
       if (jcdfi_use) then
 
@@ -176,16 +189,12 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
                   pertile_lhs = pertile_lhs - config_flags%jcdfi_penalty * model_grid%jcdfi_v(i,k,j)**2 * &
                         grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
                   pertile_lhs = pertile_lhs - config_flags%jcdfi_penalty * model_grid%jcdfi_t(i,k,j)**2 * &
-                        cp/280.*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
+                        (9.81/3.0)**2*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
+                  pertile_lhs = pertile_lhs - config_flags%jcdfi_penalty * model_grid%jcdfi_p(i,k,j)**2 * &
+                        (1.0/300.)**2*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
                enddo
             enddo
          enddo 
-         do j = jms, jme
-            do i = ims, ime  
-               pertile_lhs = pertile_lhs - config_flags%jcdfi_penalty * model_grid%jcdfi_mu(i,j)**2 * gas_constant * &
-                     280./(1.0e5**2)*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
-            enddo
-         enddo
 
          ! We can not calculate the Y just with tile.
          partial_lhs = pertile_lhs
@@ -204,6 +213,7 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
       call domain_clockprint(150, grid, 'get CurrTime from clock,')
    endif
 
+   fgat_rain = num_fgat_time
    do nobwin= num_fgat_time, 1, -1
 
       iv%time = nobwin
@@ -217,6 +227,13 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
 
          write(filnam,'(a2,i2.2)') 'tl',nobwin
          call da_transfer_wrftltoxa(grid, config_flags, filnam, timestr)
+
+         if ( use_rainobs .and. num_fgat_time > 1 .and. fgat_rain_flags(nobwin) ) then
+!!!         We can not calculate the hourly rainfall in adjoint check, here, we just make sure the adjoint 
+!!!         algorithm is correct mathmatically. so the amount of forcings doesn't matter
+            a_hr_rainc (:,:,fgat_rain)=grid%g_rainc(:,:)
+            a_hr_rainnc(:,:,fgat_rain)=grid%g_rainnc(:,:)
+         endif
 #endif
       end if
 
@@ -264,7 +281,7 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
    ! Compute w increments using Richardson's eqn.
 
    if ( Use_RadarObs ) then
-      call da_uvprho_to_w_lin(grid)
+      if ( .not. var4d ) call da_uvprho_to_w_lin(grid)
 
       do k=kts,kte
          do j=jts,jte
@@ -292,8 +309,10 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
       !----------------------------------------------------------------------
       call da_transform_xtoy (cv_size, cv, grid, iv, y)
 
-
-            
+#ifdef VAR4D
+      if (iv%info(rain)%nlocal > 0 .and. var4d) &
+         call da_transform_xtoy_rain (grid, iv, y, a_hr_rainc(:,:,nobwin), a_hr_rainnc(:,:,nobwin))
+#endif      
 
       !----------------------------------------------------------------------
       ! [3.0] Calculate LHS of adjoint test equation and
@@ -327,16 +346,25 @@ print*,__FILE__,jte,' xa2_v.xa2_v for row= ',jte+1,sum(xa2_v(its:ite, jte+1, kts
       if (iv%info(buoy)%nlocal     > 0) call da_check_xtoy_adjoint_buoy     (iv, y, partial_lhs, pertile_lhs)
       if (iv%info(bogus)%nlocal    > 0) call da_check_xtoy_adjoint_bogus    (iv, y, partial_lhs, pertile_lhs)
       if (iv%num_inst     > 0) call da_check_xtoy_adjoint_rad      (iv, y, partial_lhs, pertile_lhs)
+      if (iv%info(rain)%nlocal     > 0) call da_check_xtoy_adjoint_rain     (iv, y, partial_lhs, pertile_lhs)
 
       !----------------------------------------------------------------------
       ! [5.0] Perform adjoint operation:
       !----------------------------------------------------------------------
       call da_zero_x (grid%xa)
 
+      if (use_rainobs .and. num_fgat_time > 1) then
+         a_hr_rainc(:,:,nobwin) = 0.0
+         a_hr_rainnc(:,:,nobwin) = 0.0
+      endif
+
+#ifdef VAR4D
+      if (iv%info(rain)%nlocal > 0 .and. var4d) then
+         call da_transform_xtoy_rain_adj (grid, iv, y, a_hr_rainc(:,:,nobwin), a_hr_rainnc(:,:,nobwin))
+      endif
+#endif
 
       call da_transform_xtoy_adj (cv_size, cv, grid, iv, y, grid%xa)
-
-
 
 #ifdef A2C
     if( ite == ide ) &    
@@ -357,7 +385,7 @@ print*,__FILE__,jte,' grid%xa%v.grid%x%%v for row= ',jte+1,sum(grid%xa%v(its:ite
          end do
       end do
 
-      call da_uvprho_to_w_adj(grid)
+      if ( .not. var4d ) call da_uvprho_to_w_adj(grid)
    end if
 
    if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
@@ -407,10 +435,25 @@ print*,__FILE__,jte,' grid%xa%v.grid%x%%v for row= ',jte+1,sum(grid%xa%v(its:ite
          grid%g_w_2 = 0.0
          grid%g_t_2 = 0.0
          grid%g_ph_2 = 0.0
+         grid%g_p = 0.0
          grid%g_mu_2 = 0.0
          grid%g_moist = 0.0
+         grid%g_rainnc = 0.0
+         grid%g_rainncv = 0.0
+         grid%g_rainc = 0.0
+         grid%g_raincv = 0.0
 
          write(unit=filnam,fmt='(a2,i2.2)') 'af',nobwin
+
+         if ( use_rainobs .and. num_fgat_time > 1 .and. fgat_rain_flags(nobwin) ) then
+!!!         We can not calculate the hourly rainfall in adjoint check, just ensure the adjoint 
+!!!         algorithm is right mathmatically. so the amount of forcings doesn't matter
+            grid%g_rainc(:,:) = grid%g_rainc(:,:) + a_hr_rainc (:,:,fgat_rain)
+            grid%g_rainnc(:,:) = grid%g_rainnc(:,:) + a_hr_rainnc(:,:,fgat_rain)
+            a_hr_rainc (:,:,fgat_rain) = 0.0
+            a_hr_rainnc(:,:,fgat_rain) = 0.0
+            fgat_rain = fgat_rain - 1
+         endif
 
          call domain_clock_get( grid, current_timestr=timestr )
          call da_transfer_wrftltoxa_adj(grid, config_flags, filnam, timestr)
@@ -440,37 +483,45 @@ print*,__FILE__,jte,' grid%xa%v.grid%x%%v for row= ',jte+1,sum(grid%xa%v(its:ite
                   model_grid%jcdfi_v(i,k,j) = -1.0 * config_flags%jcdfi_penalty * model_grid%jcdfi_v(i,k,j) * &
                         grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
                   model_grid%jcdfi_t(i,k,j) = -1.0 * config_flags%jcdfi_penalty * model_grid%jcdfi_t(i,k,j) * &
-                        cp/280.0*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
+                        (9.81/3.0)**2*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
+                  model_grid%jcdfi_p(i,k,j) = -1.0 * config_flags%jcdfi_penalty * model_grid%jcdfi_p(i,k,j) * &
+                        (1.0/300.)**2*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
                enddo
             enddo
          enddo
-         do j = jms, jme
-            do i = ims, ime
-               model_grid%jcdfi_mu(i,j) = -1.0 * config_flags%jcdfi_penalty * model_grid%jcdfi_mu(i,j) * gas_constant * &
-                     280./(1.0e5**2)*grid%xb%grid_box_area(i,j)/whole_area*grid%xb%dnw(k)
-            enddo
-         enddo
+
       endif
 
-      ! for memory io, we need to up-side-down the adjoint forcing linked list generated in previous step.
-      call upsidedown_ad_forcing
+      if ( trajectory_io ) then
+         ! for memory io, we need to up-side-down the adjoint forcing linked list generated in previous step.
+         call upsidedown_ad_forcing
+      endif
 
       call da_ad_model
 
-      call da_transfer_xatowrftl_adj(grid, config_flags, 'gr01')
-
       call da_zero_x(grid%x6a)
       if (var4d_lbc) then
-         !call domain_clock_get( grid, stop_timestr=timestr )
-         !call da_read_basicstates ( xbx, grid, config_flags, timestr )
-         call da_get_2nd_firstguess ( grid )
-         call da_setup_firstguess( xbx, grid, config_flags)
+         call domain_clock_get (grid, stop_timestr=timestr)
+         call domain_clock_set( grid, current_timestr=timestr )
+         grid%u_2 = u6_2 ; grid%v_2 = v6_2; grid%t_2 = t6_2;
+         grid%w_2 = w6_2 ; grid%mu_2 = mu6_2 ; grid%ph_2 =ph6_2
+         grid%moist = moist6; grid%p = p6; grid%psfc = psfc6
+         call da_transfer_wrftoxb(xbx, grid, config_flags)
 
          call da_transfer_xatowrftl_adj_lbc(grid, config_flags, 'gr01')
 
          call domain_clock_get( grid, start_timestr=timestr )
+         call domain_clock_set( grid, current_timestr=timestr )
          call da_read_basicstates ( xbx, grid, config_flags, timestr )
       end if
+
+      call da_zero_x(grid%xa)
+      call da_transfer_xatowrftl_adj(grid, config_flags, 'gr01')
+
+      if ( use_rainobs .and. num_fgat_time > 1 ) then
+         deallocate (a_hr_rainc)
+         deallocate (a_hr_rainnc)
+      endif
 #endif
    end if
 

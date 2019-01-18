@@ -39,13 +39,21 @@ subroutine da_transform_vptox(grid, vp, be, ep)
    !$OMP PRIVATE ( ij, k1, k, j, i)
    do ij = 1 , grid%num_tiles
 
-   allocate (chi_u(its:ite,grid%j_start(ij):grid%j_end(ij),kts:kte) )
+   if ( cv_options == 6 ) then
+      allocate (chi_u(its:ite,grid%j_start(ij):grid%j_end(ij),kts:kte) )
+      do k = kts, kte
+         do j = grid%j_start(ij), grid%j_end(ij)
+            do i = its, ite
+               chi_u(i,j,k) = vp%v2(i,j,k)
+            end do
+         end do
+      end do
+   end if
 
    ! Chi:
    do k = kts, kte
       do j = grid%j_start(ij), grid%j_end(ij)
          do i = its, ite
-            chi_u(i,j,k) = vp%v2(i,j,k)
             vp%v2(i,j,k) = vp%v2(i,j,k) + be%reg_psi_chi(j,k)* vp%v1(i,j,k)
          end do
       end do
@@ -60,17 +68,26 @@ subroutine da_transform_vptox(grid, vp, be, ep)
       end do
    end do
 
-
    do k1 = kts, kte
       do k = kts, kte
          do j = grid%j_start(ij), grid%j_end(ij)
             do i = its, ite
-              grid%xa%t(i,j,k) = grid%xa%t(i,j,k) + &
-              be%reg_psi_t(j,k,k1)*vp%v1(i,j,k1) + be%reg_chi_u_t(j,k,k1)*chi_u(i,j,k1)
+               grid%xa%t(i,j,k) = grid%xa%t(i,j,k) + be%reg_psi_t(j,k,k1)*vp%v1(i,j,k1)
             end do
          end do
       end do
    end do
+   if ( cv_options == 6 ) then
+      do k1 = kts, kte
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa%t(i,j,k) = grid%xa%t(i,j,k) + be%reg_chi_u_t(j,k,k1)*chi_u(i,j,k1)
+               end do
+            end do
+         end do
+      end do
+   end if
 
    ! Surface Pressure
    do j = grid%j_start(ij), grid%j_end(ij)
@@ -82,35 +99,44 @@ subroutine da_transform_vptox(grid, vp, be, ep)
    do k = kts,kte
       do j = grid%j_start(ij), grid%j_end(ij)
          do i = its, ite
-            grid%xa%psfc(i,j) = grid%xa%psfc(i,j) +  &
-            be%reg_psi_ps(j,k)*vp%v1(i,j,k) + be%reg_chi_u_ps(j,k)*chi_u(i,j,k)
+            grid%xa%psfc(i,j) = grid%xa%psfc(i,j) +  be%reg_psi_ps(j,k)*vp%v1(i,j,k)
          end do
       end do
    end do
-
-   ! Moisture
-   do k1 = kts, kte
-      do k = kts, kte
+   if ( cv_options == 6 ) then
+      do k = kts,kte
          do j = grid%j_start(ij), grid%j_end(ij)
             do i = its, ite
-              vp%v4(i,j,k1) = vp%v4(i,j,k1) + be%reg_psi_rh(j,k1,k)*vp%v1(i,j,k) + &
-              be%reg_chi_u_rh(j,k1,k)*chi_u(i,j,k) + be%reg_t_u_rh(j,k1,k)*vp%v3(i,j,k)
+               grid%xa%psfc(i,j) = grid%xa%psfc(i,j) + be%reg_chi_u_ps(j,k)*chi_u(i,j,k)
             end do
          end do
       end do
-   end do
+   end if
 
-!
-   do k = kts, kte
-      do j = grid%j_start(ij), grid%j_end(ij)
-         do i = its, ite
-            vp%v4(i,j,k) = vp%v4(i,j,k) + be%reg_ps_u_rh(j,k)*vp%v5(i,j,1)
+   ! Moisture
+   if ( cv_options == 6 ) then
+      do k1 = kts, kte
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  vp%v4(i,j,k1) = vp%v4(i,j,k1) + be%reg_psi_rh(j,k1,k)*vp%v1(i,j,k) + &
+                  be%reg_chi_u_rh(j,k1,k)*chi_u(i,j,k) + be%reg_t_u_rh(j,k1,k)*vp%v3(i,j,k)
+               end do
+            end do
          end do
       end do
-   end do
+!
+      do k = kts, kte
+         do j = grid%j_start(ij), grid%j_end(ij)
+            do i = its, ite
+               vp%v4(i,j,k) = vp%v4(i,j,k) + be%reg_ps_u_rh(j,k)*vp%v5(i,j,1)
+            end do
+         end do
+      end do
+   end if
 
 !
-   deallocate (chi_u )
+   if ( cv_options == 6 ) deallocate (chi_u )
 
    end do
    !$OMP END PARALLEL DO
@@ -155,12 +181,9 @@ subroutine da_transform_vptox(grid, vp, be, ep)
    call da_psichi_to_uv(vp % v1, vp % v2, grid%xb % coefx, &
       grid%xb % coefy , grid%xa % u, grid%xa % v)
 
-  if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud) ) then
-
-   if ( var4d.and.use_radarobs .and. use_radar_rf.and.cloud_cv_options == 1) then
-    print*,' 4Dvar run with Radar RF, please use cloud_cv, and set cloud_cv_options to 2 or 2; stop now'
-    stop 
-   end if
+  if ( (use_radarobs .and. use_radar_rf) .or. (use_rad .and. crtm_cloud).or. & 
+       (grid%pseudo_var(1:1).eq.'q' .and. grid%pseudo_var(2:2).ne.' ') .or.  &
+       (grid%pseudo_var(1:1).eq.'Q' .and. grid%pseudo_var(2:2).ne.' ') ) then
 
    if ( cloud_cv_options == 1 ) then
       ! Pseudo RH --> Total water mixing ratio:
@@ -189,59 +212,61 @@ subroutine da_transform_vptox(grid, vp, be, ep)
             enddo
          enddo
       enddo
-#ifdef CLOUD_CV
-!cw
-      do ij = 1 , grid%num_tiles
-         do k = kts, kte
-            do j = grid%j_start(ij), grid%j_end(ij)
-               do i = its, ite
-                  if(cloud_cv_options == 2)then
-                   grid%xa % qcw(i,j,k) =  vp%v6(i,j,k) * grid%xb%qs(i,j,k)
-                  elseif(cloud_cv_options == 3)then
-                   grid%xa % qcw(i,j,k) =  vp%v6(i,j,k)
-!                  elseif(mcv_options.eq.1)then
-!                   grid%xa % qcw(i,j,k) =  0.0
-                  endif
-               enddo
-            enddo
-         enddo
-      enddo
-!    grid%xa % qcw =  0.0
-!rn
-      do ij = 1 , grid%num_tiles
-         do k = kts, kte
-            do j = grid%j_start(ij), grid%j_end(ij)
-               do i = its, ite
-                  if(cloud_cv_options == 2)then
-                   grid%xa % qrn(i,j,k) =  vp%v7(i,j,k) * grid%xb%qs(i,j,k)
-                  elseif(cloud_cv_options == 3)then
-                   grid%xa % qrn(i,j,k) =  vp%v7(i,j,k)
-!                  elseif(mcv_options.eq.4)then
-!                   grid%xa % qcw(i,j,k) =  0.0
-                  endif
-               enddo
-            enddo
-         enddo
-      enddo
-!     grid%xa % qrn = 0.0
-!ice
-      do ij = 1 , grid%num_tiles
-         do k = kts, kte
-            do j = grid%j_start(ij), grid%j_end(ij)
-               do i = its, ite
-                  if(cloud_cv_options == 2)then
-                   grid%xa % qci(i,j,k) =  vp%v8(i,j,k) * grid%xb%qs(i,j,k)
-                  elseif(cloud_cv_options == 3)then
-                   grid%xa % qci(i,j,k) =  vp%v8(i,j,k)
-!                  elseif(mcv_options.eq.4)then
-!                   grid%xa % qci(i,j,k) =  0.0
-                  endif
-               enddo
-            enddo
-         enddo
-      enddo
-#endif
       !$OMP END PARALLEL DO
+#ifdef CLOUD_CV
+!qcloud
+      !$OMP PARALLEL DO &
+      !$OMP PRIVATE ( ij, i, j, k )
+      do ij = 1 , grid%num_tiles
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa % qcw(i,j,k) =  vp%v6(i,j,k)
+               enddo
+            enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+!qrain
+      !$OMP PARALLEL DO &
+      !$OMP PRIVATE ( ij, i, j, k )
+      do ij = 1 , grid%num_tiles
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa % qrn(i,j,k) =  vp%v7(i,j,k)
+               enddo
+            enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+!qice
+      !$OMP PARALLEL DO &
+      !$OMP PRIVATE ( ij, i, j, k )
+      do ij = 1 , grid%num_tiles
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa % qci(i,j,k) =  vp%v8(i,j,k)
+               enddo
+            enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+!qsnow
+      !$OMP PARALLEL DO &
+      !$OMP PRIVATE ( ij, i, j, k )
+      do ij = 1 , grid%num_tiles
+         do k = kts, kte
+            do j = grid%j_start(ij), grid%j_end(ij)
+               do i = its, ite
+                  grid%xa % qsn(i,j,k) =  vp%v9(i,j,k)
+               enddo
+            enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+#endif
    end if
   else  ! no rf or cloud radiance
       ! Pseudo RH --> Water vapor mixing ratio:
