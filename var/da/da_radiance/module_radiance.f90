@@ -41,7 +41,8 @@ module module_radiance
       crtm_atmosphere_type, crtm_surface_type, crtm_geometry_type, &
       crtm_surface_zero, crtm_atmosphere_zero, crtm_destroy, &
       climatology_model_name, &
-      crtm_options_type, crtm_options_create, crtm_options_destroy
+      crtm_options_type, crtm_options_create, crtm_options_destroy, &
+      crtm_rtsolution_create, crtm_rtsolution_destroy, crtm_rtsolution_associated
    USE CRTM_Atmosphere_Define, only: crtm_atmosphere_associated, &
       MASS_MIXING_RATIO_UNITS, VOLUME_MIXING_RATIO_UNITS
    USE CRTM_Surface_Define, only: crtm_surface_associated
@@ -68,7 +69,7 @@ module module_radiance
      & (/ 'noaa    ', 'dmsp    ', 'meteosat', 'goes    ', 'gms     ', &
         & 'fy2     ', 'trmm    ', 'ers     ', 'eos     ', 'metop   ', &
         & 'envisat ', 'msg     ', 'fy1     ', 'adeos   ', 'mtsat   ', &
-        & 'coriolis', 'jpss    ', 'gifts   ', 'xxxxxxxx', 'meghatr ', &
+        & 'coriolis', 'jpss    ', 'gifts   ', 'tiros   ', 'meghatr ', &
         & 'kalpana ', 'insat_3d', 'fy3     ', 'coms    ', 'meteor-m', &
         & 'gosat   ', 'calipso '/)
 
@@ -85,22 +86,25 @@ module module_radiance
         & 'mwts    ', 'mwhs    ', 'iras    ', 'mwri    ', 'abi     ',  &
         & 'mi      ', 'msumr   ', 'tansofts', 'iir     ', 'mwr     '/)
 
-! n=noaa; f=dmsp; g=goes; c=npoess; eos-1/2=aqua/terra;
-   character(len=8), parameter :: crtm_platform_name(1:20) = &
+! n=noaa; f=dmsp; g=goes; c=npoess/npp; eos-1/2=aqua/terra;
+   character(len=8), parameter :: crtm_platform_name(1:23) = &
        (/ 'n       ', 'f       ', 'meteosat', 'g       ', 'gms     ', &
           'fy2     ', 'trmm    ', 'ers     ', 'eos     ', 'metop   ', &
           'envisat ', 'msg     ', 'fy1     ', 'adeos   ', 'mtsat   ', &
-          'coriolis', 'c       ', 'gifts   ', 'xxxxxxxx', 'xxxxxxxx'/)
+          'coriolis', 'c       ', 'gifts   ', 'tiros   ', 'xxxxxxxx', &
+          'xxxxxxxx', 'xxxxxxxx', 'fy3     '/)
 
 ! List of instruments  !!!! HIRS is number 0
-  Character (len=8), Dimension(0:34) :: crtm_sensor_name  =                &
+  Character (len=8), Dimension(0:41) :: crtm_sensor_name  =                &
        & (/ 'hirs    ', 'msu     ', 'ssu     ', 'amsua   ', 'amsub   ',  &
        &    'avhrr   ', 'ssmi    ', 'vtpr1   ', 'vtpr2   ', 'tmi     ',  &
        &    'ssmis   ', 'airs    ', 'hsb     ', 'modis   ', 'atsr    ',  &
        &    'mhs     ', 'iasi    ', 'amsre   ', 'imager  ', 'atms    ',  &
        &    'mviri   ', 'seviri  ', 'imgr    ', 'sndr    ', 'imager  ',  &
        &    'vissr   ', 'mvisr   ', 'cris    ', 'cmis    ', 'viirs   ',  &
-       &    'windsat ', 'gifts   ', 'amsre   ', 'xxxxxxxx', 'xxxxxxxx'   /)
+       &    'windsat ', 'gifts   ', 'amsre   ', 'xxxxxxxx', 'xxxxxxxx',  &
+       &    'xxxxxxxx', 'xxxxxxxx', 'xxxxxxxx', 'xxxxxxxx', 'xxxxxxxx',  &
+       &    'mwts    ', 'mwhs    '/)
 
 #ifdef RTTOV
    type (rttov_coefs), allocatable   :: coefs(:)     ! coefficients structure

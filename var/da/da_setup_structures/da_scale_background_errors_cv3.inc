@@ -22,10 +22,11 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
 
    integer                     :: ier, be_rf_unit, be_print_unit
 !
-! 1, to get global_fac from grid:
+! 1, get global_fac from grid:
 
 #ifdef DM_PARALLEL
    ij = ( ide- ids+1)*( jde- jds+1)
+   ijk = ij * ( kde - kds + 1)
 !  Collect xb component of fac into global buffer.
    call da_patch_to_global( grid, grid%xb%map_factor, global_fac )
    call wrf_dm_bcast_real( global_fac, ij )
@@ -44,14 +45,23 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
 ! Rewind the unit:
     be_rf_unit    = unit_end + 3
     be_print_unit = unit_end + 5
-    rewind (be_rf_unit)
+    if (rootproc) rewind (be_rf_unit)
 
     if (rootproc .and. print_detail_be) &
     write(be_print_unit,'(//10x,a,i2,a)') '====== SCALE CV3 BE for IT =', it, ' ======' 
 !
 ! 2.2 Read the dimensions
 !
-    read(be_rf_unit) iis, iie, jjs, jje, kks, kke, ku, samp
+    if (rootproc) &
+       read(be_rf_unit) iis, iie, jjs, jje, kks, kke, ku, samp
+    call wrf_dm_bcast_integer( iis , 1 )
+    call wrf_dm_bcast_integer( iie , 1 )
+    call wrf_dm_bcast_integer( jjs , 1 )
+    call wrf_dm_bcast_integer( jje , 1 )
+    call wrf_dm_bcast_integer( kks , 1 )
+    call wrf_dm_bcast_integer( kke , 1 )
+    call wrf_dm_bcast_integer( ku , 1 )
+    call wrf_dm_bcast_real( samp , 1 )
     if (rootproc .and. print_detail_be) &
     write (be_print_unit,'(/a,7i5,f15.5)') &
               "Read in: ids, ide, jds, jde, kds, kde, ku, samp:", &
@@ -65,7 +75,12 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
    if (rootproc .and. print_detail_be) &
    write (be_print_unit,'(3x,a)')  'VARIANCE:'
    do ii = 1, 4
-     read (be_rf_unit) chr, vname, i, global_3d
+     if (rootproc) &
+        read (be_rf_unit) chr, vname, i, global_3d
+     call wrf_dm_bcast_string( chr, 9 )
+     call wrf_dm_bcast_string( vname, 6 )
+     call wrf_dm_bcast_integer( i, 1 )
+     call wrf_dm_bcast_real( global_3d, ijk )
      be%corz(its:ite,jts:jte,kts:kte,i) = global_3d(its:ite,jts:jte,kts:kte)
      xsum(1) = sum (be%corz(its:ite,jts:jte,kts:kte,i)*be%corz(its:ite,jts:jte,kts:kte,i))
      call da_proc_sum_real(xsum)
@@ -74,8 +89,13 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
 !     write (*,'(3x,a9,2x,a6,2x,i3)') chr, vname, i
    enddo
 
-!  Pscf Variance before the normalization.
-   read (be_rf_unit) chr, vname, ii, global_2d
+!  Psfc Variance before the normalization.
+   if (rootproc) &
+      read (be_rf_unit) chr, vname, ii, global_2d
+   call wrf_dm_bcast_string( chr, 9 )
+   call wrf_dm_bcast_string( vname, 6 )
+   call wrf_dm_bcast_integer( ii, 1 )
+   call wrf_dm_bcast_real( global_2d, ij )
    be%corp(its:ite,jts:jte) = global_2d(its:ite,jts:jte)
    xsum(1) = sum (be%corp(its:ite,jts:jte)*be%corp(its:ite,jts:jte))
    call da_proc_sum_real(xsum)
@@ -90,7 +110,12 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
    if (rootproc .and. print_detail_be) &
    write (be_print_unit,'(3x,a)')  'VERTICAL SCALE:'
    do ii = 1, 4
-     read (be_rf_unit) chr, vname, n, global_3d
+     if (rootproc) &
+         read (be_rf_unit) chr, vname, n, global_3d
+     call wrf_dm_bcast_string( chr, 9 )
+     call wrf_dm_bcast_string( vname, 6 )
+     call wrf_dm_bcast_integer( n, 1 )
+     call wrf_dm_bcast_real( global_3d, ijk )
      do i = its, ite
      do j = jts, jte
      do k = kts, kte
@@ -105,18 +130,22 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
 !     write (*,'(3x,a9,2x,a6,2x,i3)') chr, vname, n
    enddo
 !
-! 2.5 Read in the Horizotal scales, and write out vertical scales to "be_print_unit":
+! 2.5 Read in the Horizontal scales, and write out vertical scales to "be_print_unit":
 
    if (rootproc .and. print_detail_be) &
    write (be_print_unit,'(3x,a)')  'READ IN THE HORIZONTAL SCALES:'
-   read (be_rf_unit) hwll
+   if (rootproc) &
+      read (be_rf_unit) hwll
+   call wrf_dm_bcast_real( hwll, 4*ijk )
    if (rootproc .and. print_detail_be) then
    write (be_print_unit,'(3x,a)')  'HORIZONTAL SCALES:'
    xsum(1) = sum (hwll*hwll)
    write (be_print_unit,'(9x,a,2x,"sum^2=",e20.12)') 'HORIZONTAL PSI, CHI_u, T_u, RH_u SCALES:', xsum(1)
    endif
 
-   read (be_rf_unit) hwllp
+   if (rootproc) &
+      read (be_rf_unit) hwllp
+   call wrf_dm_bcast_real( hwllp, ij )
    if (rootproc .and. print_detail_be) then
    xsum(1) = sum (hwllp*hwllp)
    write (be_print_unit,'(9x,a,2x,"sum^2=",e20.12)') 'HORIZONTAL PS_u SCALES:', xsum(1)
@@ -136,13 +165,13 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
      write (be_print_unit,'(5x,i3,1x,a,2x,"sum^2=",e20.12)') ii, 'TMP-PSI', xsum(1)
    enddo
 
-!  Rg. Coeff. has already stored in "be" data structure, not need to be save.
+!  Rg. Coeff. already stored in "be" data structure, no need to save.
    xsum(1) = sum (be%bvz*be%bvz)
    call da_proc_sum_real(xsum)
    if (rootproc) &
    write (be_print_unit,'(9x,a,2x,"sum^2=",e20.12)') 'CHI-PSI', xsum(1)
 
-!  Rg. Coeff. has already stored in "be" data structure, not need to be save.
+!  Rg. Coeff. already stored in "be" data structure, no need to save.
    xsum(1) = sum (be%wgvz*be%wgvz)
    call da_proc_sum_real(xsum)
    if (rootproc) &
@@ -196,7 +225,7 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
    if ( as1(n) <= 1.0E-7 .or. as2(n) <= 1.0E-7 .or. as3(n) <= 1.0E-7 .or. as4(n) <= 1.0E-7 .or. as5(n) <= 1.0E-7 ) then
      Write (i_char, '(i8)') it
      call da_error(__FILE__,__LINE__, &
-                    (/"Missing or invaliad AS1 ~ AS5 value for IT = "//i_char/))
+                    (/"Missing or invalid AS1 ~ AS5 value for IT = "//i_char/))
    endif
 
    as(1)=sqrt(as1(1+(it-1)*3))
@@ -226,7 +255,7 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
                vv(k,k)=1.
             enddo
 
-     ! Apply pseudo-Guassian "right-left" smoother in vertical with 
+     ! Apply pseudo-Gaussian "right-left" smoother in vertical with 
      ! the vertical scale length be%vz: 
             call da_rfz0(vv,kz,kz,be%ndeg,&
                          be%vz(kts:kte,i,j,n),be%be,be%table,be%nta,be%swidth)
@@ -299,7 +328,7 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
     enddo
 !    write (*,'("a, be%sljy:sum^2=",e20.12)') sum(be%sljy*be%sljy)
 
-    ! Above level ku,the sljy fields are set to a constant 
+    ! Above level ku, the sljy fields are set to a constant 
     ! for psi and chi, i.e. homogenous:
     do n=1,2
        do k=max(ku, grid%xp%kpsy), grid%xp%kpey
@@ -336,7 +365,7 @@ subroutine da_scale_background_errors_cv3 ( grid, be, it )
     enddo
 !    write (*,'("a, be%slix:sum^2=",e20.12)') sum(be%slix*be%slix)
 
-   ! Above level ku,the sljy fields are set to a constant 
+   ! Above level ku, the sljy fields are set to a constant 
    ! for psi and chi, i.e. homogenous:
     do n=1,2
       do k=max(ku, grid%xp%kpsx), grid%xp%kpex

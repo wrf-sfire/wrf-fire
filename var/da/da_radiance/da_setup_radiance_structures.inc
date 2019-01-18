@@ -135,6 +135,28 @@ subroutine da_setup_radiance_structures( grid, ob, iv )
          call da_read_obs_bufrtovs('mhs  ', iv, filename)
       end if
 
+      if (use_mwtsobs) then
+         write(unit=stdout,fmt='(a)') 'Reading radiance 1b data from mwtsa.dat and mwtsb.dat'
+         filename = 'mwtsa'
+         call da_read_obs_fy3('mwts ', iv, filename)
+         filename = 'mwtsb'
+         call da_read_obs_fy3('mwts ', iv, filename)
+      end if
+
+      if (use_mwhsobs) then
+         write(unit=stdout,fmt='(a)') 'Reading radiance 1b data from mwhsa.dat and mwhsb.dat'
+         filename = 'mwhsa'
+         call da_read_obs_fy3('mwhs ', iv, filename)
+         filename = 'mwhsb'
+         call da_read_obs_fy3('mwhs ', iv, filename)
+      end if
+
+      if (use_atmsobs) then
+         write(unit=stdout,fmt='(a)') 'Reading radiance 1b data from atms.bufr'
+         filename = 'atms'
+         call da_read_obs_bufratms('atms ', iv, filename)
+      end if
+
       if (use_airsobs) then
          write(unit=stdout,fmt='(a)') 'Reading airs 1b data from airs.bufr'
          filename = 'airs'
@@ -158,7 +180,11 @@ subroutine da_setup_radiance_structures( grid, ob, iv )
          filename = 'ssmis'
          call da_read_obs_bufrssmis ('ssmis    ',iv, filename)
       end if
-
+      if (use_iasiobs) then
+         write(unit=stdout,fmt='(a)') 'Reading iasi data from iasi.bufr'
+         filename = 'iasi'
+         call da_read_obs_bufriasi ('iasi     ',iv, filename)
+      end if
    end if
 
    if ( use_filtered_rad ) then

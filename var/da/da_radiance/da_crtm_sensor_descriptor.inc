@@ -22,6 +22,13 @@ subroutine da_crtm_sensor_descriptor(nsensor,sensor_descriptor)
         if (satellite_id == 1) crtm_sat='metop-b'
         if (satellite_id == 2) crtm_sat='metop-a'
         if (satellite_id == 3) crtm_sat='metop-c'
+     else if (trim(crtm_platform_name(platform_id)) == 'tiros') then
+        if (satellite_id == 0) crtm_sat='tirosn'
+     else if (trim(crtm_platform_name(platform_id)) == 'fy3') then
+        if (satellite_id == 1) crtm_sat='fy3a'
+        if (satellite_id == 2) crtm_sat='fy3b'
+     else if (trim(crtm_platform_name(platform_id)) == 'npp') then
+        if (satellite_id == 0) crtm_sat='npp'
      else
         write(crtm_sat, '(a,i2.2)')  &
              trim( crtm_platform_name(platform_id) ),satellite_id
@@ -29,6 +36,8 @@ subroutine da_crtm_sensor_descriptor(nsensor,sensor_descriptor)
 
      if ( trim(crtm_sensor_name(sensor_id)) == 'airs' ) then
         crtm_sensor='airs281'
+     elseif ( trim(crtm_sensor_name(sensor_id)) == 'iasi' ) then
+        crtm_sensor='iasi616'		
      elseif ( trim(crtm_sensor_name(sensor_id)) == 'hirs' ) then
         if (satellite_id <= 14) crtm_sensor='hirs2'
         if (satellite_id >= 15 .and. satellite_id <= 17) crtm_sensor='hirs3'

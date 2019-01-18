@@ -111,9 +111,21 @@ subroutine da_radiance_init(iv,ob)
    else if ( trim( crtm_sensor_name(rtminit_sensor(n))) == 'ssmis' ) then
       nchanl(n)  = 24
       nscan(n)   = 60
+   else if ( trim( crtm_sensor_name(rtminit_sensor(n))) == 'mwts' ) then
+      nchanl(n)  = 4
+      nscan(n)   = 15
+   else if ( trim( crtm_sensor_name(rtminit_sensor(n))) == 'mwhs' ) then
+      nchanl(n)  = 5
+      nscan(n)   = 98
+   else if ( trim( crtm_sensor_name(rtminit_sensor(n))) == 'atms' ) then
+      nchanl(n)  = 22
+      nscan(n)   = 96
+   else if ( trim( crtm_sensor_name(rtminit_sensor(n))) == 'iasi' ) then
+     nchanl(n)  = 616
+      nscan(n)   = 60	  
    else
       call da_error(__FILE__,__LINE__, &
-        (/"Unrecorgnized instrument"/))
+        (/"Unrecognized instrument"/))
    end if
 
    iv%instid(n)%nchan  = nchanl(n)
@@ -159,6 +171,14 @@ subroutine da_radiance_init(iv,ob)
      ob%instid(n)%ichan(j) = satinfo(n)%ichan(j)
    end do
    call da_free_unit(iunit)
+
+   if ( use_blacklist_rad ) then
+      call da_blacklist_rad(trim(rttov_platform_name(rtminit_platform(n))), &
+                            rtminit_satid(n), &
+                            trim(rttov_inst_name(rtminit_sensor(n))), &
+                            nchanl(n), &
+                            satinfo(n)%iuse )
+   end if
 
   end do loop_sensor
 

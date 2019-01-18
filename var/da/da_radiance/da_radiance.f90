@@ -18,7 +18,8 @@ module da_radiance
       transmission_type,errorstatus_success,gas_id_watervapour
 #endif
 #ifdef CRTM
-   use module_radiance, only : crtm_channelinfo_type, crtm_platform_name, crtm_init
+   use module_radiance, only : crtm_channelinfo_type, crtm_platform_name, crtm_init, &
+   CRTM_Planck_Radiance, CRTM_Planck_Temperature   
 #endif
 
 #ifdef DM_PARALLEL
@@ -36,11 +37,12 @@ module da_radiance
       time_window_max,time_window_min,print_detail_obs,use_hsbobs,use_msuobs, &
       use_amsubobs,use_eos_amsuaobs,use_amsuaobs,use_hirs2obs,rtm_option, &
       rtm_option_rttov,rtm_option_crtm,use_airsobs,use_kma1dvar,use_hirs3obs, &
-      use_ssmisobs, use_filtered_rad,print_detail_rad,stderr, mw_emis_sea, &
+      use_ssmisobs,use_iasiobs,use_filtered_rad,print_detail_rad,stderr, mw_emis_sea, &
       rtminit_print, rttov_scatt,comm,root,ierr,biasprep, qc_rad, num_procs, &
       tovs_min_transfer,use_error_factor_rad,num_fgat_time,stdout,trace_use, &
       qc_good, qc_bad,myproc,biascorr,thinning,thinning_mesh, &
       rad_monitoring, monitor_on, kts, kte, kms,kme,&
+      use_mwtsobs, use_mwhsobs, use_atmsobs, &
       use_hirs4obs, use_mhsobs,bufr_year, bufr_month,bufr_day,bufr_hour, &
       bufr_minute, bufr_second,bufr_solzen, bufr_station_height, &
       bufr_landsea_mask,bufr_solazi,tovs_end, max_tovs_input, bufr_satzen, nchan_mhs, &
@@ -51,7 +53,7 @@ module da_radiance
       pseudo_rad_err, use_simulated_rad,use_rttov_kmatrix, use_crtm_kmatrix , &
       use_rad,crtm_cloud, DT_cloud_model, global, use_varbc, freeze_varbc, &
       airs_warmest_fov, time_slots, interp_option, ids, ide, jds, jde, &
-      ips, ipe, jps, jpe, simulated_rad_ngrid, obs_qc_pointer
+      ips, ipe, jps, jpe, simulated_rad_ngrid, obs_qc_pointer, use_blacklist_rad
  
 #ifdef CRTM
    use da_crtm, only : da_crtm_init, da_get_innov_vector_crtm
@@ -105,8 +107,12 @@ contains
 #include "da_read_simulated_rad.inc"
 #include "da_write_filtered_rad.inc"
 #include "da_read_obs_bufrtovs.inc"
+#include "da_read_obs_fy3.inc"
+#include "da_read_obs_bufratms.inc"
+#include "ATMS_Spatial_Average.inc"
 #include "da_read_obs_bufrairs.inc"
 #include "da_read_obs_bufrssmis.inc"
+#include "da_read_obs_bufriasi.inc"
 #include "da_allocate_rad_iv.inc"
 #include "da_initialize_rad_iv.inc"
 #include "da_read_kma1dvar.inc"
@@ -115,6 +121,7 @@ contains
 #include "da_radiance_init.inc"
 #include "da_get_innov_vector_radiance.inc"
 #include "da_read_pseudo_rad.inc"
+#include "da_blacklist_rad.inc"
 
 #endif
 

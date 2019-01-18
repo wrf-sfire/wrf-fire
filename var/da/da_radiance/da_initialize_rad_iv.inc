@@ -129,6 +129,21 @@ subroutine da_initialize_rad_iv (i, n, iv, p)
             iv%instid(i)%graupel_r_jacobian(:,:,n)=0.0
             iv%instid(i)%hail_r_jacobian(:,:,n)=0.0
          end if
+         if ( calc_weightfunc ) then
+            iv%instid(i)%lod(:,:,n) = 0.0
+            iv%instid(i)%lod_jacobian(:,:,n) = 0.0
+            iv%instid(i)%trans(:,:,n) = 0.0
+            iv%instid(i)%trans_jacobian(:,:,n) = 0.0
+            iv%instid(i)%der_trans(:,:,n) = 0.0
+         end if
+#ifdef CRTM_MODIF			 
+         if (use_clddet_ecmwf) then
+            iv%instid(i)%kmin_t(n)	= 0.0 
+            iv%instid(i)%kmax_p(n)	= 0.0    
+            iv%instid(i)%sensitivity_ratio(:,:,n)	= 0.0       
+            iv%instid(i)%p_chan_level(:,n)	= 0.0		 
+         end if	
+#endif		 
       end if
    end if
 
