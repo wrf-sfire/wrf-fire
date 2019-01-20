@@ -95,7 +95,8 @@ GPFS            =
 CURL            =
 HDF5            = -lhdf5 -lhdf5_hl
 ZLIB            = -lz
-DEP_LIB_PATH    = -L/uufs/chpc.utah.edu/sys/installdir/netcdf-f/4.4.4i18-c7/lib -L/uufs/chpc.utah.edu/sys/installdir/netcdf-c/4.4.1.1i18-c7/lib
+DEP_LIB_PATH    = -L/uufs/chpc.utah.edu/sys/installdir/netcdf-f/4.4.4i18-c7/lib -L/uufs/chpc.utah.edu/sys/installdir/netcdf-c/4.4.1.1i18-c7/lib \
+           -L$(HDF5_LIBDIR)
 NETCDF4_DEP_LIB = $(DEP_LIB_PATH) $(HDF5) $(ZLIB) $(GPFS) $(CURL)
 
 # NETCDF4INCLUDEGOESHERE
@@ -146,8 +147,8 @@ LIBWRFLIB = libwrflib.a
 DESCRIPTION     =       INTEL ($SFC/$SCC)
 DMPARALLEL      =       # 1
 OMPCPP          =       # -D_OPENMP
-OMP             =       # -openmp -fpp -auto
-OMPCC           =       # -openmp -fpp -auto
+OMP             =       # -qopenmp -fpp -auto
+OMPCC           =       # -qopenmp -fpp -auto
 SFC             =       ifort
 SCC             =       icc
 CCOMP           =       icc
@@ -213,6 +214,7 @@ ARCHFLAGS       =    $(COREDEFS) -DIWORDSIZE=$(IWORDSIZE) -DDWORDSIZE=$(DWORDSIZ
                       -DKEEP_INT_AROUND \
                       -DLIMIT_ARGS \
                       -DBUILD_RRTMG_FAST=1 \
+                      -DSHOW_ALL_VARS_USED=0 \
                       -DCONFIG_BUF_LEN=$(CONFIG_BUF_LEN) \
                       -DMAX_DOMAINS_F=$(MAX_DOMAINS) \
                       -DMAX_HISTORY=$(MAX_HISTORY) \
@@ -235,7 +237,7 @@ INCLUDE_MODULES =    $(MODULE_SRCH_FLAG) \
                       -I$(WRF_SRC_ROOT_DIR)/wrftladj \
                       -I$(WRF_SRC_ROOT_DIR)/chem -I$(WRF_SRC_ROOT_DIR)/inc \
                       -I$(NETCDFPATH)/include \
-                      -I$(HDF5_INCDIR)
+                      -I$(HDF5_INCDIR) \
                       
 REGISTRY        =    Registry
 CC_TOOLS_CFLAGS = -DNMM_CORE=$(WRF_NMM_CORE)
@@ -251,8 +253,7 @@ CC_TOOLS_CFLAGS = -DNMM_CORE=$(WRF_NMM_CORE)
                       $(WRF_SRC_ROOT_DIR)/frame/pack_utils.o 
 
  LIB_EXTERNAL    = \
-                      -L$(WRF_SRC_ROOT_DIR)/external/io_netcdf -lwrfio_nf -L/uufs/chpc.utah.edu/sys/installdir/netcdf/i18/lib -lnetcdff -lnetcdf     \
-                      -L$(HDF5_LIBDIR) -lhdf5 -lhdf5_hl
+                      -L$(WRF_SRC_ROOT_DIR)/external/io_netcdf -lwrfio_nf -L/uufs/chpc.utah.edu/sys/installdir/netcdf/i18/lib -lnetcdff -lnetcdf     
 
 LIB             =    $(LIB_BUNDLED) $(LIB_EXTERNAL) $(LIB_LOCAL) $(LIB_WRF_HYDRO) $(NETCDF4_DEP_LIB)
 LDFLAGS         =    $(OMP) $(FCFLAGS) $(LDFLAGS_LOCAL) 
