@@ -51,19 +51,19 @@
  /
 
  &physics
- mp_physics                          = 0,     0,     0,
+ mp_physics                          = 1,     1,     1,
  ra_lw_physics                       = 0,     0,     0,
  ra_sw_physics                       = 0,     0,     0,
  radt                                = 30,    30,    30,
- sf_sfclay_physics                   = 0,     0,     0,
- sf_surface_physics                  = 0,     0,     0,
+ sf_sfclay_physics                   = 1,     0,     0,
+ sf_surface_physics                  = 1,     0,     0,
  bl_pbl_physics                      = 0,     0,     0,
  bldt                                = 0,     0,     0,
  cu_physics                          = 0,     0,     0,
- cudt                                = 0,     0,     0,
+ cudt                                = 5,     5,     5,
  isfflx                              = 1,
  ifsnow                              = 0,
- icloud                              = 0,
+ icloud                              = 1,
  mp_zero_out                         = 0,
  /
 
@@ -141,14 +141,14 @@
  fire_wind_height = 1.,             ! height to interpolate winds to for calculating fire spread rate 
 !
 ! verbosity
- fire_print_msg     = 1,        ! 1 print fire debugging messages
+ fire_print_msg     = 2,        ! 1 print fire debugging messages
  fire_print_file    = 0,        ! 1 write files for matlab
 ! 
 ! fuel moisture model
-! fmoist_run =   .true.,        ! .true. runs the fuel moisture model on atmospheric grid
-! fmoist_run =   .true.,        ! .true. weights and interpolates the result to fuels on fire grid
-! fmoist_only = .false.,        ! .true. disables the fire model and runs fuel moisture only
-! fire_fmc_read = 0,            ! 0 takes fuel moisture from wrfinput
+!  fmoist_run =   .true.,        ! .true. runs the fuel moisture model on atmospheric grid
+!  fmoist_interp = .true.,       ! .true. weights and interpolates the result to fuels on fire grid
+!  fmoist_only = .false.,        ! .true. disables the fire model and runs fuel moisture only
+!  fire_fmc_read = 0,            ! 0 takes fuel moisture from wrfinput
                                 ! 1 takes the same fuel moisture everywhere, as given in namelist.fire
                                 ! 2 takes initial fuel moisture from the equilibrium
 !
