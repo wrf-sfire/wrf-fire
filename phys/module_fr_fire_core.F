@@ -1402,7 +1402,10 @@ call message(msg)
     enddo
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_0.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
     id1 = id  ! for debug prints
@@ -1426,7 +1429,10 @@ call message(msg)
     enddo
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_1.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
 !!!!!!!!!!!!!!!!!!!!!!
@@ -1453,7 +1459,10 @@ call message(msg)
     enddo     
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_2.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
 !!!!!!!!!!!!!!!!!!!!!!
@@ -1481,7 +1490,10 @@ call message(msg)
     enddo     
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_2.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
 ! CFL check
@@ -1577,8 +1589,12 @@ threshold_HLu=fire_lsm_band_ngp*dx
             lfn_s3(i,j) = lfn_2(i,j)
         enddo
     enddo
+
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_S3.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
     call continue_at_boundary(1,1,fire_lfn_ext_up, &   !extend by extrapolation but never down 
@@ -1602,7 +1618,10 @@ do nts=1,fire_lsm_reinit_iter ! iterate to solve to steady state (1 iter each ti
     lfn_s0,lfn_s3,lfn_s3,lfn_s1,1.0/3.0)   ! sign funcition, initial ls, current stage ls, next stage advanced ls, RK coefficient
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_S1.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
     call continue_at_boundary(1,1,fire_lfn_ext_up, & 
@@ -1623,7 +1642,10 @@ do nts=1,fire_lsm_reinit_iter ! iterate to solve to steady state (1 iter each ti
     lfn_s0,lfn_s3,lfn_s1,lfn_s2,1.0/2.0)
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_S2.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
     call continue_at_boundary(1,1,fire_lfn_ext_up, &  
@@ -1644,7 +1666,10 @@ do nts=1,fire_lsm_reinit_iter ! iterate to solve to steady state (1 iter each ti
     lfn_s0,lfn_s3,lfn_s2,lfn_s3,1.0)  
 
 #ifdef DM_PARALLEL
+!$OMP MASTER
 #      include "HALO_FIRE_LFN_S3.inc"
+!$OMP END MASTER
+!$OMP BARRIER
 #endif
 
     call continue_at_boundary(1,1,fire_lfn_ext_up, &  
