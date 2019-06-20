@@ -12,7 +12,8 @@ module da_setup_structures
       multi_level_type,each_level_type, da_allocate_observations_rain
    use da_define_structures, only : da_allocate_obs_info, da_allocate_y, da_allocate_y_radar, &
       da_allocate_y_rain
-   use da_wrf_interfaces, only : wrf_debug
+   use da_wrf_interfaces, only : wrf_debug, &
+      wrf_dm_bcast_string, wrf_dm_bcast_integer, wrf_dm_bcast_real
    use da_control, only : trace_use,vert_evalue,stdout,rootproc, myproc, &
       analysis_date,coarse_ix,coarse_ds,map_projection,coarse_jy, c2,dsm,phic, &
       pole, cone_factor, start_x,base_pres,ptop,psi1,start_y, base_lapse,base_temp,truelat2_3dv, &
@@ -71,6 +72,7 @@ module da_setup_structures
    use da_control, only: use_cv_w
    use da_control, only: pseudo_tpw, pseudo_ztd, pseudo_ref, pseudo_uvtpq, pseudo_elv, anal_type_qcobs
    use da_control, only: use_gpsephobs, gpseph_loadbalance, gpseph
+   use da_control, only: ep_format
 
    use da_obs, only : da_fill_obs_structures, da_store_obs_grid_info, da_store_obs_grid_info_rad, &
                       da_fill_obs_structures_rain, da_fill_obs_structures_radar, da_set_obs_missing,da_set_3d_obs_missing
@@ -126,6 +128,8 @@ contains
 #include "da_chgvres.inc"
 #include "da_setup_flow_predictors.inc"
 #include "da_setup_flow_predictors_para_read_opt1.inc"
+#include "da_setup_flow_predictors_ep_format2.inc"
+#include "da_setup_flow_predictors_ep_format3.inc"
 #include "da_setup_obs_structures.inc"
 #include "da_setup_obs_structures_ascii.inc"
 #include "da_setup_obs_structures_bufr.inc"
