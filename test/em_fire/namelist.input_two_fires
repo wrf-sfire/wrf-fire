@@ -56,7 +56,7 @@
  ra_lw_physics                       = 0,     0,     0,
  ra_sw_physics                       = 0,     0,     0,
  radt                                = 30,    30,    30,
- sf_sfclay_physics                   = 0,     0,     0,
+ sf_sfclay_physics                   = 1,     1,     1,
  sf_surface_physics                  = 0,     0,     0,
  bl_pbl_physics                      = 0,     0,     0,
  bldt                                = 0,     0,     0,
@@ -75,7 +75,7 @@
  hybrid_opt                          = 0, 
  rk_ord                              = 3,
  diff_opt                            = 2,      2,      2,
- km_opt                              = 2,      2,      2,
+ km_opt                              = 5,      5,      5,
  damp_opt                            = 2 ,
  zdamp                               = 800.,  5000.,  5000.,
  dampcoef                            = 0.2,    0.2,    0.2
