@@ -5340,6 +5340,7 @@ END SUBROUTINE vertical_diffusion_s
 
   DO j = j_start, j_end
   DO i = i_start, i_end
+    IF (pblflg(i,j)) THEN
      delxy = sqrt(dx/msftx(i,j)*dy/msfty(i,j))
      mlfrac        = mltop-deltaoh(i,j)
      ezfrac        = mltop+deltaoh(i,j)
@@ -5356,7 +5357,7 @@ END SUBROUTINE vertical_diffusion_s
      hfxpbl(i,j) = amf3+bmf3
      pth1        = pthnl(delxy,hpbl(i,j))
      hfxpbl(i,j) = hfxpbl(i,j)*pth1
-
+    ENDIF
     DO k = kts, ktf
        zfacmf(i,k,j) = max((zq(i,k+1,j)/hpbl(i,j)),zfmin)
        IF(pblflg(i,j).and.k.LT.kpbl(i,j)) THEN
