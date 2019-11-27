@@ -1,11 +1,12 @@
 real::a(3,4), b(10), c(3)
 integer::ierr,iounit,i
-character(len=40), dimension(100)::x
+character(len=80), dimension(100)::x
 data x /100*'1'/
 namelist /na/ a,x
 namelist /nb/ b
 namelist /nc/ c
 a=0
+b=-999
 iounit = 11
 OPEN(iounit, FILE='namelist.test',FORM='FORMATTED',STATUS='OLD',ACTION='READ')
 read(iounit,nb,end=10)
@@ -21,8 +22,11 @@ print *,a
 close(iounit)
 OPEN(iounit, FILE='namelist.out',FORM='FORMATTED',STATUS='UNKNOWN',ACTION='WRITE')
 write(iounit,na)
+write(iounit,nb)
 close(iounit)
 OPEN(iounit, FILE='namelist.out',FORM='FORMATTED',STATUS='OLD',ACTION='READ')
 read(iounit,na)
+rewind(iounit)
+read(iounit,nb)
 close(iounit)
 end
