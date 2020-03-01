@@ -27,9 +27,15 @@ MODULE module_initialize_ideal
 #ifdef DM_PARALLEL
    USE module_dm
 #endif
+conf<<<< HEAD
    USE module_fr_fire_util, ONLY: continue_at_boundary,crash,read_array_2d_real, &
      read_array_2d_integer,interpolate_2d,set_ideal_coord,print_2d_stats
    USE module_fr_fire_phys, ONLY: fuelmc_g,read_namelist_fire 
+conf====
+   USE module_fr_sfire_util, ONLY: continue_at_boundary,crash,read_array_2d_real, &
+     interpolate_2d,set_ideal_coord,print_2d_stats
+   USE module_fr_sfire_driver, ONLY: set_flags
+conf>>>> sfire-master
 
 CONTAINS
 
@@ -56,7 +62,11 @@ CONTAINS
 
      CALL init_domain_rk( grid &
 !
+conf<<<< HEAD
 #include "actual_new_args.inc"
+conf====
+#include <actual_new_args.inc>
+conf>>>> sfire-master
 !
                         )
 
@@ -66,7 +76,11 @@ CONTAINS
 
    SUBROUTINE init_domain_rk ( grid &
 !
+conf<<<< HEAD
 # include "dummy_new_args.inc"
+conf====
+# include <dummy_new_args.inc>
+conf>>>> sfire-master
 !
 )
    IMPLICIT NONE
@@ -74,7 +88,11 @@ CONTAINS
    !  Input data.
    TYPE (domain), POINTER :: grid
 
+conf<<<< HEAD
 # include "dummy_new_decl.inc"
+conf====
+# include <dummy_new_decl.inc>
+conf>>>> sfire-master
 
    TYPE (grid_config_rec_type)              :: config_flags
 
@@ -93,7 +111,10 @@ CONTAINS
 
 
    INTEGER :: icm,jcm, ii, im1, jj, jm1, loop, error, fid, nxc, nyc
+conf<<<< HEAD
    REAL    :: B1, B2, B3, B4, B5
+conf====
+conf>>>> sfire-master
    REAL    :: u_mean,v_mean, f0, p_surf, p_level, qvf, z_at_v, z_at_u
    REAL    :: z_scale, xrad, yrad, zrad, rad, delt, cof1, cof2
    REAL    :: x_rad, y_rad, z_rad, hght_pert   !Ak/ak
@@ -246,6 +267,11 @@ CONTAINS
 ! ***** fire
       write(6,*) '*************************************'
 
+conf<<<< HEAD
+conf====
+      call set_flags(config_flags)
+
+conf>>>> sfire-master
 !AK/ak surface initialization latitude, longitude, landuse index from from LANDUSE.TBL skin temperature and soil temperature
    IF (sfc_init) THEN
     DO j = jts, jte
@@ -358,7 +384,10 @@ CONTAINS
     grid%rdnw(k) = 1./grid%dnw(k)
     grid%znu(k) = 0.5*(grid%znw(k+1)+grid%znw(k))
    ENDDO
+conf<<<< HEAD
 
+conf====
+conf>>>> sfire-master
    DO k=2, kde-1
     grid%dn(k) = 0.5*(grid%dnw(k)+grid%dnw(k-1))
     grid%rdn(k) = 1./grid%dn(k)
@@ -403,6 +432,7 @@ CONTAINS
 
   grid%p_top = interp_0( p_in, zk, config_flags%ztop, nl_in )
 
+conf<<<< HEAD
   !  For hybrid coord
 
   DO k=kts, kte
@@ -493,13 +523,20 @@ CONTAINS
      grid%c2h(k) = ( 1. - grid%c1h(k) ) * ( p1000mb - grid%p_top )
   ENDDO
 
+conf====
+conf>>>> sfire-master
 ! get fire mesh dimensions
     CALL get_ijk_from_subgrid (  grid ,                   &
        ifds,ifde, jfds,jfde,kfds,kfde, & 
        ifms,ifme, jfms,jfme,kfms,kfme,  & 
        ifts,ifte, jfts,jfte,kfts,kfte)
 
+conf<<<< HEAD
   write (6,*)' ******** SFIRE ideal initialization ********'
+conf====
+IF ((grid%sr_x > 0 .OR. grid%sr_y > 0) .AND. config_flags%ifire == 2) THEN
+  write (6,*)' ******** SFIRE ideal initialization start ********'
+conf>>>> sfire-master
 
   ! fire grid step size
   fdx = grid%dx/grid%sr_x
@@ -544,6 +581,7 @@ CONTAINS
           call read_array_2d_real   ('input_fmc_g',grid%fmc_g,    ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
   endif
 
+conf<<<< HEAD
   call read_namelist_fire(.false.)  ! read fuel coefficienrs
 
   if(config_flags%fire_fmc_read.eq.0) then
@@ -559,12 +597,38 @@ CONTAINS
                          ifms,ifme,jfms,jfme, &
                          grid%fmc_g, 'fmc_g')
 
+conf====
+conf>>>> sfire-master
 
   if(config_flags%fire_fuel_read.eq.2) then
       write(6,*)'Reading fuel map from file input_fc'
       call read_array_2d_real('input_fc',grid%nfuel_cat,ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
   endif
 
+conf<<<< HEAD
+conf====
+  if(config_flags%fire_hfx_given.eq.2) then
+      write(6,*)'Reading given heat flux from file input_hfx'
+      call read_array_2d_real('input_hfx',grid%fire_hfx,ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
+      maxhfx=-huge(maxhfx)
+      minhfx=huge(minhfx)
+      totheat=0.
+      do j=jfds,jfde
+         do i=ifds,ifde
+             minhfx  = max(minhfx,grid%fire_hfx(i,j))
+             maxhfx  = max(maxhfx,grid%fire_hfx(i,j))
+             totheat = totheat + grid%fire_hfx(i,j)*fdx*fdy
+         enddo
+      enddo
+      write(6,*)'Given heat flux min ',minhfx,' max ',maxhfx,' W/m^2'
+      write(6,*)'Total heat ',totheat,' W'
+      if(minhfx<0.)call crash('Heat flux must be nonnegative number')
+  endif
+
+
+
+
+conf>>>> sfire-master
   have_fire_grad=.false.
   have_atm_grad=.false.
   have_fire_ht=.false.
@@ -736,6 +800,33 @@ CONTAINS
     ENDDO
     write(6, *)' Max terrain height on the fire mesh       ',mtn_max
     write(6, *)' Max terrain gradient on the fire mesh     ',grad_max
+conf<<<< HEAD
+conf====
+
+! JM read ignition time from file if we are replaying fire history up to the specified time
+   write(6,*)'fire_perimeter_time= ',config_flags%fire_perimeter_time,' fire_tign_in_time=',config_flags%fire_tign_in_time
+   if(config_flags%fire_perimeter_time > 0. .or. config_flags%fire_tign_in_time > 0.)then 
+       write(6,*)'Reading ignition times from file input_tign_g'
+       call read_array_2d_real('input_tign_g',grid%tign_g,ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
+       tign_max = -huge(tign_max)
+       tign_min = huge(tign_min)
+       k=0
+       do j=jfds,jfde
+          do i=ifds,ifde
+             tign_max=max(tign_max,grid%tign_g(i,j))
+             tign_min=min(tign_min,grid%tign_g(i,j))
+             if(grid%tign_g(i,j) < config_flags%fire_perimeter_time) k=k+1
+          enddo
+       enddo
+       write(6,*)'min max ignition time given ',tign_min,tign_max
+       write(6,*)k,real(k)/((ifde-ifds+1)*(jfde-jfds+1)),'% cells ignited at time ', & 
+          max(config_flags%fire_perimeter_time,config_flags%fire_tign_in_time)
+   endif
+   write (6,*)' ******** SFIRE ideal initialization complete ********'
+else
+  write (6,*)' ******** SFIRE ideal initialization skipped ********'
+endif
+conf>>>> sfire-master
   
 ! the rest of initialization dependent on the atmosphere grid terrain height set
 
@@ -756,7 +847,11 @@ CONTAINS
 !  interp theta (from interp) and compute 1/rho from eqn. of state
 
     DO K = 1, kte-1
+conf<<<< HEAD
       p_level = grid%c3h(k)*(p_surf - grid%p_top)+grid%c4h(k) + grid%p_top
+conf====
+      p_level = grid%znu(k)*(p_surf - grid%p_top) + grid%p_top
+conf>>>> sfire-master
       grid%pb(i,k,j) = p_level
       grid%t_init(i,k,j) = interp_0( theta, p_in, p_level, nl_in ) - t0
       grid%alb(i,k,j) = (r_d/p1000mb)*(grid%t_init(i,k,j)+t0)*(grid%pb(i,k,j)/p1000mb)**cvpm
@@ -767,7 +862,11 @@ CONTAINS
 !  respect to the model eqns.
 
     DO k  = 2,kte
+conf<<<< HEAD
       grid%phb(i,k,j) = grid%phb(i,k-1,j) - grid%dnw(k-1)*(grid%c1h(k-1)*grid%mub(i,j)+grid%c2h(k-1))*grid%alb(i,k-1,j)
+conf====
+      grid%phb(i,k,j) = grid%phb(i,k-1,j) - grid%dnw(k-1)*grid%mub(i,j)*grid%alb(i,k-1,j)
+conf>>>> sfire-master
     ENDDO
 
   ENDDO
@@ -803,7 +902,11 @@ CONTAINS
 
     do k=1,kde-1
 
+conf<<<< HEAD
       p_level = grid%c3h(k)*(pd_surf - grid%p_top)+grid%c4h(k) + grid%p_top
+conf====
+      p_level = grid%znu(k)*(pd_surf - grid%p_top) + grid%p_top
+conf>>>> sfire-master
 
       moist(i,k,j,P_QV) = interp_0( qv, pd_in, p_level, nl_in )
       grid%t_1(i,k,j)          = interp_0( theta, pd_in, p_level, nl_in ) - t0
@@ -822,7 +925,12 @@ CONTAINS
     qvf2 = 1./(1.+qvf1)
     qvf1 = qvf1*qvf2
 
+conf<<<< HEAD
     grid%p(i,k,j) = - 0.5*((grid%c1f(k+1)*grid%mu_1(i,j))+qvf1*(grid%c1f(k+1)*grid%mub(i,j)+grid%c2f(k+1)))/grid%rdnw(k)/qvf2
+conf====
+!    grid%p(i,k,j) = - 0.5*grid%mu_1(i,j)/grid%rdnw(k)
+    grid%p(i,k,j) = - 0.5*(grid%mu_1(i,j)+qvf1*grid%mub(i,j))/grid%rdnw(k)/qvf2
+conf>>>> sfire-master
     qvf = 1. + rvovrd*moist(i,k,j,P_QV)
     grid%alt(i,k,j) = (r_d/p1000mb)*(grid%t_1(i,k,j)+t0)*qvf* &
                 (((grid%p(i,k,j)+grid%pb(i,k,j))/p1000mb)**cvpm)
@@ -834,7 +942,11 @@ CONTAINS
       qvf1 = 0.5*(moist(i,k,j,P_QV)+moist(i,k+1,j,P_QV))
       qvf2 = 1./(1.+qvf1)
       qvf1 = qvf1*qvf2
+conf<<<< HEAD
       grid%p(i,k,j) = grid%p(i,k+1,j) - ((grid%c1f(k+1)*grid%mu_1(i,j)) + qvf1*(grid%c1f(k+1)*grid%mub(i,j)+grid%c2f(k+1)))/qvf2/grid%rdn(k+1)
+conf====
+      grid%p(i,k,j) = grid%p(i,k+1,j) - (grid%mu_1(i,j) + qvf1*grid%mub(i,j))/qvf2/grid%rdn(k+1)
+conf>>>> sfire-master
       qvf = 1. + rvovrd*moist(i,k,j,P_QV)
       grid%alt(i,k,j) = (r_d/p1000mb)*(grid%t_1(i,k,j)+t0)*qvf* &
                   (((grid%p(i,k,j)+grid%pb(i,k,j))/p1000mb)**cvpm)
@@ -848,9 +960,15 @@ CONTAINS
 
     grid%ph_1(i,1,j) = 0.
     DO k  = 2,kte
+conf<<<< HEAD
       grid%ph_1(i,k,j) = grid%ph_1(i,k-1,j) - (grid%dnw(k-1))*(       &    
                    ((grid%c1h(k-1)*grid%mub(i,j)+grid%c2h(k-1))+(grid%c1h(k-1)*grid%mu_1(i,j)))*grid%al(i,k-1,j)+ &
                     (grid%c1h(k-1)*grid%mu_1(i,j))*grid%alb(i,k-1,j)  )
+conf====
+      grid%ph_1(i,k,j) = grid%ph_1(i,k-1,j) - (1./grid%rdnw(k-1))*(       &
+                   (grid%mub(i,j)+grid%mu_1(i,j))*grid%al(i,k-1,j)+ &
+                    grid%mu_1(i,j)*grid%alb(i,k-1,j)  )
+conf>>>> sfire-master
                                                    
       grid%ph_2(i,k,j) = grid%ph_1(i,k,j) 
       grid%ph0(i,k,j) = grid%ph_1(i,k,j) + grid%phb(i,k,j)
@@ -909,9 +1027,15 @@ CONTAINS
 !  rebalance hydrostatically
 
       DO k  = 2,kte
+conf<<<< HEAD
         grid%ph_1(i,k,j) = grid%ph_1(i,k-1,j) - (grid%dnw(k-1))*(       &
                      ((grid%c1h(k-1)*grid%mub(i,j)+grid%c2h(k-1))+(grid%c1h(k-1)*grid%mu_1(i,j)))*grid%al(i,k-1,j)+ &
                       (grid%c1h(k-1)*grid%mu_1(i,j))*grid%alb(i,k-1,j)  )
+conf====
+        grid%ph_1(i,k,j) = grid%ph_1(i,k-1,j) - (1./grid%rdnw(k-1))*(       &
+                     (grid%mub(i,j)+grid%mu_1(i,j))*grid%al(i,k-1,j)+ &
+                      grid%mu_1(i,j)*grid%alb(i,k-1,j)  )
+conf>>>> sfire-master
                                                    
         grid%ph_2(i,k,j) = grid%ph_1(i,k,j) 
         grid%ph0(i,k,j) = grid%ph_1(i,k,j) + grid%phb(i,k,j)
@@ -955,7 +1079,11 @@ ENDIF
     p_surf = interp_0( p_in, zk, z_at_v, nl_in )
 
     DO K = 1, kte-1
+conf<<<< HEAD
       p_level = grid%c3h(k)*(p_surf - grid%p_top)+grid%c4h(k) + grid%p_top
+conf====
+      p_level = grid%znu(k)*(p_surf - grid%p_top) + grid%p_top
+conf>>>> sfire-master
       grid%v_1(i,k,j) = interp_0( v, p_in, p_level, nl_in )
       grid%v_2(i,k,j) = grid%v_1(i,k,j)
     ENDDO
@@ -979,7 +1107,11 @@ ENDIF
     p_surf = interp_0( p_in, zk, z_at_u, nl_in )
 
     DO K = 1, kte-1
+conf<<<< HEAD
       p_level = grid%c3h(k)*(p_surf - grid%p_top)+grid%c4h(k) + grid%p_top
+conf====
+      p_level = grid%znu(k)*(p_surf - grid%p_top) + grid%p_top
+conf>>>> sfire-master
       grid%u_1(i,k,j) = interp_0( u, p_in, p_level, nl_in )
       grid%u_2(i,k,j) = grid%u_1(i,k,j)
     ENDDO
@@ -1050,6 +1182,7 @@ ENDIF
    ENDDO
  ENDIF
 
+conf<<<< HEAD
       !  Save the dry perturbation potential temperature.
 
       DO j = jts, min(jde-1,jte)
@@ -1075,6 +1208,8 @@ ENDIF
       END DO
       ENDIF
 
+conf====
+conf>>>> sfire-master
  END SUBROUTINE init_domain_rk
 
    SUBROUTINE init_module_initialize
