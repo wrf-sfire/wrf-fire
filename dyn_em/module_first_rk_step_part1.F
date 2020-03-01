@@ -13,26 +13,16 @@ CONTAINS
                              , tracer, tracer_tend              &
                              , scalar , scalar_tend             &
                              , fdda3d, fdda2d                   &
-conf<<<< HEAD
                              , aerod                            &
-conf====
-conf>>>> sfire-master
                              , ru_tendf, rv_tendf               &
                              , rw_tendf, t_tendf                &
                              , ph_tendf, mu_tendf               &
                              , tke_tend                         &
                              , adapt_step_flag , curr_secs      &
-conf<<<< HEAD
                              , psim , psih , gz1oz0 , chklowq   &
                              , cu_act_flag , hol , th_phy       &
                              , pi_phy , p_phy , t_phy           &
                              , dz8w , p8w , t8w                 &
-conf====
-                             , psim , psih , wspd , gz1oz0 , br , chklowq &
-                             , cu_act_flag , hol , th_phy        &
-                             , pi_phy , p_phy , t_phy , u_phy , v_phy     &
-                             , dz8w , p8w , t8w , rho_phy , rho           &
-conf>>>> sfire-master
                              , ids, ide, jds, jde, kds, kde     &
                              , ims, ime, jms, jme, kms, kme     &
                              , ips, ipe, jps, jpe, kps, kpe     &
@@ -42,10 +32,7 @@ conf>>>> sfire-master
                              , ipsy,ipey,jpsy,jpey,kpsy,kpey    &
                              , k_start , k_end                  &
                              , f_flux                           &
-conf<<<< HEAD
                              , aerocu                           &
-conf====
-conf>>>> sfire-master
                             )
     USE module_state_description
     USE module_model_constants
@@ -56,17 +43,13 @@ conf>>>> sfire-master
     USE module_cumulus_driver, ONLY : cumulus_driver
     USE module_shallowcu_driver, ONLY : shallowcu_driver
     USE module_pbl_driver, ONLY : pbl_driver
-conf<<<< HEAD
     USE module_fr_fire_driver_wrf, ONLY : fire_driver_em_step
-conf====
     USE module_fr_sfire_driver_wrf, ONLY : sfire_driver_em_step
-conf>>>> sfire-master
     USE module_fddagd_driver, ONLY : fddagd_driver
     USE module_em, ONLY : init_zero_tendency
     USE module_force_scm
     USE module_convtrans_prep
     USE module_big_step_utilities_em, ONLY : phy_prep
-conf<<<< HEAD
 !use module_scalar_tables
 #ifdef DM_PARALLEL
     USE module_dm, ONLY : local_communicator, mytask, ntasks, ntasks_x, ntasks_y, local_communicator_periodic, wrf_dm_maxval
@@ -75,12 +58,6 @@ conf<<<< HEAD
 #if ( WRFPLUS == 1 )
     USE module_comm_dm, ONLY : halo_em_phys_a_bl_surf_sub
 #endif
-conf====
-use module_scalar_tables
-#ifdef DM_PARALLEL
-    USE module_dm, ONLY : local_communicator, mytask, ntasks, ntasks_x, ntasks_y, local_communicator_periodic, wrf_dm_maxval
-    USE module_comm_dm, ONLY : halo_em_phys_a_sub,halo_em_fdda_sfc_sub
-conf>>>> sfire-master
 #endif
     USE module_utility
     IMPLICIT NONE
@@ -111,19 +88,11 @@ conf>>>> sfire-master
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme,num_scalar),INTENT(INOUT)   :: scalar_tend
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme,num_fdda3d),INTENT(INOUT)  :: fdda3d
     REAL    ,DIMENSION(ims:ime,1:1,jms:jme,num_fdda2d),INTENT(INOUT)      :: fdda2d
-conf<<<< HEAD
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme,num_aerod),INTENT(INOUT)   :: aerod
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme,num_aerocu),INTENT(INOUT)  ::aerocu
     REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: psim
     REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: psih
     REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: gz1oz0
-conf====
-    REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: psim
-    REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: psih
-    REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: wspd
-    REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: gz1oz0
-    REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: br
-conf>>>> sfire-master
     REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: chklowq
     LOGICAL ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: cu_act_flag
     REAL    ,DIMENSION(ims:ime,jms:jme), INTENT(INOUT)         :: hol
@@ -132,19 +101,9 @@ conf>>>> sfire-master
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: pi_phy
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: p_phy
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: t_phy
-conf<<<< HEAD
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: dz8w
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: p8w
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: t8w
-conf====
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: u_phy
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: v_phy
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: dz8w
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: p8w
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: t8w
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: rho_phy
-    REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: rho
-conf>>>> sfire-master
 
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: ru_tendf
     REAL    ,DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: rv_tendf
@@ -159,7 +118,6 @@ conf>>>> sfire-master
     LOGICAL, INTENT(IN), OPTIONAL                 ::  f_flux
 
 ! Local
-conf<<<< HEAD
     real :: HYDRO_dt
     REAL, DIMENSION( ims:ime, jms:jme ) :: exch_temf  ! 1/7/09 WA
 
@@ -169,11 +127,6 @@ conf<<<< HEAD
 
 
 
-conf====
-    REAL, DIMENSION( ims:ime, jms:jme ) :: exch_temf  ! 1/7/09 WA
-
-    REAL, DIMENSION( ims:ime, jms:jme ) :: ht_loc, mixht
-conf>>>> sfire-master
     INTEGER                             :: ij
     INTEGER  num_roof_layers
     INTEGER  num_wall_layers
@@ -190,10 +143,7 @@ conf>>>> sfire-master
                                       sips , sipe , sjps , sjpe , skps , skpe
 
    CHARACTER (LEN=256) :: mminlu
-conf<<<< HEAD
    CHARACTER (LEN=1000) :: message
-conf====
-conf>>>> sfire-master
 
 #if ( WRF_DFI_RADAR == 1 )
     INTEGER  do_capsupress   ! =1 do CAP supress, other = don't
@@ -246,7 +196,6 @@ BENCH_END(init_zero_tend_tim)
 
         CALL wrf_debug ( 200 , ' call phy_prep' )
         CALL phy_prep ( config_flags,                                    &
-conf<<<< HEAD
                         grid%mut, grid%muu, grid%muv,                    &
                         grid%c1h, grid%c2h, grid%c1f, grid%c2f,          &
                         grid%u_2, grid%v_2, grid%p, grid%pb, grid%alt,   &
@@ -256,27 +205,6 @@ conf<<<< HEAD
                         p8w, t_phy, t8w, grid%z, grid%z_at_w, dz8w,      &
                         grid%p_hyd, grid%p_hyd_w, grid%dnw,              &
                         grid%fnm, grid%fnp, grid%znw, grid%p_top,        &
-conf====
-                        grid%mut, grid%muu, grid%muv, grid%u_2,          &
-                        grid%v_2, grid%p, grid%pb, grid%alt,             &
-                        grid%ph_2, grid%phb, grid%t_2, grid%tsk, moist, num_moist,   &
-                        rho,th_phy, p_phy, pi_phy, u_phy, v_phy,         &
-                        p8w, t_phy, t8w, grid%z, grid%z_at_w, dz8w,      &
-                        grid%p_hyd, grid%p_hyd_w, grid%dnw,              &
-                        grid%fnm, grid%fnp, grid%znw, grid%p_top,        &
-                        grid%rthraten,                                   &
-                        grid%rthblten, grid%rublten, grid%rvblten,       &
-                        grid%rqvblten, grid%rqcblten, grid%rqiblten,     &
-                        grid%rucuten,  grid%rvcuten,  grid%rthcuten,     &
-                        grid%rqvcuten, grid%rqccuten, grid%rqrcuten,     &
-                        grid%rqicuten, grid%rqscuten,                    &
-                        grid%rushten,  grid%rvshten,  grid%rthshten,     &
-                        grid%rqvshten, grid%rqcshten, grid%rqrshten,     &
-                        grid%rqishten, grid%rqsshten, grid%rqgshten,     &
-                        grid%rthften,  grid%rqvften,                     &
-                        grid%RUNDGDTEN, grid%RVNDGDTEN, grid%RTHNDGDTEN, &
-                        grid%RPHNDGDTEN,grid%RQVNDGDTEN, grid%RMUNDGDTEN,&
-conf>>>> sfire-master
                         ids, ide, jds, jde, kds, kde,                    &
                         ims, ime, jms, jme, kms, kme,                    &
                         grid%i_start(ij), grid%i_end(ij),                &
@@ -296,22 +224,14 @@ BENCH_END(phy_prep_tim)
          ENDIF
 
 ! this driver is only needed to handle non-local shadowing effects
-conf<<<< HEAD
       CALL pre_radiation_driver ( grid, config_flags                           &
-conf====
-      CALL pre_radiation_driver ( grid, config_flags                        &
-conf>>>> sfire-master
      &        ,itimestep=grid%itimestep, ra_call_offset=grid%ra_call_offset    &
      &        ,XLAT=grid%xlat, XLONG=grid%xlong, GMT=grid%gmt                  &
      &        ,julian=grid%julian, xtime=grid%xtime, RADT=grid%radt            &
      &        ,STEPRA=grid%stepra                                              &
-conf<<<< HEAD
      &        ,ht=grid%ht,dx=grid%dx,dy=grid%dy                                &
      &        ,dx2d=grid%dx2d,area2d=grid%area2d                               &
      &        ,sina=grid%sina,cosa=grid%cosa                                   &
-conf====
-     &        ,ht=grid%ht,dx=grid%dx,dy=grid%dy,sina=grid%sina,cosa=grid%cosa  &
-conf>>>> sfire-master
      &        ,shadowmask=grid%shadowmask,slope_rad=config_flags%slope_rad     &
      &        ,topo_shading=config_flags%topo_shading                          &
      &        ,shadlen=config_flags%shadlen,ht_shad=grid%ht_shad,ht_loc=ht_loc &
@@ -320,7 +240,6 @@ conf>>>> sfire-master
      &        ,nested=config_flags%nested, min_ptchsz=grid%min_ptchsz          &
      &        ,spec_bdy_width=config_flags%spec_bdy_width                      &
             ! indexes
-conf<<<< HEAD
      &        ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde               &
      &        ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme               &
      &        ,IPS=ips,IPE=ipe, JPS=jps,JPE=jpe, KPS=kps,KPE=kpe               &
@@ -328,26 +247,13 @@ conf<<<< HEAD
      &        ,j_start=grid%j_start,j_end=min(grid%j_end, jde-1)               &
      &        ,kts=k_start, kte=min(k_end,kde-1)                               &
      &        ,num_tiles=grid%num_tiles                                        )
-conf====
-     &        ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde          &
-     &        ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme          &
-     &        ,IPS=ips,IPE=ipe, JPS=jps,JPE=jpe, KPS=kps,KPE=kpe          &
-     &        ,i_start=grid%i_start,i_end=min(grid%i_end, ide-1)          &
-     &        ,j_start=grid%j_start,j_end=min(grid%j_end, jde-1)          &
-     &        ,kts=k_start, kte=min(k_end,kde-1)                          &
-     &        ,num_tiles=grid%num_tiles                                   )
-conf>>>> sfire-master
 
       CALL wrf_debug ( 200 , ' call radiation_driver' )
 BENCH_START(rad_driver_tim)
 
       CALL radiation_driver(                                                  &
-conf<<<< HEAD
      &         p_top=grid%p_top & !DJW 140312 added p_top for vertical nesting
      &        ,ACFRCV=grid%acfrcv      ,ACFRST=grid%acfrst      ,ALBEDO=grid%albedo  &
-conf====
-     &         ACFRCV=grid%acfrcv      ,ACFRST=grid%acfrst      ,ALBEDO=grid%albedo  &
-conf>>>> sfire-master
      &        ,CFRACH=grid%cfrach      ,CFRACL=grid%cfracl      ,CFRACM=grid%cfracm  &
      &        ,CUPPT=grid%cuppt        ,CZMEAN=grid%czmean      ,DT=grid%dt          &
      &        ,DZ8W=dz8w               ,EMISS=grid%emiss        ,GLW=grid%glw        &
@@ -357,7 +263,6 @@ conf>>>> sfire-master
      &        ,ITIMESTEP=grid%itimestep,JULDAY=grid%julday      , JULIAN=grid%julian &
      &        ,JULYR=grid%julyr        ,LW_PHYSICS=config_flags%ra_lw_physics        &
      &        ,NCFRCV=grid%ncfrcv      ,NCFRST=grid%ncfrst      ,NPHS=1              &
-conf<<<< HEAD
      &        ,o3input=config_flags%o3input     ,O3rad=grid%o3rad                    &
      &        ,aer_opt=config_flags%aer_opt ,aerod=aerod(:,:,:,P_ocarbon:P_upperaer) &
      &        ,swint_opt=config_flags%swint_opt                                      &
@@ -365,11 +270,6 @@ conf<<<< HEAD
      &        ,P8W=grid%p_hyd_w        ,P=grid%p_hyd            ,PI=pi_phy           &
      &        ,RADT=grid%radt          ,RA_CALL_OFFSET=grid%ra_call_offset           &
      &        ,RHO=grid%rho            ,RLWTOA=grid%rlwtoa                           &
-conf====
-     &        ,P8W=grid%p_hyd_w        ,P=grid%p_hyd            ,PI=pi_phy           &
-     &        ,RADT=grid%radt          ,RA_CALL_OFFSET=grid%ra_call_offset           &
-     &        ,RHO=rho                 ,RLWTOA=grid%rlwtoa                           &
-conf>>>> sfire-master
      &        ,RSWTOA=grid%rswtoa      ,RTHRATEN=grid%rthraten                       &
      &        ,RTHRATENLW=grid%rthratenlw       ,RTHRATENSW=grid%rthratensw          &
      &        ,SNOW=grid%snow          ,STEPRA=grid%stepra      ,SWDOWN=grid%swdown  &
@@ -384,7 +284,6 @@ conf>>>> sfire-master
      &        ,SWVISDIR=grid%swvisdir ,SWVISDIF=grid%swvisdif              &  !ssib
      &        ,SWNIRDIR=grid%swnirdir ,SWNIRDIF=grid%swnirdif              &  !ssib
      &        ,SF_SURFACE_PHYSICS=config_flags%sf_surface_physics          &  !ssib
-conf<<<< HEAD
 ! WRF-solar and aerosol variables from jararias 2013/8 and 2013/11
      &       ,SWDDIR=grid%swddir,SWDDNI=grid%swddni,SWDDIF=grid%swddif                              & 
      &       ,SWDDIRC=grid%swddirc, SWDDNIC=grid%swddnic                                            &
@@ -399,13 +298,10 @@ conf<<<< HEAD
      &       ,aod5502d=grid%aod5502d,angexp2d=grid%angexp2d,aerssa2d=grid%aerssa2d                  &
      &       ,aerasy2d=grid%aerasy2d,aod5503d=grid%aod5503d                                         &
      &       ,taod5502d=grid%taod5502d,taod5503d=grid%taod5503d                                     & ! Trude
-conf====
-conf>>>> sfire-master
 !Optional solar variables
      &        ,DECLINX=grid%declin ,SOLCONX=grid%solcon ,COSZEN=grid%coszen ,HRANG=grid%hrang    &
      &        , CEN_LAT=grid%cen_lat                                      &
      &        ,Z=grid%z                                                   &
-conf<<<< HEAD
      &        ,ALEVSIZ=grid%alevsiz, no_src_types=grid%no_src_types       &
      &        ,LEVSIZ=grid%levsiz, N_OZMIXM=num_ozmixm                    &
      &        ,N_AEROSOLC=num_aerosolc                                    &
@@ -427,15 +323,6 @@ conf<<<< HEAD
      &        ,CLDFRA_CUP=grid%cldfra_cup                                 & !CuP, wig 1-Oct-2006
      &        ,SHALL=grid%shall                                           & !CuP, wig 4-Feb-2008
 !BSINGH - ENDS
-conf====
-     &        ,LEVSIZ=grid%levsiz, N_OZMIXM=num_ozmixm                    &
-     &        ,N_AEROSOLC=num_aerosolc                                    &
-     &        ,PAERLEV=grid%paerlev                                       &
-     &        ,CAM_ABS_DIM1=grid%cam_abs_dim1, CAM_ABS_DIM2=grid%cam_abs_dim2 &
-     &        ,CAM_ABS_FREQ_S=grid%cam_abs_freq_s                         &
-     &        ,XTIME=grid%xtime                                                &
-              ,CURR_SECS=curr_secs, ADAPT_STEP_FLAG=adapt_step_flag       &
-conf>>>> sfire-master
             ! indexes
      &        ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde          &
      &        ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme          &
@@ -445,7 +332,6 @@ conf>>>> sfire-master
      &        ,num_tiles=grid%num_tiles                                   &
             ! Optional
 !JJS 20101020 vvvvv
-conf<<<< HEAD
 #if ( WRF_CHEM == 1)
      &        , CHEM=chem                                                 &
      &        , AOD_OUT=grid%aod_out                                      &
@@ -454,13 +340,10 @@ conf<<<< HEAD
      &        , CHEM_OPT=config_flags%chem_opt                            &
      &        , GSFCRAD_GOCART_COUPLING=config_flags%gsfcrad_gocart_coupling &
 #endif
-conf====
-conf>>>> sfire-master
      &        , TLWDN=grid%tlwdn, TLWUP=grid%tlwup                        & ! goddard schemes
      &        , SLWDN=grid%slwdn, SLWUP=grid%slwup                        & ! goddard schemes
      &        , TSWDN=grid%tswdn, TSWUP=grid%tswup                        & ! goddard schemes
      &        , SSWDN=grid%sswdn, SSWUP=grid%sswup                        & ! goddard schemes
-conf<<<< HEAD
      &        , RE_CLOUD_GSFC=grid%re_cloud_gsfc                          & ! goddard schemes
      &        , RE_RAIN_GSFC=grid%re_rain_gsfc                            & ! goddard schemes
      &        , RE_ICE_GSFC=grid%re_ice_gsfc                              & ! goddard schemes
@@ -489,18 +372,10 @@ conf<<<< HEAD
      &        , F_ICE_PHY=grid%f_ice_phy,F_RAIN_PHY=grid%f_rain_phy       &
      &        , F_QNC=F_QNC                                               &
      &        , QNC_CURR=scalar(ims,kms,jms,P_QNC)                        &
-conf====
-!JJS 20101020 ^^^^^
-
-     &        , CLDFRA=grid%cldfra                                        &
-     &        , PB=grid%pb                                                &
-     &        , F_ICE_PHY=grid%f_ice_phy,F_RAIN_PHY=grid%f_rain_phy       &
-conf>>>> sfire-master
      &        , QV=moist(ims,kms,jms,P_QV), F_QV=F_QV                     &
      &        , QC=moist(ims,kms,jms,P_QC), F_QC=F_QC                     &
      &        , QR=moist(ims,kms,jms,P_QR), F_QR=F_QR                     &
      &        , QI=moist(ims,kms,jms,P_QI), F_QI=F_QI                     &
-conf<<<< HEAD
      &        , QI2=moist(ims,kms,jms,P_QI2), F_QI2=F_QI2                 & ! for P3
      &        , QI3=moist(ims,kms,jms,P_QI3), F_QI3=F_QI3                 & ! for Jensen ISHMAEL
      &        , QS=moist(ims,kms,jms,P_QS), F_QS=F_QS                     &
@@ -510,11 +385,6 @@ conf<<<< HEAD
      &        ,QNIFA=scalar(ims,kms,jms,P_QNIFA),F_QNIFA=F_QNIFA          & !Trude
      &        ,QNWFA=scalar(ims,kms,jms,P_QNWFA),F_QNWFA=F_QNWFA          & !Trude
      &        ,qc_tot=grid%qc_tot, qi_tot=grid%qi_tot                     & ! Solar diag
-conf====
-     &        , QS=moist(ims,kms,jms,P_QS), F_QS=F_QS                     &
-     &        , QG=moist(ims,kms,jms,P_QG), F_QG=F_QG                     &
-     &        , QNDROP=scalar(ims,kms,jms,P_QNDROP), F_QNDROP=F_QNDROP    &
-conf>>>> sfire-master
      &        ,ACSWUPT=grid%acswupt    ,ACSWUPTC=grid%acswuptc            &
      &        ,ACSWDNT=grid%acswdnt    ,ACSWDNTC=grid%acswdntc            &
      &        ,ACSWUPB=grid%acswupb    ,ACSWUPBC=grid%acswupbc            &
@@ -523,7 +393,6 @@ conf>>>> sfire-master
      &        ,ACLWDNT=grid%aclwdnt    ,ACLWDNTC=grid%aclwdntc            &
      &        ,ACLWUPB=grid%aclwupb    ,ACLWUPBC=grid%aclwupbc            &
      &        ,ACLWDNB=grid%aclwdnb    ,ACLWDNBC=grid%aclwdnbc            &
-conf<<<< HEAD
      &        ,SWUPT=grid%swupt,SWUPTC=grid%swuptc,SWUPTCLN=grid%swuptcln &
      &        ,SWDNT=grid%swdnt,SWDNTC=grid%swdntc,SWDNTCLN=grid%swdntcln &
      &        ,SWUPB=grid%swupb,SWUPBC=grid%swupbc,SWUPBCLN=grid%swupbcln &
@@ -537,34 +406,14 @@ conf<<<< HEAD
      &        ,OLR=grid%olr                                                    &
      &        ,AERODM=grid%aerodm, PINA=grid%pina, AODTOT=grid%aodtot          &
      &        ,OZMIXM=grid%ozmixm, PIN=grid%pin                                &
-conf====
-     &        ,SWUPT=grid%swupt    ,SWUPTC=grid%swuptc                    &
-     &        ,SWDNT=grid%swdnt    ,SWDNTC=grid%swdntc                    &
-     &        ,SWUPB=grid%swupb    ,SWUPBC=grid%swupbc                    &
-     &        ,SWDNB=grid%swdnb    ,SWDNBC=grid%swdnbc                    &
-     &        ,LWUPT=grid%lwupt    ,LWUPTC=grid%lwuptc                    &
-     &        ,LWDNT=grid%lwdnt    ,LWDNTC=grid%lwdntc                    &
-     &        ,LWUPB=grid%lwupb    ,LWUPBC=grid%lwupbc                    &
-     &        ,LWDNB=grid%lwdnb    ,LWDNBC=grid%lwdnbc                    &
-     &        ,LWCF=grid%lwcf                                                  &
-     &        ,SWCF=grid%swcf                                                  &
-     &        ,OLR=grid%olr                                                    &
-     &        ,OZMIXM=grid%ozmixm, PIN=grid%pin                                     &
-conf>>>> sfire-master
      &        ,M_PS_1=grid%m_ps_1, M_PS_2=grid%m_ps_2, AEROSOLC_1=grid%aerosolc_1        &
      &        ,AEROSOLC_2=grid%aerosolc_2, M_HYBI0=grid%m_hybi                      &
      &        ,ABSTOT=grid%abstot, ABSNXT=grid%absnxt, EMSTOT=grid%emstot                &
      &        ,RADTACTTIME=grid%radtacttime                                         &  
-conf<<<< HEAD
      &        ,ICLOUD_CU=config_flags%ICLOUD_CU                            &
      &        ,QC_CU=grid%QC_CU , QI_CU=grid%QI_CU                         &
      &        ,CALC_CLEAN_ATM_DIAG=config_flags%calc_clean_atm_diag                  &
 #if (WRF_CHEM == 1)
-conf====
-     &        ,CU_RAD_FEEDBACK=config_flags%cu_rad_feedback                &
-     &        ,QC_ADJUST=grid%GD_CLOUD_B , QI_ADJUST=grid%GD_CLOUD2_B         &
-#ifdef WRF_CHEM
-conf>>>> sfire-master
      &        ,AER_RA_FEEDBACK=config_flags%aer_ra_feedback                &
      &        ,PM2_5_DRY=grid%pm2_5_dry, PM2_5_WATER=grid%pm2_5_water               &
      &        ,PM2_5_DRY_EC=grid%pm2_5_dry_ec                                  &
@@ -583,7 +432,6 @@ conf>>>> sfire-master
      &        ,progn=config_flags%progn                                            &
 #endif
      &         ,slope_rad=config_flags%slope_rad,topo_shading=config_flags%topo_shading     &
-conf<<<< HEAD
      &         ,shadowmask=grid%shadowmask   &
      &         ,ht=grid%ht,dx=grid%dx,dy=grid%dy,dx2d=grid%dx2d,area2d=grid%area2d &           
      &         ,diffuse_frac=grid%diffuse_frac &           
@@ -594,9 +442,6 @@ conf<<<< HEAD
      &         ,EFCG=grid%EFCG,EFCS=grid%EFCS,EFIG=grid%EFIG &
      &         ,EFIS=grid%EFIS,EFSG=grid%EFSG,aercu_opt=config_flags%aercu_opt & 
      &         ,EFSS=grid%EFSS,QS_CU=grid%QS_CU)
-conf====
-     &         ,shadowmask=grid%shadowmask,ht=grid%ht,dx=grid%dx,dy=grid%dy    )
-conf>>>> sfire-master
 
 BENCH_END(rad_driver_tim)
 
@@ -605,7 +450,6 @@ BENCH_END(rad_driver_tim)
 
 BENCH_START(surf_driver_tim)
 
-conf<<<< HEAD
 !gmm halo of wtd and riverflow for leafhydro
 #ifdef DM_PARALLEL
   IF ( ( config_flags%sf_surface_physics.eq.NOAHMPSCHEME ) .and. ( config_flags%opt_run.eq.5 ) ) THEN
@@ -615,8 +459,6 @@ conf<<<< HEAD
   ENDIF
 #endif
 
-conf====
-conf>>>> sfire-master
 !-----------------------------------------------------------------
 ! urban related variable are added to arguments of surface_driver
 !-----------------------------------------------------------------
@@ -627,7 +469,6 @@ conf>>>> sfire-master
       CALL nl_get_isurban(grid%id, isurban)
       call nl_get_mminlu(grid%id, mminlu)
 
-conf<<<< HEAD
 #ifdef DM_PARALLEL
 #     include "HALO_PWP.inc"
 #endif
@@ -643,32 +484,20 @@ conf<<<< HEAD
       CALL surface_driver(                                                &
      &        HYDRO_dt=HYDRO_dt,  sfcheadrt=grid%sfcheadrt,               &
      &        INFXSRT=grid%INFXSRT,  soldrain=grid%soldrain,              &
-conf====
-      CALL wrf_debug ( 200 , ' call surface_driver' )
-
-      CALL surface_driver(                                                &
-conf>>>> sfire-master
      &         ACGRDFLX=grid%acgrdflx  ,ACHFX=grid%achfx        ,ACLHF=grid%aclhf        &
      &        ,ACSNOM=grid%acsnom      ,ACSNOW=grid%acsnow      ,AKHS=grid%akhs          &
      &        ,AKMS=grid%akms          ,ALBBCK=grid%albbck      ,ALBEDO=grid%albedo      &
      &        ,EMBCK=grid%embck                                                          &
-conf<<<< HEAD
      &        ,BR=grid%br              ,CANWAT=grid%canwat      ,CHKLOWQ=chklowq    &
      &        ,CT=grid%ct              ,DT=grid%dt         ,DX=grid%dx              &
      &        ,DX2D=grid%dx2d          ,AREA2d=grid%area2d                          &
      &        ,DZ8W=dz8w          ,DZS=grid%dzs            ,FLHC=grid%flhc          &
      &        ,FM=grid%fm         ,FHH=grid%fh                                      &
-conf====
-     &        ,BR=br              ,CANWAT=grid%canwat      ,CHKLOWQ=chklowq    &
-     &        ,CT=grid%ct              ,DT=grid%dt         ,DX=grid%dx         &
-     &        ,DZ8W=dz8w          ,DZS=grid%dzs            ,FLHC=grid%flhc          &
-conf>>>> sfire-master
      &        ,FLQC=grid%flqc          ,GLW=grid%glw            ,GRDFLX=grid%grdflx      &
      &        ,GSW=grid%gsw    ,SWDOWN=grid%swdown        ,GZ1OZ0=gz1oz0      ,HFX=grid%hfx              &
      &        ,HT=grid%ht              ,IFSNOW=config_flags%ifsnow      ,ISFFLX=config_flags%isfflx      &
      &        ,FRACTIONAL_SEAICE=config_flags%fractional_seaice           &
      &        ,SEAICE_ALBEDO_OPT=config_flags%seaice_albedo_opt           &
-conf<<<< HEAD
      &        ,SEAICE_ALBEDO_DEFAULT=config_flags%seaice_albedo_default   &
      &        ,SEAICE_THICKNESS_OPT=config_flags%seaice_thickness_opt     &
      &        ,SEAICE_THICKNESS_DEFAULT=config_flags%seaice_thickness_default     &
@@ -685,10 +514,6 @@ conf<<<< HEAD
      &        ,IRR_START_JULIANDAY=config_flags%irr_start_julianday                                          &
      &        ,IRR_END_JULIANDAY=config_flags%irr_end_julianday                                              &
      &        ,IRR_FREQ=config_flags%irr_freq,IRR_PH=config_flags%irr_ph,IRR_RAND_FIELD=grid%irr_rand_field  & 
-conf====
-     &        ,TICE2TSK_IF2COLD=config_flags%tice2tsk_if2cold             &
-     &        ,ISLTYP=grid%isltyp      ,ITIMESTEP=grid%itimestep, JULIAN_IN=grid%julian                  &
-conf>>>> sfire-master
      &        ,IVGTYP=grid%ivgtyp      ,LH=grid%lh              ,LOWLYR=grid%lowlyr      &
      &        ,MAVAIL=grid%mavail      ,NUM_SOIL_LAYERS=config_flags%num_soil_layers        &
      &        ,P8W=grid%p_hyd_w            ,PBLH=grid%pblh          ,PI_PHY=pi_phy      &
@@ -698,29 +523,18 @@ conf>>>> sfire-master
      &        ,PSIM=psim          ,P_PHY=grid%p_hyd        ,Q10=grid%q10            &
      &        ,Q2=grid%q2              ,QFX=grid%qfx            ,QSFC=grid%qsfc          &
      &        ,QSHLTR=grid%qshltr      ,QZ0=grid%qz0            ,RAINCV=grid%raincv      &
-conf<<<< HEAD
      &        ,RA_LW_PHYSICS=config_flags%ra_lw_physics         ,RHO=grid%rho            &
      &        ,RMOL=grid%rmol          ,SFCEVP=grid%sfcevp      ,SFCEXC=grid%sfcexc      &
      &        ,SFCRUNOFF=grid%sfcrunoff,ACRUNOFF=grid%ACRUNOFF                           &
      &        ,opt_thcnd=config_flags%opt_thcnd                                          &
      &        ,SF_SFCLAY_PHYSICS=config_flags%sf_sfclay_physics                        &
      &        ,BL_PBL_PHYSICS=config_flags%bl_pbl_physics                              &
-conf====
-     &        ,RA_LW_PHYSICS=config_flags%ra_lw_physics            ,RHO=rho            &
-     &        ,RMOL=grid%rmol          ,SFCEVP=grid%sfcevp      ,SFCEXC=grid%sfcexc      &
-     &        ,SFCRUNOFF=grid%sfcrunoff                                        &
-     &        ,SF_SFCLAY_PHYSICS=config_flags%sf_sfclay_physics                        &
-conf>>>> sfire-master
      &        ,SF_SURFACE_PHYSICS=config_flags%sf_surface_physics  ,SH2O=grid%sh2o          &
      &        ,SHDMAX=grid%shdmax      ,SHDMIN=grid%shdmin      ,SMOIS=grid%smois        &
      &        ,SMSTAV=grid%smstav      ,SMSTOT=grid%smstot      ,SNOALB=grid%snoalb      &
      &        ,SNOW=grid%snow          ,SNOWC=grid%snowc        ,SNOWH=grid%snowh        &
      &        ,SMCREL=grid%smcrel                                                        &
-conf<<<< HEAD
      &        ,SST=grid%sst            ,SST_INPUT=grid%sst_input,SST_UPDATE=grid%sst_update                  &
-conf====
-     &        ,SST=grid%sst            ,SST_UPDATE=grid%sst_update                  &
-conf>>>> sfire-master
      &        ,SSTSK=grid%sstsk        ,DTW=grid%dtw            ,SST_SKIN=grid%sst_skin  &
      &        ,SCM_FORCE_SKINTEMP=grid%scm_force_skintemp                                &
      &        ,SCM_FORCE_FLUX=grid%scm_force_flux                                        &
@@ -733,7 +547,6 @@ conf>>>> sfire-master
      &        ,TSLB=grid%tslb          ,T_PHY=t_phy        ,U10=grid%u10            &
      &        ,URATX=grid%uratx        ,VRATX=grid%vratx   ,TRATX=grid%tratx        &
      &        ,UDRUNOFF=grid%udrunoff  ,UST=grid%ust       ,UZ0=grid%uz0            &
-conf<<<< HEAD
      &        ,U_FRAME=grid%u_frame    ,U_PHY=grid%u_phy   ,V10=grid%v10            &
      &        ,U10E=grid%u10e          ,V10E=grid%v10e                              &
      &        ,UOCE=grid%uoce          ,VOCE=grid%voce                              &
@@ -827,22 +640,6 @@ conf<<<< HEAD
 ! end of CLM variables
      &        ,SLOPE_RAD=config_flags%slope_rad,TOPO_SHADING=config_flags%topo_shading & ! solar
      &        ,SHADOWMASK=grid%shadowmask,DIFFUSE_FRAC=grid%diffuse_frac               & ! solar
-conf====
-     &        ,U_FRAME=grid%u_frame    ,U_PHY=u_phy        ,V10=grid%v10            &
-     &        ,VEGFRA=grid%vegfra      ,VZ0=grid%vz0       ,V_FRAME=grid%v_frame    &
-     &        ,V_PHY=v_phy             ,WARM_RAIN=grid%warm_rain                    &
-     &        ,WSPD=wspd               ,XICE=grid%xice     ,XLAND=grid%xland        &
-     &        ,Z0=grid%z0              ,Z=grid%z        ,ZNT=grid%znt            &
-     &        ,ZS=grid%zs              ,XICEM=grid%xicem   ,ISICE=grid%landuse_isice&
-     &        ,USTM=grid%ustm          ,CK=grid%ck         ,CKA=grid%cka            &
-     &                                 ,CD=grid%cd         ,CDA=grid%cda            &
-     &        ,ISFTCFLX=config_flags%isftcflx, IZ0TLND=config_flags%iz0tlnd         &
-     &        ,OMLCALL=config_flags%omlcall ,OML_HML0=config_flags%oml_hml0 ,OML_GAMMA=config_flags%oml_gamma &
-     &        ,TML=grid%tml, T0ML=grid%t0ml, HML=grid%hml, H0ML=grid%h0ml, HUML=grid%huml, HVML=grid%hvml, F=grid%f &
-     &        ,TMOML=grid%TMOML,ISWATER=iswater &
-     &        ,SLOPE_RAD=config_flags%slope_rad,TOPO_SHADING=config_flags%topo_shading & ! solar
-     &        ,SHADOWMASK=grid%shadowmask                                              & ! solar
-conf>>>> sfire-master
      &        ,SLOPE=grid%slope, SLP_AZI=grid%slp_azi, SWNORM=grid%swnorm              & ! solar
      &        ,DECLIN=grid%declin ,SOLCON=grid%solcon ,COSZEN=grid%coszen ,HRANG=grid%hrang    &
      &        ,xlat_urb2d=grid%XLAT                                       & !I urban
@@ -858,7 +655,6 @@ conf>>>> sfire-master
      &        ,XXXB_URB2D=grid%xxxb_urb2d                                 & !H urban
      &        ,XXXG_URB2D=grid%xxxg_urb2d                                 &
      &        ,XXXC_URB2D=grid%xxxc_urb2d                                 & !H urban
-conf<<<< HEAD
      &        ,CMCR_URB2D=grid%cmcr_urb2d,TGR_URB2D=grid%tgr_urb2d        & !H urban
      &        ,TGRL_URB3D=grid%tgrl_urb3d,SMR_URB3D=grid%smr_urb3d        & !H urban
      &        ,JULIAN=grid%julday, JULYR=grid%julyr                       & !I urban
@@ -867,8 +663,6 @@ conf<<<< HEAD
      &        ,FLXHUMR_URB2D=grid%flxhumr_urb2d                           & !H urban
      &        ,FLXHUMB_URB2D=grid%flxhumb_urb2d                           & !H urban
      &        ,FLXHUMG_URB2D=grid%flxhumg_urb2d                           & !H urban
-conf====
-conf>>>> sfire-master
      &        ,TRL_URB3D=grid%trl_urb3d   ,TBL_URB3D=grid%tbl_urb3d       & !H urban
      &        ,TGL_URB3D=grid%tgl_urb3d                                   & !H urban
      &        ,SH_URB2D=grid%sh_urb2d     ,LH_URB2D=grid%lh_urb2d         &
@@ -878,7 +672,6 @@ conf>>>> sfire-master
      &        ,UTYPE_URB2D=grid%utype_urb2d                               & !H urban
          ! Optional urban for BEP scheme
      &        ,SF_URBAN_PHYSICS=config_flags%sf_urban_physics             &
-conf<<<< HEAD
      &        ,num_urban_ndm = config_flags%num_urban_ndm                 & !multi-layer urban
      &        ,urban_map_zrd = config_flags%urban_map_zrd                 & !multi-layer urban
      &        ,urban_map_zwd = config_flags%urban_map_zwd                 & !multi-layer urban
@@ -891,9 +684,6 @@ conf<<<< HEAD
      &        ,urban_map_fbd = config_flags%urban_map_fbd                 & !multi-layer urban
      &        ,NUM_URBAN_HI=config_flags%num_urban_hi                     & !multi-layer urban
      &        ,TSK_RURAL=grid%tsk_rural                                   & !multi-layer urban
-conf====
-     &        ,NUM_URBAN_LAYERS=config_flags%num_urban_layers             & !multi-layer urban
-conf>>>> sfire-master
      &        ,TRB_URB4D=grid%trb_urb4d,TW1_URB4D=grid%tw1_urb4d          & !multi-layer urban
      &        ,TW2_URB4D=grid%tw2_urb4d,TGB_URB4D=grid%tgb_urb4d          & !multi-layer urban
      &        ,TLEV_URB3D=grid%tlev_urb3d                               & !multi-layer urban
@@ -911,13 +701,10 @@ conf>>>> sfire-master
      &        ,SFWIN2_URB3D=grid%sfwin2_urb3d                           & !multi-layer urban
      &        ,SFW1_URB3D=grid%sfw1_urb3d,SFW2_URB3D=grid%sfw2_urb3d      & !multi-layer urban
      &        ,SFR_URB3D=grid%sfr_urb3d,SFG_URB3D=grid%sfg_urb3d          & !multi-layer urban
-conf<<<< HEAD
      &        ,LP_URB2D=grid%lp_urb2d,HI_URB2D=grid%hi_urb2d              & !multi-layer urban
      &        ,LB_URB2D=grid%lb_urb2d,HGT_URB2D=grid%hgt_urb2d            & !multi-layer urban
      &        ,MH_URB2D=grid%mh_urb2d,STDH_URB2D=grid%stdh_urb2d          & !SLUCM
      &        ,LF_URB2D=grid%lf_urb2d                                           & 
-conf====
-conf>>>> sfire-master
      &        ,GMT=grid%gmt,XLAT=grid%xlat,XLONG=grid%xlong,JULDAY=grid%julday  &
      &        ,A_U_BEP=grid%a_u_bep,A_V_BEP=grid%a_v_bep,A_T_BEP=grid%a_t_bep   &
      &        ,A_Q_BEP=grid%a_q_bep                                             &
@@ -928,7 +715,6 @@ conf>>>> sfire-master
      &        ,DL_U_BEP=grid%dl_u_bep                                           &
      &        ,CMR_SFCDIF=grid%cmr_sfcdif, CHR_SFCDIF=grid%chr_sfcdif     & !I/O urban
      &        ,CMC_SFCDIF=grid%cmc_sfcdif, CHC_SFCDIF=grid%chc_sfcdif     & !I/O urban
-conf<<<< HEAD
      &        ,CMGR_SFCDIF=grid%cmgr_sfcdif, CHGR_SFCDIF=grid%chgr_sfcdif & !I/O urban
            ! P-X LSM Variables
      &        ,LANDUSEF=grid%landusef, SOILCTOP=grid%soilctop             &   ! P-X LSM
@@ -936,13 +722,6 @@ conf<<<< HEAD
      &        ,RA=grid%ra, RS=grid%rs, LAI=grid%lai, IMPERV=grid%imperv   &   ! P-X LSM
      &        ,CANFRA=grid%canfra, NLCAT=grid%num_land_cat                &   ! P-X LSM
      &        ,NSCAT=grid%num_soil_cat                                    &   ! P-X LSM
-conf====
-           ! P-X LSM Variables
-     &        ,LANDUSEF=grid%landusef, SOILCTOP=grid%soilctop             &   ! P-X LSM
-     &        ,SOILCBOT=grid%soilcbot                                     &   ! P-X LSM
-     &        ,RA=grid%ra, RS=grid%rs, LAI=grid%lai                       &   ! P-X LSM
-     &        ,NLCAT=grid%num_land_cat,  NSCAT=grid%num_soil_cat          &   ! P-X LSM
-conf>>>> sfire-master
      &        ,VEGF_PX=grid%vegf_px, SNOWNCV=grid%snowncv                 &   ! P-X LSM
      &        ,ANAL_INTERVAL=config_flags%auxinput9_interval_s+config_flags%auxinput9_interval_m*60  &   ! P-X LSM
      &        ,PXLSM_SMOIS_INIT=config_flags%pxlsm_smois_init             &   ! P-X LSM
@@ -988,7 +767,6 @@ conf>>>> sfire-master
      &        ,q2_ndg_new=grid%q2_ndg_new                  &
      &        ,sn_ndg_old=grid%sn_ndg_old                  &
      &        ,sn_ndg_new=grid%sn_ndg_new                  &
-conf<<<< HEAD
      &        ,pxlsm_modis_veg=config_flags%pxlsm_modis_veg                   &
      &        ,LAI_PX=grid%lai_px                                             &
      &        ,WWLT_PX=grid%wwlt_px, WFC_PX=grid%wfc_px                       &
@@ -1050,43 +828,6 @@ conf<<<< HEAD
      &        ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde          &
      &        ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme          &
      &        ,IPS=ips,IPE=ipe, JPS=jps,JPE=jpe, KPS=kps,KPE=kpe          &
-conf====
-     &        ,idveg=config_flags%dveg, iopt_crs=config_flags%opt_crs  &
-     &        ,iopt_btr=config_flags%opt_btr, iopt_run=config_flags%opt_run &
-     &        ,iopt_sfc=config_flags%opt_sfc, iopt_frz=config_flags%opt_frz &
-     &        ,iopt_inf=config_flags%opt_inf, iopt_rad=config_flags%opt_rad &
-     &        ,iopt_alb=config_flags%opt_alb ,iopt_snf=config_flags%opt_snf &
-     &        ,iopt_tbot=config_flags%opt_tbot, iopt_stc=config_flags%opt_stc & 
-     &        ,isnowxy=grid%isnowxy                                           &
-     &        ,tvxy=grid%tvxy     ,tgxy=grid%tgxy                             &
-     &        ,canicexy=grid%canicexy,canliqxy=grid%canliqxy                  &
-     &        ,eahxy=grid%eahxy                                               &
-     &        ,tahxy=grid%tahxy    ,cmxy=grid%cmxy     ,chxy=grid%chxy        &
-     &        ,fwetxy=grid%fwetxy  ,sneqvoxy=grid%sneqvoxy                    &
-     &        ,alboldxy=grid%alboldxy ,qsnowxy=grid%qsnowxy                   &
-     &        ,wslakexy=grid%wslakexy ,zwtxy=grid%zwtxy    ,waxy=grid%waxy    &
-     &        ,wtxy=grid%wtxy    ,tsnoxy=grid%tsnoxy   ,zsnsoxy=grid%zsnsoxy  &
-     &        ,snicexy=grid%snicexy  ,snliqxy=grid%snliqxy                    &
-     &        ,lfmassxy=grid%lfmassxy ,rtmassxy=grid%rtmassxy                 &
-     &        ,stmassxy=grid%stmassxy ,woodxy=grid%woodxy                     &
-     &        ,stblcpxy=grid%stblcpxy ,fastcpxy=grid%fastcpxy                 &
-     &        ,xsaixy=grid%xsaixy ,tradxy=grid%tradxy                         &
-     &        ,tsxy=grid%tsxy     ,neexy=grid%neexy    ,gppxy=grid%gppxy      &
-     &        ,nppxy=grid%nppxy   ,fvegxy=grid%fvegxy   ,qinxy=grid%qinxy     &
-     &        ,runsfxy=grid%runsfxy ,runsbxy=grid%runsbxy ,ecanxy=grid%ecanxy &
-     &        ,edirxy=grid%edirxy   ,etranxy=grid%etranxy  ,fsaxy=grid%fsaxy  &
-     &        ,firaxy=grid%firaxy                                             &
-     &        ,aparxy=grid%aparxy ,psnxy=grid%psnxy                           &
-     &        ,savxy=grid%savxy    ,sagxy=grid%sagxy ,fsnoxy=grid%fsnoxy      &
-     &        ,t2mvxy=grid%t2mvxy ,t2mbxy=grid%t2mbxy ,chstarxy=grid%chstarxy & 
-     &        ,rssunxy=grid%rssunxy ,rsshaxy=grid%rsshaxy ,bgapxy=grid%bgapxy &
-     &        ,wgapxy=grid%wgapxy   ,gapxy=grid%gapxy, tgvxy=grid%tgvxy       &
-     &        ,tgbxy=grid%tgbxy,q2mvxy=grid%q2mvxy, q2mbxy=grid%q2mbxy        &
-     &        ,chvxy=grid%chvxy,chbxy=grid%chbxy                              &
-           ! Indexes
-     &        ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde          &
-     &        ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme          &
-conf>>>> sfire-master
      &        , I_START=grid%i_start,I_END=min(grid%i_end, ide-1)         &
      &        , J_START=grid%j_start,J_END=min(grid%j_end, jde-1)         &
      &        , KTS=k_start, KTE=min(k_end,kde-1)                         &
@@ -1110,28 +851,20 @@ conf>>>> sfire-master
      &        ,CAPG=grid%capg, EMISS=grid%emiss, HOL=hol,MOL=grid%mol     &
      &        ,T2OBS=grid%t2obs, Q2OBS=grid%q2obs                         &
      &        ,RAINBL=grid%rainbl,SR=grid%sr,RAINSHV=grid%rainshv         &
-conf<<<< HEAD
      &        ,GRAUPELNCV=grid%graupelncv, HAILNCV=grid%hailncv           &
-conf====
-conf>>>> sfire-master
      &        ,RAINNCV=grid%rainncv,REGIME=grid%regime,T2=grid%t2,THC=grid%thc            &
      &        ,QSG=grid%qsg,QVG=grid%qvg,QCG=grid%qcg,SOILT1=grid%soilt1,TSNAV=grid%tsnav & ! ruc lsm
      &        ,SMFR3D=grid%smfr3d,KEEPFR3DFLAG=grid%keepfr3dflag,DEW=grid%dew             & ! ruc lsm
      &        ,POTEVP=grid%POTEVP, SNOPCX=grid%SNOPCX, SOILTB=grid%SOILTB                 & ! ruc lsm
-conf<<<< HEAD
      &        ,rhosnf=grid%rhosnf ,precipfr=grid%precipfr                 &   ! RUC LSM
      &        ,snowfallac=grid%snowfallac                                 &   ! RUC LSM
      &        ,MOSAIC_LU=config_flags%mosaic_lu                           & ! RUC LSM
-conf====
-     &        ,MOSAIC_LU=config_flags%mosaic_lu                           &   ! RUC LSM
-conf>>>> sfire-master
      &        ,MOSAIC_SOIL=config_flags%mosaic_soil                       &   ! RUC LSM
      &        ,ISURBAN=isurban, MMINLU=TRIM(mminlu)                       &
      &        ,SNOTIME = grid%SNOTIME                                     &
      &        ,RDLAI2D=config_flags%rdlai2d                               &
      &        ,usemonalb=config_flags%usemonalb                           &
      &        ,NOAHRES=grid%noahres                                       &
-conf<<<< HEAD
      &        ,TSK_SAVE=grid%tsk_save                                     &
      &        ,ch=grid%ch                                                 &
      &        ,fgdp=grid%fgdp,dfgdp=grid%dfgdp,vdfg=grid%vdfg             & !Katata - fogdes
@@ -1178,16 +911,10 @@ conf<<<< HEAD
      &     grid%j_start(1),min(grid%j_end(1), jde-1) )
 #endif
 
-conf====
-!mynn mp
-     &         ,ch=grid%ch,tsq=grid%tsq,qsq=grid%qsq,cov=grid%cov &
-     &                                                              )
-conf>>>> sfire-master
 BENCH_END(surf_driver_tim)
 
 !*********
 ! pbl
-conf<<<< HEAD
 #if ( WRFPLUS == 1 )
 #ifdef DM_PARALLEL
       IF ( config_flags%bl_pbl_physics .EQ. 98 ) THEN
@@ -1195,15 +922,12 @@ conf<<<< HEAD
       ENDIF
 #endif
 #endif
-conf====
-conf>>>> sfire-master
 
       CALL wrf_debug ( 200 , ' call pbl_driver' )
 BENCH_START(pbl_driver_tim)
       CALL pbl_driver(                                                              &
      &         AKHS=grid%akhs          ,AKMS=grid%akms                              &
      &        ,BL_PBL_PHYSICS=config_flags%bl_pbl_physics                           &
-conf<<<< HEAD
      &        ,WINDFARM_OPT=config_flags%windfarm_opt,power=grid%power              &
      &        ,BLDT=grid%bldt, CURR_SECS=curr_secs, ADAPT_STEP_FLAG=adapt_step_flag &
      &        ,BLDTACTTIME=grid%bldtacttime                               &  
@@ -1213,13 +937,6 @@ conf<<<< HEAD
      &        ,DZ8W=dz8w          ,HPBL_HOLD=hpbl_hold                              &
      &        ,EXCH_H=grid%exch_h     ,EXCH_M=grid%exch_m                           &
      &        ,FM=grid%fm         ,FHH=grid%fh                                      &
-conf====
-     &        ,BLDT=grid%bldt, CURR_SECS=curr_secs, ADAPT_STEP_FLAG=adapt_step_flag &
-     &        ,BLDTACTTIME=grid%bldtacttime                               &  
-     &        ,BR=br              ,CHKLOWQ=chklowq    ,CT=grid%ct                   &
-     &        ,DT=grid%dt              ,DX=grid%dx              ,DZ8W=dz8w          &
-     &        ,EXCH_H=grid%exch_h     ,EXCH_M=grid%exch_m                           &
-conf>>>> sfire-master
      &        ,F=grid%f  ,GRDFLX=grid%grdflx      &
      &        ,GZ1OZ0=gz1oz0      ,HFX=grid%hfx            ,HT=grid%ht              &
      &        ,ID=grid%id         ,ITIMESTEP=grid%itimestep     ,KPBL=grid%kpbl          &
@@ -1228,16 +945,11 @@ conf>>>> sfire-master
      &        ,PSIM=psim          ,P_PHY=grid%p_hyd        ,QFX=grid%qfx            &
      &        ,QSFC=grid%qsfc          ,QZ0=grid%qz0  ,MIXHT=mixht                  &
      &        ,RA_LW_PHYSICS=config_flags%ra_lw_physics                   &
-conf<<<< HEAD
      &        ,RHO=grid%rho            ,RQCBLTEN=grid%rqcblten  ,RQIBLTEN=grid%rqiblten  &
-conf====
-     &        ,RHO=rho            ,RQCBLTEN=grid%rqcblten  ,RQIBLTEN=grid%rqiblten  &
-conf>>>> sfire-master
      &        ,RQVBLTEN=grid%rqvblten  ,RTHBLTEN=grid%rthblten  ,RUBLTEN=grid%rublten    &
      &        ,RVBLTEN=grid%rvblten    ,SNOW=grid%snow          ,STEPBL=grid%stepbl      &
      &        ,THZ0=grid%thz0          ,TH_PHY=th_phy                               &
      &        ,TSK=grid%tsk            ,T_PHY=grid%t_phy        ,UST=grid%ust       &
-conf<<<< HEAD
      &        ,U10=grid%u10 ,UZ0=grid%uz0      ,U_FRAME=grid%u_frame    ,U_PHY=grid%u_phy   &
      &        ,V10=grid%v10 ,VZ0=grid%vz0      ,V_FRAME=grid%v_frame    ,V_PHY=grid%v_phy   &
      &        ,W=grid%w_2   ,UOCE=grid%uoce    ,VOCE=grid%voce                              &
@@ -1247,14 +959,6 @@ conf<<<< HEAD
      &        ,ZNT=grid%znt                                                    &
      &        ,ysu_topdown_pblmix=config_flags%ysu_topdown_pblmix              &
      &        ,shinhong_tke_diag=config_flags%shinhong_tke_diag               &
-conf====
-     &        ,U10=grid%u10 ,UZ0=grid%uz0      ,U_FRAME=grid%u_frame    ,U_PHY=u_phy        &
-     &        ,V10=grid%v10 ,VZ0=grid%vz0      ,V_FRAME=grid%v_frame    ,V_PHY=v_phy        &
-              ,T2=grid%t2 &
-     &        ,WARM_RAIN=grid%warm_rain                    ,WSPD=wspd          &
-     &        ,XICE=grid%xice          ,XLAND=grid%xland        ,Z=grid%z                &
-     &        ,ZNT=grid%znt                                                    &
-conf>>>> sfire-master
 ! paj: topo_wind
      &        ,CTOPO=grid%ctopo,CTOPO2=grid%ctopo2                                   &
 ! variables added for BEP
@@ -1270,16 +974,11 @@ conf>>>> sfire-master
      &          ,SF_URBAN_PHYSICS=config_flags%sf_urban_physics                          &
 ! Bep changes end
 ! add tke_pbl, and turbulent fluxes
-conf<<<< HEAD
      &          ,TKE_PBL=grid%tke_pbl,EL_PBL=grid%el_pbl,WU_TUR=grid%wu_tur              &
      &          ,WV_tur=grid%wv_tur,WT_tur=grid%wt_tur,WQ_tur=grid%wq_tur                &
 ! end add tke_pbl, and turbulent fluxes
 ! GBMPBL change: add exch_tke, rthraten
      &        ,EXCH_TKE=grid%exch_tke, RTHRATEN=grid%rthraten             &
-conf====
-     &          ,TKE_PBL=grid%tke_pbl,EL_PBL=grid%el_pbl,WU_TUR=grid%wu_tur,WV_tur=grid%wv_tur,WT_tur=grid%wt_tur,WQ_tur=grid%wq_tur   &
-! end add tke_pbl, and turbulent fluxes
-conf>>>> sfire-master
      &        ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde          &
      &        ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme          &
      &        ,I_START=grid%i_start,I_END=min(grid%i_end, ide-1)          &
@@ -1308,7 +1007,6 @@ conf>>>> sfire-master
      &        ,QI_CURR=moist(ims,kms,jms,P_QI), F_QI=F_QI                 &
      &        ,QS_CURR=moist(ims,kms,jms,P_QS), F_QS=F_QS                 &
      &        ,QG_CURR=moist(ims,kms,jms,P_QG), F_QG=F_QG                 &
-conf<<<< HEAD
      &        ,QNIFA_CURR=scalar(ims,kms,jms,P_QNIFA),F_QNIFA=F_QNIFA     &
      &        ,QNWFA_CURR=scalar(ims,kms,jms,P_QNWFA),F_QNWFA=F_QNWFA     &
      &        ,HOL=HOL, MOL=grid%mol, REGIME=grid%REGIME                  &
@@ -1344,16 +1042,6 @@ conf<<<< HEAD
      &        ,spp_pbl=config_flags%spp_pbl                               &
      &        ,pattern_spp_pbl=grid%pattern_spp_pbl                       &
      &        ,restart=config_flags%restart,cycling=config_flags%cycling  &
-conf====
-     &        ,HOL=HOL, MOL=grid%mol, REGIME=grid%REGIME                  &
-!mynn mp@
-     &        ,QKE=scalar(ims,kms,jms,P_qke), tsq=grid%tsq, qsq=grid%qsq, cov=grid%cov     &
-     &        ,EL_MYNN=grid%el_mynn,DQKE=grid%dqke,QWT=grid%qWT           &
-     &        ,QSHEAR=grid%qSHEAR,QBUOY=grid%qBUOY,QDISS=grid%qDISS &
-     &        ,rmol=grid%rmol, ch=grid%ch                                 &
-     &        ,qcg=grid%qcg, grav_settling=grid%grav_settling             &
-!    &        ,K_m=grid%K_m, K_h=grid%K_h, K_q=grid%K_q                   &
-conf>>>> sfire-master
 !GWD for ARW
      &        ,GWD_OPT=config_flags%gwd_opt &
      &        ,DTAUX3D=grid%dtaux3d,DTAUY3D=grid%dtauy3d &
@@ -1361,10 +1049,7 @@ conf>>>> sfire-master
      &        ,VAR2D=grid%var2d,OC12D=grid%oc12d     &
      &        ,OA1=grid%oa1,OA2=grid%oa2,OA3=grid%oa3,OA4=grid%oa4        &
      &        ,OL1=grid%ol1,OL2=grid%ol2,OL3=grid%ol3,OL4=grid%ol4        &
-conf<<<< HEAD
      &        ,SINA=grid%sina,COSA=grid%cosa                              &
-conf====
-conf>>>> sfire-master
      &        ,MFSHCONV=config_flags%mfshconv                             &
      &        ,MASSFLUX_EDKF=grid%massflux_EDKF                           & 
      &        ,ENTR_EDKF=grid%entr_EDKF, DETR_EDKF=grid%detr_EDKF         &
@@ -1376,7 +1061,6 @@ conf>>>> sfire-master
      &        ,phb=grid%phb                                               &
      &        ,XLAT_U=grid%xlat_u,XLONG_U=grid%xlong_u                    &
 !Variables required for camuwpbl scheme
-conf<<<< HEAD
      &        ,Z_AT_W=grid%z_at_w,CLDFRA_OLD_MP=grid%cldfra_old_mp        &
      &        ,CLDFRA=grid%cldfra                                        &
      &        ,RTHRATENLW=grid%rthratenlw,TAURESX2D=grid%tauresx2d        &
@@ -1421,16 +1105,6 @@ conf<<<< HEAD
      ENDIF
 #endif
 #endif
-conf====
-     &        ,Z_AT_W=grid%z_at_w,CLDFRA=grid%cldfra                      &
-     &        ,RTHRATENLW=grid%rthratenlw,TAURESX2D=grid%tauresx2d        &
-     &        ,TAURESY2D=grid%tauresy2d                                   &
-     &        ,TPERT2D=grid%tpert2d,QPERT2D=grid%qpert2d                  &
-     &        ,WPERT2D=grid%wpert2d                                       &
-     &        ,XLAT_V=grid%xlat_v,XLONG_V=grid%xlong_v                    &
-     &        )
-                                                         
-conf>>>> sfire-master
 
 BENCH_END(pbl_driver_tim)
 
@@ -1442,31 +1116,32 @@ BENCH_END(pbl_driver_tim)
       IF ((grid%sr_x > 0 .OR. grid%sr_y > 0) .AND. config_flags%ifire == 2) THEN
 
 BENCH_START(fire_driver_tim)
-        if(config_flags%ifire.eq.2)then 
+        if(config_flags%ifire.eq.1)then 
             ! initialization moved to start_em:start_domain_em
 !            if(grid%initestep.eq.1) &
-conf<<<< HEAD
-!            call fire_driver_em_init (  grid , config_flags    &
-conf====
 !            call sfire_driver_em_init (  grid , config_flags    &
-conf>>>> sfire-master
 !            ,ids,ide, kds,kde, jds,jde                              &
 !            ,ims,ime, kms,kme, jms,jme                              &
 !            ,ips,ipe, kps,kpe, jps,jpe  )
             ! one timestep of the fire model
-conf<<<< HEAD
-            call fire_driver_em_step (  grid , config_flags    &
-            ,ids,ide, kds,kde, jds,jde                              &
-            ,ims,ime, kms,kme, jms,jme                              &
-            ,ips,ipe, kps,kpe, jps,jpe                              &
-            ,grid%rho,grid%z_at_w,dz8w)
-conf====
             call sfire_driver_em_step (  grid , config_flags    &
             ,ids,ide, kds,kde, jds,jde                              &
             ,ims,ime, kms,kme, jms,jme                              &
             ,ips,ipe, kps,kpe, jps,jpe                              &
             ,rho,grid%z_at_w,dz8w)
-conf>>>> sfire-master
+        elseif(config_flags%ifire.eq.2)then 
+            ! initialization moved to start_em:start_domain_em
+!            if(grid%initestep.eq.1) &
+!            call fire_driver_em_init (  grid , config_flags    &
+!            ,ids,ide, kds,kde, jds,jde                              &
+!            ,ims,ime, kms,kme, jms,jme                              &
+!            ,ips,ipe, kps,kpe, jps,jpe  )
+            ! one timestep of the fire model
+            call fire_driver_em_step (  grid , config_flags    &
+            ,ids,ide, kds,kde, jds,jde                              &
+            ,ims,ime, kms,kme, jms,jme                              &
+            ,ips,ipe, kps,kpe, jps,jpe                              &
+            ,grid%rho,grid%z_at_w,dz8w)
         endif
 
 BENCH_END(fire_driver_tim)
@@ -1479,21 +1154,13 @@ BENCH_END(fire_driver_tim)
 
 #if ( WRF_DFI_RADAR == 1 )
       do_capsupress=0
-conf<<<< HEAD
          if(grid%dfi_stage == DFI_FWD ) do_capsupress=1
          if(grid%itimestep <= 31 .and. grid%dfi_stage == DFI_FST ) do_capsupress=1
-conf====
-!      if (config_flags%dfi_radar == 1) then
-         if(grid%dfi_stage == DFI_FWD ) do_capsupress=1
-         if(grid%itimestep <= 31 .and. grid%dfi_stage == DFI_FST ) do_capsupress=1
-!      endif
-conf>>>> sfire-master
 #endif
 
 BENCH_START(cu_driver_tim)
       CALL cumulus_driver(grid                                             &
                  ! Prognostic variables
-conf<<<< HEAD
      &             ,U=grid%u_phy   ,V=grid%v_phy   ,TH=th_phy  ,T=grid%t_phy                  &
      &             ,W=grid%w_2     ,P=grid%p_hyd   ,PI=pi_phy  ,RHO=grid%rho             &
                  ! Other arguments
@@ -1515,18 +1182,6 @@ conf<<<< HEAD
      &             ,HTOP=grid%cutop     ,HBOT=grid%cubot       ,KPBL=grid%kpbl         &
      &             ,Z=grid%z ,Z_AT_W=grid%z_at_w ,MAVAIL=grid%mavail ,PBLH=grid%pblh   &
      &             ,HPBL_HOLD=hpbl_hold                                                &
-conf====
-     &             ,U=u_phy   ,V=v_phy   ,TH=th_phy  ,T=grid%t_phy                  &
-     &             ,W=grid%w_2     ,P=grid%p_hyd   ,PI=pi_phy  ,RHO=rho             &
-                 ! Other arguments
-     &             ,ITIMESTEP=grid%itimestep ,DT=grid%dt      ,DX=grid%dx              &
-     &             ,CUDT=grid%cudt,CURR_SECS=curr_secs,ADAPT_STEP_FLAG=adapt_step_flag &
-     &             ,CUDTACTTIME=grid%cudtacttime                                       & 
-     &             ,RAINC=grid%rainc   ,RAINCV=grid%raincv   ,PRATEC=grid%pratec       &
-     &             ,NCA=grid%nca                                                       &
-     &             ,HTOP=grid%cutop     ,HBOT=grid%cubot       ,KPBL=grid%kpbl         &
-     &             ,Z=grid%z ,Z_AT_W=grid%z_at_w ,MAVAIL=grid%mavail ,PBLH=grid%pblh   &
-conf>>>> sfire-master
      &             ,DZ8W=dz8w     ,P8W=grid%p_hyd_w, PSFC=grid%psfc, TSK=grid%tsk      &
      &             ,TKE_PBL=grid%tke_pbl, UST=grid%ust                                 &
      &             ,W0AVG=grid%w0avg   ,STEPCU=grid%stepcu                             &
@@ -1544,7 +1199,6 @@ conf>>>> sfire-master
      &             ,MAXENS2=config_flags%maxens2 ,MAXENS3=config_flags%maxens3       &
      &             ,CU_ACT_FLAG=cu_act_flag   ,WARM_RAIN=grid%warm_rain   &
      &             ,HFX=grid%hfx, QFX=grid%qfx                            &
-conf<<<< HEAD
      &             ,CLDFRA=grid%cldfra,CLDFRA_MP_ALL=grid%cldfra_mp_all  &
      &             ,TPERT2D=grid%tpert2d                                 &
      &             ,GSW=grid%gsw,cugd_avedx=config_flags%cugd_avedx       &
@@ -1588,15 +1242,6 @@ conf<<<< HEAD
                  ! Zhang-McFarlane outputs
      &             ,EVAPCDP3D=grid%evapcdp3d, ICWMRDP3D=grid%icwmrdp3d    & !Balwinder.Singh@pnnl.gov: For CAM's wetscavenging
      &             ,RPRDDP3D=grid%rprddp3d                                & 
-conf====
-     &             ,CLDFRA=grid%cldfra, TPERT2D=grid%tpert2d              &
-     &             ,GSW=grid%gsw,cugd_avedx=config_flags%cugd_avedx       &
-     &             ,k22_shallow=grid%k22_shallow,kbcon_shallow=grid%kbcon_shallow &
-     &             ,ktop_shallow=grid%ktop_shallow,xmb_shallow=grid%xmb_shallow   &
-     &             ,PERIODIC_X=(config_flags%polar .OR. config_flags%periodic_x)  &
-     &             ,PERIODIC_Y=config_flags%periodic_y                    &
-                 ! Zhang-McFarlane outputs
-conf>>>> sfire-master
      &             ,CAPE=grid%cape ,ZMMU=grid%zmmu ,ZMMD=grid%zmmd        &
      &             ,ZMDT=grid%zmdt ,ZMDQ=grid%zmdq                        &
      &             ,DLF=grid%dlf, RLIQ=grid%rliq                          &
@@ -1613,7 +1258,6 @@ conf>>>> sfire-master
      &             ,ZMICUU=grid%zmicuu, ZMICUD=grid%zmicud                &
      &             ,ZMICVU=grid%zmicvu, ZMICVD=grid%zmicvd                &
      &             ,ZMDICE=grid%zmdice, ZMDLIQ=grid%zmdliq                &
-conf<<<< HEAD
      &             ,dp3d=grid%dp3d, du3d=grid%du3d, ed3d=grid%ed3d        &
      &             ,eu3d=grid%eu3d, md3d=grid%md3d, mu3d=grid%mu3d        &
      &             ,dsubcld2d=grid%dsubcld2d,ideep2d=grid%ideep2d         &
@@ -1630,14 +1274,6 @@ conf<<<< HEAD
      !BSINGH -ENDS
      &             ,KFETA_TRIGGER=config_flags%kfeta_trigger              &
      &             ,NSAS_DX_FACTOR=config_flags%nsas_dx_factor            &
-conf====
-                 ! Selection flag
-     &             ,pgcon=config_flags%sas_pgcon                          &
-     &             ,CU_PHYSICS=config_flags%cu_physics                    &
-     &             ,BL_PBL_PHYSICS=config_flags%bl_pbl_physics            &
-     &             ,SF_SFCLAY_PHYSICS=config_flags%sf_sfclay_physics      &
-     &             ,KFETA_TRIGGER=config_flags%kfeta_trigger              &
-conf>>>> sfire-master
                  ! Dimension arguments
      &             ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde     &
      &             ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme     &
@@ -1649,12 +1285,8 @@ conf>>>> sfire-master
                  ! Moisture tendency arguments
      &             ,RQVCUTEN=grid%rqvcuten , RQCCUTEN=grid%rqccuten       &
      &             ,RQSCUTEN=grid%rqscuten , RQICUTEN=grid%rqicuten       &
-conf<<<< HEAD
      &             ,RQRCUTEN=grid%rqrcuten , RQCNCUTEN=grid%rqcncuten     &
      &             ,RQINCUTEN=grid%rqincuten                              &
-conf====
-     &             ,RQRCUTEN=grid%rqrcuten                                &
-conf>>>> sfire-master
      &             ,RQVBLTEN=grid%rqvblten , RQVFTEN=grid%rqvften         &
                  ! Other tendency arguments
      &             ,RTHRATEN=grid%rthraten , RTHBLTEN=grid%rthblten       &
@@ -1667,7 +1299,6 @@ conf>>>> sfire-master
      &             ,QI_CURR=moist(ims,kms,jms,P_QI), F_QI=F_QI            &
      &             ,QS_CURR=moist(ims,kms,jms,P_QS), F_QS=F_QS            &
      &             ,QG_CURR=moist(ims,kms,jms,P_QG), F_QG=F_QG            &
-conf<<<< HEAD
      &             ,ZOL=grid%ZOL                                          & !ckay
 ! Variables for Tiedtke and NSAS schemes
      &             ,ZNU=grid%znu                                          &
@@ -1689,18 +1320,6 @@ conf<<<< HEAD
                    ,aeropcu=grid%aeropcu,ID=grid%id                                     &
                    ,JULDAY=grid%julday, JULIAN=grid%julian                              &
                    ,aerovar=grid%aerovar,EFCS=grid%EFCS,EFIS=grid%EFIS,EFSS=grid%EFSS)
-conf====
-! Variables for Tiedtke and NSAS schemes
-     &             ,ZNU=grid%znu                                          &
-     &             ,MP_PHYSICS=config_flags%mp_physics                    &
-#ifdef WRF_CHEM
-     &             ,GD_CLOUD=grid%GD_CLOUD,GD_CLOUD2=grid%GD_CLOUD2       &
-#endif
-#if ( WRF_DFI_RADAR == 1 )
-     &             ,DO_CAPSUPPRESS=do_capsupress                          &
-#endif
-     &             ,cfu1=grid%cfu1,cfd1=grid%cfd1,dfu1=grid%dfu1,efu1=grid%efu1,dfd1=grid%dfd1,efd1=grid%efd1,f_flux=l_flux)
-conf>>>> sfire-master
 BENCH_END(cu_driver_tim)
 !
 ! this for calculating (G3 scheme only)  time averaged variables for online (WRF-CHem) or offline (other models) chem runs
@@ -1710,15 +1329,9 @@ BENCH_END(cu_driver_tim)
       !$OMP PRIVATE ( ij )
       DO ij = 1 , grid%num_tiles
            call convtrans_prep(grid%gd_cloud,grid%gd_cloud2,grid%gd_cloud_a,&
-conf<<<< HEAD
      &          grid%QC_CU,grid%raincv,grid%raincv_a,grid%raincv_b,     &
      &          grid%gd_cldfr,moist,p_QV,p_QC,p_qi,T_PHY,P_PHY,num_moist,    &
      &          grid%gd_cloud2_a,grid%QI_CU,grid%convtrans_avglen_m,&
-conf====
-     &          grid%gd_cloud_b,grid%raincv,grid%raincv_a,grid%raincv_b,     &
-     &          grid%gd_cldfr,moist,p_QV,p_QC,p_qi,T_PHY,P_PHY,num_moist,    &
-     &          grid%gd_cloud2_a,grid%gd_cloud2_b,grid%convtrans_avglen_m,&
-conf>>>> sfire-master
      &          adapt_step_flag,curr_secs,                &
      &          grid%itimestep,grid%dt,                                      &
      &          config_flags%cu_physics,                                     &
@@ -1743,18 +1356,11 @@ BENCH_START(shcu_driver_tim)
      &             ,J_START=grid%j_start, J_END=min(grid%j_end, jde-1)    &
      &             ,KTS=k_start, KTE=min(k_end, kde-1)                    &
      &             ,NUM_TILES=grid%num_tiles                              &
-conf<<<< HEAD
      &             ,U=grid%u_phy, V=grid%v_phy, TH=th_phy, T=t_phy        &
      &             ,P=grid%p_hyd, PI=pi_phy, RHO=grid%rho, MOIST=moist    &
      &             ,NUM_MOIST=num_moist                                   &
      &             ,ITIMESTEP=grid%itimestep, DT=grid%dt, DX=grid%dx      &
      &             ,DX2D=grid%dx2d, AREA2D=grid%area2d                    &
-conf====
-     &             ,U=u_phy, V=v_phy, TH=th_phy, T=t_phy                  &
-     &             ,P=grid%p_hyd, PI=pi_phy, RHO=rho, MOIST=moist         &
-     &             ,NUM_MOIST=num_moist                                   &
-     &             ,ITIMESTEP=grid%itimestep, DT=grid%dt, DX=grid%dx      &
-conf>>>> sfire-master
      &             ,CUDT=grid%cudt                                        &
      &             ,CURR_SECS=curr_secs, ADAPT_STEP_FLAG=adapt_step_flag  &
      &             ,RAINSH=grid%rainsh, PRATESH=grid%pratesh, NCA=grid%nca&
@@ -1763,18 +1369,14 @@ conf>>>> sfire-master
      &             ,MAVAIL=grid%mavail, PBLH=grid%pblh, P8W=grid%p_hyd_w  &
      &             ,TKE_PBL=grid%tke_pbl                                  &
      &             ,CLDFRA=grid%cldfra, CLDFRA_OLD=grid%cldfra_old        &
-conf<<<< HEAD
      &             ,CLDFRA_OLD_MP=grid%cldfra_old_mp                      &
      &             ,CLDFRA_CONV=grid%cldfra_conv                          &
-conf====
-conf>>>> sfire-master
      &             ,CLDFRASH=grid%cldfrash, HTOP=grid%htop, HBOT=grid%hbot&
      &             ,SHCU_PHYSICS=grid%shcu_physics                        &
      &             ,QV_CURR=moist(ims,kms,jms,P_QV)                       &
      &             ,QC_CURR=moist(ims,kms,jms,P_QC)                       &
      &             ,QR_CURR=moist(ims,kms,jms,P_QR)                       &
      &             ,QI_CURR=moist(ims,kms,jms,P_QI)                       &
-conf<<<< HEAD
      &             ,QS_CURR=moist(ims,kms,jms,P_QS)                       &
      &             ,QG_CURR=moist(ims,kms,jms,P_QG)                       &
      &             ,QNC_CURR=scalar(ims,kms,jms,P_QNC)                    & !BSINGH - Neede for UWSHCU scheme
@@ -1784,11 +1386,6 @@ conf<<<< HEAD
 #endif
      &             ,DLF=grid%dlf, RLIQ=grid%rliq, RLIQ2=grid%rliq2        &
      &             ,DLF2=grid%dlf2                                        & ! Required for CAMMGMP microphysics scheme
-conf====
-     &             ,QS_CURR=moist(ims,kms,jms,P_QI)                       &
-     &             ,QG_CURR=moist(ims,kms,jms,P_QG)                       &
-     &             ,DLF=grid%dlf, RLIQ=grid%rliq, RLIQ2=grid%rliq2        &
-conf>>>> sfire-master
      &             ,CMFMC=grid%cmfmc, CMFMC2=grid%cmfmc2                  &
      &             ,CUSH=grid%cush, SNOWSH=grid%snowsh                    &
      &             ,ICWMRSH=grid%icwmrsh, RPRDSH=grid%rprdsh              &
@@ -1797,10 +1394,7 @@ conf>>>> sfire-master
      &             ,RQVSHTEN=grid%rqvshten, RQCSHTEN=grid%rqcshten        &
      &             ,RQRSHTEN=grid%rqrshten, RQISHTEN=grid%rqishten        &
      &             ,RQSSHTEN=grid%rqsshten, RQGSHTEN=grid%rqgshten        &
-conf<<<< HEAD
      &             ,RQCNSHTEN=grid%rqcnshten, RQINSHTEN=grid%rqinshten    &  
-conf====
-conf>>>> sfire-master
      &             ,RQVBLTEN=grid%rqvblten, RQVFTEN=grid%rqvften          &
      &             ,RUSHTEN=grid%rushten, RVSHTEN=grid%rvshten            &
      &             ,RTHSHTEN=grid%rthshten, RTHRATEN=grid%rthraten        &
@@ -1808,7 +1402,6 @@ conf>>>> sfire-master
      &             ,F_QV=f_qv,F_QC=f_qc,F_QR=f_qr                         &
      &             ,F_QI=f_qi,F_QS=f_qs,F_QG=f_qg                         &
      &             ,HT=grid%ht                                            &
-conf<<<< HEAD
      &             ,SHFRC3D=grid%shfrc3d                                  & !Balwinder.Singh@pnnl.gov: For CAM's wetscavenging
      &             ,IS_CAMMGMP_USED = grid%is_CAMMGMP_used                &
      &             ,WSTAR=grid%wstar_ysu,DELTA=grid%delta_ysu             &
@@ -1854,9 +1447,6 @@ conf<<<< HEAD
       ENDIF
 #endif
 #endif
-conf====
-     &                                                                    )
-conf>>>> sfire-master
 BENCH_END(shcu_driver_tim)
 
 ! JPH call force_scm to update bl tendencies
@@ -1934,11 +1524,7 @@ BENCH_END(shcu_driver_tim)
      &             ,z=grid%z,z_at_w=grid%z_at_w                           &
      &             ,th=th_phy, qv=moist(ims,kms,jms,P_QV)                 &
      &             ,ql=moist(ims,kms,jms,P_QC)                            &
-conf<<<< HEAD
      &             ,u=grid%u_phy, v=grid%v_phy                                      &
-conf====
-     &             ,u=u_phy, v=v_phy                                      &
-conf>>>> sfire-master
      &             ,thten=grid%rthblten, qvten=grid%rqvblten              &
      &             ,qlten=grid%rqcblten                                   &
      &             ,uten=grid%rublten, vten=grid%rvblten                  &
@@ -1959,7 +1545,6 @@ BENCH_START(fdda_driver_tim)
                   RUNDGDTEN=grid%rundgdten,RVNDGDTEN=grid%rvndgdten,                &
                   RTHNDGDTEN=grid%rthndgdten,RPHNDGDTEN=grid%rphndgdten,            &
                   RQVNDGDTEN=grid%rqvndgdten,RMUNDGDTEN=grid%rmundgdten,            &
-conf<<<< HEAD
 !
 ! FASDAS
 !
@@ -1968,8 +1553,6 @@ conf<<<< HEAD
 !
 ! END FASDAS
 !
-conf====
-conf>>>> sfire-master
                   u_ndg_old=fdda3d(ims,kms,jms,P_u_ndg_old),                        &
                   v_ndg_old=fdda3d(ims,kms,jms,P_v_ndg_old),                        &
                   t_ndg_old=fdda3d(ims,kms,jms,P_t_ndg_old),                        &
@@ -1983,11 +1566,7 @@ conf>>>> sfire-master
                   q_ndg_new=fdda3d(ims,kms,jms,P_q_ndg_new),                        &
                   mu_ndg_new=fdda2d(ims,1,jms,P_mu_ndg_new),                        &
                   u3d=grid%u_2,v3d=grid%v_2,th_phy=th_phy,                          &
-conf<<<< HEAD
                   ph=grid%ph_2,rho=grid%rho,moist=moist,                            &
-conf====
-                  ph=grid%ph_2,rho=rho,moist=moist,                                 &
-conf>>>> sfire-master
                   p_phy=p_phy,pi_phy=pi_phy,p8w=p8w,t_phy=grid%t_phy,               &
                   dz8w=dz8w,z=grid%z,z_at_w=grid%z_at_w,                            &
                   grid=grid,config_flags=config_flags,dx=grid%DX,n_moist=num_moist, &

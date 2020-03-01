@@ -9,60 +9,39 @@
    USE module_domain, ONLY : domain, wrfu_timeinterval, get_ijk_from_grid, &
         domain_setgmtetc
    USE module_state_description
-conf<<<< HEAD
    USE module_driver_constants
    USE module_wrf_error
    USE module_model_constants
    USE module_bc, ONLY : boundary_condition_check, set_physical_bc2d, set_physical_bc3d, bdyzone
    USE module_bc_em, ONLY: lbc_fcx_gcx, set_w_surface
    USE module_configure, ONLY : model_to_grid_config_rec, model_config_rec, grid_config_rec_type
-conf====
-   USE module_model_constants
-   USE module_bc, ONLY : boundary_condition_check, set_physical_bc2d
-   USE module_bc_em
-   USE module_configure, ONLY : grid_config_rec_type
-conf>>>> sfire-master
    USE module_tiles, ONLY : set_tiles
 #ifdef DM_PARALLEL
    USE module_dm, ONLY : wrf_dm_min_real, wrf_dm_max_real, wrf_dm_maxval, &
-        ntasks_x, ntasks_y, &
-conf<<<< HEAD
+e       ntasks_x, ntasks_y, &
         local_communicator_periodic, local_communicator, mytask, ntasks
-conf====
-        local_communicator_periodic, local_communicator, mytask, ntasks 
-conf>>>> sfire-master
 #else
    USE module_dm, ONLY : wrf_dm_min_real, wrf_dm_max_real
 #endif
    USE module_comm_dm
-conf<<<< HEAD
    USE module_llxy, ONLY : proj_cassini
    USE module_physics_init
    USE module_sf_noahmpdrv, ONLY : groundwater_init
    USE module_lightning_driver, ONLY : lightning_init
    USE module_fr_fire_driver_wrf, ONLY : fire_driver_em_init
+   USE module_fr_sfire_driver_wrf, ONLY : sfire_driver_em_init
    USE module_stoch, ONLY : setup_rand_perturb, rand_seed, update_stoch, initialize_stoch
    USE module_trajectory, ONLY : trajectory_init
 #if (WRF_CHEM == 1)
-conf====
-
-   USE module_physics_init
-   USE module_fr_sfire_driver_wrf, ONLY : sfire_driver_em_init
-   USE module_stoch, ONLY : SETUP_STOCH,rand_seed, update_stoch
-#ifdef WRF_CHEM
-conf>>>> sfire-master
    USE module_aerosols_sorgam, ONLY: sum_pm_sorgam
    USE module_gocart_aerosols, ONLY: sum_pm_gocart
    USE module_mosaic_driver, ONLY: sum_pm_mosaic
    USE module_input_tracer, ONLY: initialize_tracer
    USE module_aerosols_soa_vbs, only: sum_pm_soa_vbs
 #endif
-conf<<<< HEAD
    USE module_diag_pld, ONLY : pld
    USE module_diag_zld, ONLY : zld
    USE module_trad_fields, ONLY : trad_fields
-conf====
-conf>>>> sfire-master
 
 !!debug
 !USE module_compute_geop
@@ -97,14 +76,9 @@ conf>>>> sfire-master
 
    INTEGER     :: i_m
 
-conf<<<< HEAD
    REAL        :: p_top_test, p00, t00, a, tiso, p_surf, pd_surf, temp, tiso_tmp
    REAL        :: p_strat, a_strat
 #if (WRF_CHEM == 1)
-conf====
-   REAL        :: p00, t00, a, tiso, p_surf, pd_surf, temp
-#ifdef WRF_CHEM
-conf>>>> sfire-master
    REAL        RGASUNIV ! universal gas constant [ J/mol-K ]
    PARAMETER ( RGASUNIV = 8.314510 )
       REAL,DIMENSION(grid%sm31:grid%em31,grid%sm32:grid%em32,grid%sm33:grid%em33) :: &
@@ -119,22 +93,14 @@ conf>>>> sfire-master
    LOGICAL :: first_trip_for_this_domain, start_of_simulation, fill_w_flag
    LOGICAL, EXTERNAL :: wrf_dm_on_monitor
 
-conf<<<< HEAD
 #if (WRF_CHEM != 1)
-conf====
-#ifndef WRF_CHEM
-conf>>>> sfire-master
       REAL,ALLOCATABLE,DIMENSION(:,:,:) :: cldfra_old
 #endif
 
    REAL :: lat1 , lat2 , lat3 , lat4
    REAL :: lon1 , lon2 , lon3 , lon4
    INTEGER :: num_points_lat_lon , iloc , jloc
-conf<<<< HEAD
    CHARACTER (LEN=256) :: message, a_message
-conf====
-   CHARACTER (LEN=132) :: message
-conf>>>> sfire-master
    TYPE(WRFU_TimeInterval) :: stepTime
    REAL, DIMENSION(:,:), ALLOCATABLE :: clat_glob
    logical :: f_flux  ! flag for computing averaged fluxes in cu_gd
@@ -146,7 +112,6 @@ conf>>>> sfire-master
    REAL :: w_max, w_min
    LOGICAL :: w_needs_to_be_set
 !  
-conf<<<< HEAD
 ! Define variables local (topo_wind local vars)
    REAL    :: alpha, vfac
    INTEGER :: j_save
@@ -166,11 +131,6 @@ conf<<<< HEAD
    REAL :: dt_s, dx_km
 
    REAL :: max_mf, max_rot_angle
-conf====
-! paj: define variable local
-   REAL    :: alpha
-
-conf>>>> sfire-master
    CALL get_ijk_from_grid ( grid ,                              &
                            ids, ide, jds, jde, kds, kde,        &
                            ims, ime, jms, jme, kms, kme,        &
@@ -183,48 +143,29 @@ conf>>>> sfire-master
    kts = kps ; kte = kpe     ! note that tile is entire patch
    its = ips ; ite = ipe     ! note that tile is entire patch
    jts = jps ; jte = jpe    ! note that tile is entire patch
-conf<<<< HEAD
 #if (WRF_CHEM != 1)
          ALLOCATE(CLDFRA_OLD(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; CLDFRA_OLD = 0.
 #endif
    ALLOCATE(dz8w(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; dz8w = 0.
    ALLOCATE(z_at_q(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; z_at_q = 0.
-conf====
-#ifndef WRF_CHEM
-         ALLOCATE(CLDFRA_OLD(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; CLDFRA_OLD = 0.
-#endif
-conf>>>> sfire-master
    CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
 
    IF ( ( MOD (ide-ids,config_flags%parent_grid_ratio) .NE. 0 ) .OR. &
         ( MOD (jde-jds,config_flags%parent_grid_ratio) .NE. 0 ) ) THEN
-conf<<<< HEAD
       WRITE(message, FMT='(A,I2,":  Both MOD(",I4,"-",I1,",",I2,") and MOD(",I4,"-",I1,",",I2,") must = 0" )') &
          "Nested dimensions are illegal for domain ",grid%id,ide,ids,config_flags%parent_grid_ratio,&
          jde,jds,config_flags%parent_grid_ratio
-conf====
-      WRITE(message, FMT='("Nested dimensions are illegal for domain ",I2,":  Both &
-         &MOD(",I4,"-",I1,",",I2,") and MOD(",I4,"-",I1,",",I2,") must = 0" )') &
-         grid%id,ide,ids,config_flags%parent_grid_ratio,jde,jds,config_flags%parent_grid_ratio
-conf>>>> sfire-master
       CALL wrf_error_fatal ( message )
    END IF
 
    IF ( config_flags%polar ) THEN
-conf<<<< HEAD
 !write(0,*)"<stdin>",__LINE__,' clat ',ips,ipe,jps,jpe
 !do j = jps,jpe
 !write(0,*)"<stdin>",__LINE__,' clat ',ids,j,grid%clat(ips,j)
-conf====
-!write(0,*)__FILE__,__LINE__,' clat ',ips,ipe,jps,jpe
-!do j = jps,jpe
-!write(0,*)__FILE__,__LINE__,' clat ',ids,j,grid%clat(ips,j)
-conf>>>> sfire-master
 !enddo
 
 #ifdef DM_PARALLEL
 ! WARNING:  this might present scaling issues on very large numbers of processors
-conf<<<< HEAD
      alloc_err_message = ' '
      alloc_err_message(1:12) = 'NO PROBLEMOS'
 #if 0
@@ -238,9 +179,6 @@ conf<<<< HEAD
         CALL wrf_message ( TRIM(alloc_err_message) )
         CALL wrf_error_fatal ( 'Error allocating entire domain size of 2d array CLAT for global domain' )
      END IF
-conf====
-     ALLOCATE( clat_glob(ids:ide,jds:jde) )
-conf>>>> sfire-master
 
      CALL wrf_patch_to_global_real ( grid%clat, clat_glob, grid%domdesc, 'xy', 'xy', &
                                      ids, ide, jds, jde, 1, 1, &
@@ -251,7 +189,6 @@ conf>>>> sfire-master
 
      grid%clat_xxx(ipsx:ipex,jpsx:jpex) = clat_glob(ipsx:ipex,jpsx:jpex)
 
-conf<<<< HEAD
      find_j_index_of_fft_filter : DO j = jds , jde-1
         IF ( ABS(clat_glob(ids,j)) .LE. config_flags%fft_filter_lat ) THEN
            j_save = j
@@ -270,8 +207,6 @@ conf<<<< HEAD
 
      grid%mf_xxx(ipsx:ipex,jpsx:jpex) = clat_glob(ipsx:ipex,jpsx:jpex)
 
-conf====
-conf>>>> sfire-master
      DEALLOCATE( clat_glob )
 #endif
    ENDIF
@@ -279,13 +214,10 @@ conf>>>> sfire-master
 ! here we check to see if the boundary conditions are set properly
 
    CALL boundary_condition_check( config_flags, bdyzone, error, grid%id )
-conf<<<< HEAD
 ! make sure that topo_wind option has var_sso data available
     IF ((config_flags%topo_wind .EQ. 1) .AND. (.NOT. grid%got_var_sso)) THEN
       CALL wrf_error_fatal ("topo_wind requires VAR_SSO data")
     ENDIF
-conf====
-conf>>>> sfire-master
 
 !kludge - need to stop CG from resetting precip and phys tendencies to zero
 !         when we are in here due to a nest being spawned, we want to still
@@ -302,7 +234,6 @@ conf>>>> sfire-master
        grid%itimestep=0
    ENDIF
 
-conf<<<< HEAD
    IF ( config_flags%restart .or. grid%moved .or. config_flags%cycling) THEN
        first_trip_for_this_domain = .TRUE.
    ENDIF
@@ -406,43 +337,6 @@ conf<<<< HEAD
 !   --- END SETUP STOCHASTIC PERTURBATION SCHEMES ----------
 
 
-conf====
-   IF ( config_flags%restart .or. grid%moved ) THEN
-       first_trip_for_this_domain = .TRUE.
-   ENDIF
-
-!   --- SETUP AND INITIALIZE STOCHASTIC KINETIC ENERGY BACKSCATTER SCHEME ---
-
-   IF ( first_trip_for_this_domain ) THEN
-     grid%did_stoch = .FALSE.
-   END IF
-
-   IF ( ( grid%id == 1 ) .AND. &
-        ( NINT(grid%stoch_force_global_opt) == 1 ) .AND. &
-        ( .NOT. grid%did_stoch ) ) THEN
-
-     grid%did_stoch = .TRUE.
-     IF ( wrf_dm_on_monitor () ) THEN
-       CALL rand_seed ( config_flags, grid%SEED1, grid%SEED2, grid%NENS )
-     ENDIF
-#ifdef DM_PARALLEL
-     CALL wrf_dm_bcast_bytes ( grid%SEED1, IWORDSIZE )
-     CALL wrf_dm_bcast_bytes ( grid%SEED2, IWORDSIZE )
-#endif
-
-     call SETUP_STOCH(grid%VERTSTRUCC,grid%VERTSTRUCS,                   &
-                      grid%SPT_AMP,grid%SPSTREAM_AMP,                    &
-                      grid%stoch_vertstruc_opt,                          & 
-                      grid%SEED1,grid%SEED2,grid%time_step,              &
-                      grid%DX,grid%DY,                                   &
-                      grid%TOT_BACKSCAT_PSI,grid%TOT_BACKSCAT_T,         &
-                      ids, ide, jds, jde, kds, kde,                      &
-                      ims, ime, jms, jme, kms, kme,                      &
-                      its, ite, jts, jte, kts, kte                       )
-    
-    END IF
-!   --- END SETUP STOCHASTIC KINETIC ENERGY BACKSCATTER SCHEME ----------
-conf>>>> sfire-master
 
 ! wig: Add a combined exponential+linear weight on the mother boundaries
 !      following code changes by Ruby Leung. For the nested grid, there
@@ -605,7 +499,6 @@ conf>>>> sfire-master
       END IF
    END IF
 
-conf<<<< HEAD
    !  Make sure that the base-state vales have not changed between what is in the input file
    !  and the namelist file.
 
@@ -660,42 +553,11 @@ conf<<<< HEAD
       IF ( config_flags%map_proj .EQ. 0 ) THEN
          CALL wrf_error_fatal ( 'start_domain: Idealized case cannot have a separate nested input file' )
       END IF
-conf====
-   IF ( .NOT. config_flags%restart .AND. &
-        (( config_flags%input_from_hires ) .OR. ( config_flags%input_from_file ))) THEN
-
-      IF ( config_flags%map_proj .EQ. 0 ) THEN
-         CALL wrf_error_fatal ( 'start_domain: Idealized case cannot have a separate nested input file' )
-      END IF
-
-      IF ( config_flags%use_baseparam_fr_nml ) then
-      CALL nl_get_base_pres  ( 1 , p00 )
-      CALL nl_get_base_temp  ( 1 , t00 )
-      CALL nl_get_base_lapse ( 1 , a   )
-      CALL nl_get_iso_temp   ( 1 , tiso )
-
-      ELSE
-      ! get these constants from model data
-
-      t00  = grid%t00
-      p00  = grid%p00
-      a    = grid%tlp
-      tiso = grid%tiso
-
-      IF (t00 .LT. 100. .or. p00 .LT. 10000.) THEN
-      WRITE(wrf_err_message,*)&
-      'start_em: did not find base state parameters in wrfinput. Add use_baseparam_fr_nml = .t. in &dynamics and rerun'
-      CALL wrf_error_fatal(TRIM(wrf_err_message))
-      ENDIF
-
-      ENDIF
-conf>>>> sfire-master
 
       !  Base state potential temperature and inverse density (alpha = 1/rho) from
       !  the half eta levels and the base-profile surface pressure.  Compute 1/rho
       !  from equation of state.  The potential temperature is a perturbation from t0.
 
-conf<<<< HEAD
       IF ( grid%c1f(1) .NE. 1. ) THEN
          CALL wrf_debug ( 0 , '---- WARNING : Maybe old non-HVC input, setting default 1d array values for TF' )
          IF ( grid%hybrid_opt .NE. 0 ) THEN
@@ -765,70 +627,17 @@ conf<<<< HEAD
                   pfu = grid%c3f(k  )*grid%MUB(i,j) + grid%c4f(k  ) + grid%p_top
                   pfd = grid%c3f(k-1)*grid%MUB(i,j) + grid%c4f(k-1) + grid%p_top
                   phm = grid%c3h(k-1)*grid%MUB(i,j) + grid%c4h(k-1) + grid%p_top
-conf====
-      DO j = jts, MIN(jte,jde-1)
-         DO i = its, MIN(ite,ide-1)
-
-            !  Base state pressure is a function of eta level and terrain, only, plus
-            !  the hand full of constants: p00 (sea level pressure, Pa), t00 (sea level
-            !  temperature, K), and A (temperature difference, from 1000 mb to 300 mb, K).
-
-            p_surf = p00 * EXP ( -t00/a + ( (t00/a)**2 - 2.*g*grid%ht(i,j)/a/r_d ) **0.5 )
-
-            DO k = 1, kte-1
-               grid%pb(i,k,j) = grid%znu(k)*(p_surf - grid%p_top) + grid%p_top
-               temp = MAX ( tiso, t00 + A*LOG(grid%pb(i,k,j)/p00) )
-               grid%t_init(i,k,j) = temp*(p00/grid%pb(i,k,j))**(r_d/cp) - t0
-!              grid%t_init(i,k,j) = (t00 + A*LOG(grid%pb(i,k,j)/p00))*(p00/grid%pb(i,k,j))**(r_d/cp) - t0
-               grid%alb(i,k,j) = (r_d/p1000mb)*(grid%t_init(i,k,j)+t0)*(grid%pb(i,k,j)/p1000mb)**cvpm
-            END DO
-
-            !  Base state mu is defined as base state surface pressure minus grid%p_top
-
-            grid%mub(i,j) = p_surf - grid%p_top
-
-            !  Integrate base geopotential, starting at terrain elevation.  This assures that
-            !  the base state is in exact hydrostatic balance with respect to the model equations.
-            !  This field is on full levels.
-
-            grid%phb(i,1,j) = grid%ht(i,j) * g
-
-            IF ( config_flags%hypsometric_opt .EQ. 1 ) THEN
-               DO k  = 2,kte
-                  grid%phb(i,k,j) = grid%phb(i,k-1,j) - grid%dnw(k-1)*grid%mub(i,j)*grid%alb(i,k-1,j)
-               END DO
-            ELSE IF ( config_flags%hypsometric_opt .EQ. 2 ) THEN
-               DO k  = 2,kte
-                  pfu = grid%mub(i,j)*grid%znw(k)   + grid%p_top
-                  pfd = grid%mub(i,j)*grid%znw(k-1) + grid%p_top
-                  phm = grid%mub(i,j)*grid%znu(k-1) + grid%p_top
-conf>>>> sfire-master
                   grid%phb(i,k,j) = grid%phb(i,k-1,j) + grid%alb(i,k-1,j)*phm*LOG(pfd/pfu)
                END DO
             END IF
          END DO
       END DO
-conf<<<< HEAD
    ENDIF
    IF(.not.config_flags%restart)THEN
 !  if this is for a nested domain, the defined/interpolated fields are the _2
      IF ( first_trip_for_this_domain ) THEN
 ! data that is expected to be zero must be explicitly initialized as such
 !    grid%h_diabatic = 0.
-conf====
-
-   ENDIF
-
-   IF(.not.config_flags%restart)THEN
-
-!  if this is for a nested domain, the defined/interpolated fields are the _2
-
-     IF ( first_trip_for_this_domain ) THEN
-
-! data that is expected to be zero must be explicitly initialized as such
-!    grid%h_diabatic = 0.
-
-conf>>>> sfire-master
        DO j = jts,min(jte,jde-1)
        DO k = kts,kte-1
        DO i = its, min(ite,ide-1)
@@ -838,10 +647,6 @@ conf>>>> sfire-master
        ENDDO
        ENDDO
        ENDDO
-conf<<<< HEAD
-conf====
-
-conf>>>> sfire-master
        DO j = jts,min(jte,jde-1)
        DO k = kts,kte
        DO i = its, min(ite,ide-1)
@@ -849,46 +654,27 @@ conf>>>> sfire-master
        ENDDO
        ENDDO
        ENDDO
-conf<<<< HEAD
        DO j = jts,min(jte,jde-1)
        DO i = its, min(ite,ide-1)
            IF ( grid%imask_nostag(i,j) .EQ. 1 ) THEN
              grid%MU_1(i,j)=grid%MU_2(i,j)
-conf====
-
-       DO j = jts,min(jte,jde-1)
-       DO i = its, min(ite,ide-1)
-           IF ( grid%imask_nostag(i,j) .EQ. 1 ) THEN
-             grid%mu_1(i,j)=grid%mu_2(i,j)
-conf>>>> sfire-master
            ENDIF
        ENDDO
        ENDDO
      END IF
-conf<<<< HEAD
 !  reconstitute base-state fields
-conf====
-
-!  reconstitute base-state fields
-
-conf>>>> sfire-master
     IF(config_flags%max_dom .EQ. 1)THEN
 ! with single domain, grid%t_init from wrfinput is OK to use
      DO j = jts,min(jte,jde-1)
      DO k = kts,kte-1
      DO i = its, min(ite,ide-1)
        IF ( grid%imask_nostag(i,j) .EQ. 1 ) THEN
-conf<<<< HEAD
          grid%pb(i,k,j) = grid%c3h(k  )*grid%MUB(i,j) + grid%c4h(k  ) + grid%p_top
-conf====
-         grid%pb(i,k,j) = grid%znu(k)*grid%mub(i,j)+grid%p_top
-conf>>>> sfire-master
          grid%alb(i,k,j) = (r_d/p1000mb)*(grid%t_init(i,k,j)+t0)*(grid%pb(i,k,j)/p1000mb)**cvpm
        ENDIF
      ENDDO
      ENDDO
      ENDDO
-conf<<<< HEAD
     ELSE ! there is more than 1 domain
      IF ( .NOT. grid%this_is_an_ideal_run ) THEN ! this is a real run
         DO j = jts,min(jte,jde-1)
@@ -1001,34 +787,11 @@ conf<<<< HEAD
        ENDDO
      END IF
      ! Use equations from calc_p_rho_phi to derive p and al from ph: linear in log p
-conf====
-    ELSE
-! with nests, grid%t_init generally needs recomputations (since it is not interpolated)
-     DO j = jts,min(jte,jde-1)
-     DO k = kts,kte-1
-     DO i = its, min(ite,ide-1)
-       IF ( grid%imask_nostag(i,j) .EQ. 1 ) THEN
-         grid%pb(i,k,j) = grid%znu(k)*grid%mub(i,j)+grid%p_top
-         grid%alb(i,k,j) = -grid%rdnw(k)*(grid%phb(i,k+1,j)-grid%phb(i,k,j))/grid%mub(i,j)
-         grid%t_init(i,k,j) = grid%alb(i,k,j)*(p1000mb/r_d)/((grid%pb(i,k,j)/p1000mb)**cvpm) - t0
-       ENDIF
-     ENDDO
-     ENDDO
-     ENDDO
-    ENDIF
-
-! Use equations from calc_p_rho_phi to derive p and al from ph: linear in log p
-
-conf>>>> sfire-master
     IF ( config_flags%hypsometric_opt .EQ. 1 ) THEN
        DO j=jts,min(jte,jde-1)
        DO k=kts,kte-1
        DO i=its,min(ite,ide-1)
-conf<<<< HEAD
           grid%al(i,k,j)=-1./((grid%c1h(k)*grid%mub(i,j)+grid%c2h(k))+(grid%c1h(k)*grid%mu_1(i,j)))*(grid%alb(i,k,j)*(grid%c1h(k)*grid%mu_1(i,j))  &
-conf====
-          grid%al(i,k,j)=-1./(grid%mub(i,j)+grid%mu_1(i,j))*(grid%alb(i,k,j)*grid%mu_1(i,j)  &
-conf>>>> sfire-master
                      +grid%rdnw(k)*(grid%ph_1(i,k+1,j)-grid%ph_1(i,k,j)))
        ENDDO
        ENDDO
@@ -1037,21 +800,14 @@ conf>>>> sfire-master
        DO j=jts,min(jte,jde-1)
        DO k=kts,kte-1
        DO i=its,min(ite,ide-1)
-conf<<<< HEAD
           pfu = grid%c3f(k+1)*(grid%MUB(i,j)+grid%MU_1(i,j)) + grid%c4f(k+1) + grid%p_top
           pfd = grid%c3f(k  )*(grid%MUB(i,j)+grid%MU_1(i,j)) + grid%c4f(k  ) + grid%p_top
           phm = grid%c3h(k  )*(grid%MUB(i,j)+grid%MU_1(i,j)) + grid%c4h(k  ) + grid%p_top
-conf====
-          pfu = (grid%mub(i,j)+grid%mu_1(i,j))*grid%znw(k+1)+grid%p_top
-          pfd = (grid%mub(i,j)+grid%mu_1(i,j))*grid%znw(k)  +grid%p_top
-          phm = (grid%mub(i,j)+grid%mu_1(i,j))*grid%znu(k)  +grid%p_top
-conf>>>> sfire-master
           grid%al(i,k,j) = (grid%ph_1(i,k+1,j)-grid%ph_1(i,k,j)+grid%phb(i,k+1,j)-grid%phb(i,k,j)) &
                             /phm/LOG(pfd/pfu)-grid%alb(i,k,j)
        ENDDO
        ENDDO
        ENDDO
-conf<<<< HEAD
     END IF ! which hypsometric option
     DO j=jts,min(jte,jde-1)
     DO k=kts,kte-1
@@ -1077,22 +833,11 @@ conf<<<< HEAD
                   (p1000mb*(grid%al(i,k,j)+grid%alb(i,k,j))) )**cpovcv  &
                   -grid%pb(i,k,j)
 #endif
-conf====
-    END IF
-    DO j=jts,min(jte,jde-1)
-    DO k=kts,kte-1
-    DO i=its,min(ite,ide-1)
-       qvf = 1.+rvovrd*moist(i,k,j,P_QV)
-       grid%p(i,k,j)=p1000mb*( (r_d*(t0+grid%t_1(i,k,j))*qvf)/                     &
-                  (p1000mb*(grid%al(i,k,j)+grid%alb(i,k,j))) )**cpovcv  &
-                  -grid%pb(i,k,j)
-conf>>>> sfire-master
        grid%p_hyd(i,k,j) = grid%p(i,k,j) + grid%pb(i,k,j)
        grid%alt(i,k,j) = grid%al(i,k,j) + grid%alb(i,k,j)
     ENDDO
     ENDDO
     ENDDO
-conf<<<< HEAD
   ENDIF ! Various rebalancing options
     IF ( .NOT. grid%this_is_an_ideal_run ) THEN
        DO j=jts,min(jte,jde-1)
@@ -1125,42 +870,27 @@ conf<<<< HEAD
          ENDDO
       ENDDO
    ENDDO
-conf====
-
-   ENDIF
-conf>>>> sfire-master
 
    IF ( grid%press_adj .and. ( grid%id .NE. 1 ) .AND. .NOT. ( config_flags%restart ) .AND. &
        ( ( config_flags%input_from_hires ) .OR. ( config_flags%input_from_file ) ) ) THEN
       DO j = jts, MIN(jte,jde-1)
          DO i = its, MIN(ite,ide-1)
-conf<<<< HEAD
             grid%MU_2(i,j) = grid%MU_2(i,j) + grid%al(i,1,j) / ( grid%alt(i,1,j) * grid%alb(i,1,j) ) * &
-conf====
-            grid%mu_2(i,j) = grid%mu_2(i,j) + grid%al(i,1,j) / ( grid%alt(i,1,j) * grid%alb(i,1,j) ) * &
-conf>>>> sfire-master
                                     g * ( grid%ht(i,j) - grid%ht_fine(i,j) )
          END DO
        END DO
        DO j = jts,min(jte,jde-1)
        DO i = its, min(ite,ide-1)
-conf<<<< HEAD
           grid%MU_1(i,j)=grid%MU_2(i,j)
-conf====
-          grid%mu_1(i,j)=grid%mu_2(i,j)
-conf>>>> sfire-master
        ENDDO
        ENDDO
 
    END IF
 
-conf<<<< HEAD
 ! set GMT outside of phy_init because phy_init may not be called on this
 ! process if, for example, it is a moving nest and if this part of the domain is not
 ! being initialized (not the leading edge).
    CALL domain_setgmtetc( grid, start_of_simulation )
-conf====
-conf>>>> sfire-master
    IF ( first_trip_for_this_domain ) THEN
 
    CALL wrf_debug ( 100 , 'start_domain_em: Before call to phy_init' )
@@ -1169,20 +899,12 @@ conf>>>> sfire-master
 ! MPDT is the call frequency for microphysics in minutes (0 means every step)
    MPDT = 0.
 
-conf<<<< HEAD
    IF(config_flags%cycling) THEN
        start_of_simulation = .true.
 !  print *,'cycling, start_of_simulation -->',config_flags%cycling, start_of_simulation
        grid%xtime=0.
 !   print *,'xtime=',grid%xtime
    ENDIF
-conf====
-! set GMT outside of phy_init because phy_init may not be called on this
-! process if, for example, it is a moving nest and if this part of the domain is not
-! being initialized (not the leading edge).
-   CALL domain_setgmtetc( grid, start_of_simulation )
-
-conf>>>> sfire-master
 !-----------------------------------------------------------------------------
 ! Adaptive time step: Added by T. Hutchinson, WSI  11/6/07
 !
@@ -1192,7 +914,6 @@ conf>>>> sfire-master
         ( ( grid%dfi_opt .EQ. DFI_NODFI ) .OR. ( grid%dfi_stage .EQ. DFI_FST ) ) ) THEN
 
 !  Calculate any variables that were not set
-conf<<<< HEAD
 !BPR BEGIN
 !     This subroutine is called more than once at the first time step for a
 !     given domain.  The following if statement is to prevent the code in
@@ -1225,19 +946,6 @@ conf<<<< HEAD
 
       if (grid%min_time_step == -1) then
          grid%min_time_step = NINT(3 * MIN(grid%dx,grid%dy) / 1000)
-conf====
-
-      if (grid%starting_time_step == -1) then
-         grid%starting_time_step = NINT(6 * MIN(grid%dx,grid%dy) / 1000)
-      endif
-
-      if (grid%max_time_step == -1) then
-         grid%max_time_step = 3*grid%starting_time_step
-      endif
-
-      if (grid%min_time_step == -1) then
-         grid%min_time_step = 0.5*grid%starting_time_step
-conf>>>> sfire-master
       endif
 
 !     Set a starting timestep.
@@ -1260,11 +968,8 @@ conf>>>> sfire-master
       CALL wrf_dm_maxval(grid%max_msftx, idex, jdex)
       CALL wrf_dm_maxval(grid%max_msfty, idex, jdex)
 #endif
-conf<<<< HEAD
       end if
 !BPR END
-conf====
-conf>>>> sfire-master
 
 !     This first call just initializes variables.
 !     If a restart, get initialized variables from restart file
@@ -1274,11 +979,7 @@ conf>>>> sfire-master
       END IF
 
 
-conf<<<< HEAD
    END IF  ! adaptive computations
-conf====
-   END IF
-conf>>>> sfire-master
 
 ! End of adaptive time step modifications
 !-----------------------------------------------------------------------------
@@ -1297,7 +998,6 @@ conf>>>> sfire-master
 ! Phy_init is not necessarily thread-safe; do not multi-thread this loop.
 ! The tiling is to handle the fact that we may be masking off part of the computation.
 !
-conf<<<< HEAD
 
 #ifdef DM_PARALLEL
 if(config_flags%sf_surface_physics.eq.NOAHMPSCHEME.and.config_flags%opt_run.eq.5)then
@@ -1310,25 +1010,6 @@ endif
           ( grid%dfi_stage .NE. DFI_STARTBCK ) ) ) THEN
 
    DO ij = 1, grid%num_tiles
-conf====
-   DO ij = 1, grid%num_tiles
-
-!tgs do not need physics initialization for backward DFI integration
-     IF ( grid%dfi_opt .NE. DFI_NODFI .and. grid%dfi_stage .EQ. DFI_FST) THEN     !tgs
-        grid%stepra=nint(grid%RADT*60./grid%DT)
-        grid%stepra=max(grid%stepra,1)
-        grid%stepbl=nint(grid%BLDT*60./grid%DT)
-        grid%stepbl=max(grid%stepbl,1)
-        grid%stepcu=nint(grid%CUDT*60./grid%DT)
-        grid%stepcu=max(grid%stepcu,1)
-        grid%stepfg=nint(grid%FGDT*60./grid%DT)
-        grid%stepfg=max(grid%stepfg,1)
-     ENDIF
-     
-    IF ( ( grid%dfi_opt .EQ. DFI_NODFI ) .or. &
-          ( ( grid%dfi_stage .NE. DFI_BCK ) .and. &
-          ( grid%dfi_stage .NE. DFI_STARTBCK ) ) ) THEN    !tgs, mods by tah
-conf>>>> sfire-master
 
      CALL phy_init (  grid%id , config_flags, grid%DT, grid%RESTART, grid%znw, grid%znu,   &
                       grid%p_top, grid%tsk, grid%RADT,grid%BLDT,grid%CUDT, MPDT, &
@@ -1341,7 +1022,6 @@ conf>>>> sfire-master
                       grid%rublten,grid%rvblten,grid%rthblten,               &
                       grid%rqvblten,grid%rqcblten,grid%rqiblten,             &
                       grid%rthraten,grid%rthratenlw,grid%rthratensw,         &
-conf<<<< HEAD
                       !BSINGH - For WRFCuP scheme(11/12/2013)
                       grid%cupflag,grid%cldfra_cup,grid%cldfratend_cup,      & !wig, 18-Sep-2006
                       grid%shall,                                            & !wig, 18-Sep-2006
@@ -1365,28 +1045,12 @@ conf<<<< HEAD
                       grid%cldfra_old,                                  &
 #else
                       cldfra_old,                                       &
-conf====
-                      grid%stepbl,grid%stepra,grid%stepcu,                   &
-                      grid%w0avg, grid%rainnc, grid%rainc, grid%raincv, grid%rainncv,  &
-                      grid%snownc, grid%snowncv, grid%graupelnc, grid%graupelncv,  &
-                      grid%nca,grid%swrad_scat,                    &
-                      grid%cldefi,grid%lowlyr,                          &
-                      grid%mass_flux,                              &
-                      grid%rthften, grid%rqvften,                       &
-                      grid%cldfra,                                      &
-#ifdef WRF_CHEM
-                      grid%cldfra_old,                                  &
-#endif
-#ifndef WRF_CHEM
-                      cldfra_old,                                  &
-conf>>>> sfire-master
 #endif
                       grid%glw,grid%gsw,grid%emiss,grid%embck,            &
                       grid%lu_index,                                      &
                       grid%landuse_ISICE, grid%landuse_LUCATS,            &
                       grid%landuse_LUSEAS, grid%landuse_ISN,              &
                       grid%lu_state,                                      &
-conf<<<< HEAD
                       grid%xlat,grid%xlong,grid%xlong_u,grid%xlat_v,grid%albedo,grid%albbck,grid%GMT,grid%JULYR,grid%JULDAY,     &
                       grid%levsiz, num_ozmixm, num_aerosolc, grid%paerlev,  &
                       grid%alevsiz, grid%no_src_types,                      &
@@ -1394,14 +1058,6 @@ conf<<<< HEAD
                       grid%exch_h,grid%thc,grid%snowc,grid%mavail,grid%hfx,grid%qfx,grid%rainbl, &
                       grid%tslb,grid%zs,grid%dzs,config_flags%num_soil_layers,grid%warm_rain,  &
                       grid%adv_moist_cond, grid%is_CAMMGMP_used,                               &
-conf====
-                      grid%xlat,grid%xlong,grid%albedo,grid%albbck,grid%GMT,grid%JULYR,grid%JULDAY,     &
-                      grid%levsiz, num_ozmixm, num_aerosolc, grid%paerlev,  &
-                      grid%tmn,grid%xland,grid%znt,grid%z0,grid%ust,grid%mol,grid%pblh,grid%tke_pbl,    &
-                      grid%exch_h,grid%thc,grid%snowc,grid%mavail,grid%hfx,grid%qfx,grid%rainbl, &
-                      grid%tslb,grid%zs,grid%dzs,config_flags%num_soil_layers,grid%warm_rain,  &
-                      grid%adv_moist_cond,                         &
-conf>>>> sfire-master
                       grid%apr_gr,grid%apr_w,grid%apr_mc,grid%apr_st,grid%apr_as,      &
                       grid%apr_capma,grid%apr_capme,grid%apr_capmi,          &
                       grid%xice,grid%xicem,grid%vegfra,grid%snow,grid%canwat,grid%smstav,         &
@@ -1409,7 +1065,6 @@ conf>>>> sfire-master
                       grid%acsnom,grid%ivgtyp,grid%isltyp, grid%sfcevp,grid%smois,     &
                       grid%sh2o, grid%snowh, grid%smfr3d,                    &
                       grid%snoalb,                 &
-conf<<<< HEAD
                       grid%DX,grid%DY,grid%dx2d,grid%area2d,              &
                       grid%f_ice_phy,grid%f_rain_phy,grid%f_rimef_phy, &
                       grid%mp_restart_state,grid%tbpvs_state,grid%tbpvs0_state,&
@@ -1441,24 +1096,6 @@ conf<<<< HEAD
                       grid%rphndgdten,grid%rqvndgdten,grid%rmundgdten,       &     ! Optional
                       grid%SDA_HFX, grid%SDA_QFX, grid%QNORM, grid%HFX_BOTH,grid%QFX_BOTH,      &   ! fasdas
                       grid%HFX_FDDA,                                                            &   ! fasdas
-conf====
-                      grid%DX,grid%DY,grid%f_ice_phy,grid%f_rain_phy,grid%f_rimef_phy, &
-                      grid%mp_restart_state,grid%tbpvs_state,grid%tbpvs0_state,&
-                      allowed_to_read, grid%moved, start_of_simulation,               &
-                      grid%LAGDAY, &
-                      ids, ide, jds, jde, kds, kde,           &
-                      ims, ime, jms, jme, kms, kme,           &
-                      grid%i_start(ij), grid%i_end(ij), grid%j_start(ij), grid%j_end(ij), kts, kte, &
-                      config_flags%num_urban_layers,                        & !multi-layer urban
-                      grid%raincv_a,grid%raincv_b,                                    &
-                      grid%gd_cloud, grid%gd_cloud2,                                  & ! Optional
-                      grid%gd_cloud_a, grid%gd_cloud2_a,                              & ! Optional
-                      grid%gd_cloud_b, grid%gd_cloud2_b,                              & ! Optional
-                      ozmixm,grid%pin,                             &     ! Optional
-                      grid%m_ps_1,grid%m_ps_2,grid%m_hybi,aerosolc_1,aerosolc_2,&  ! Optional
-                      grid%rundgdten,grid%rvndgdten,grid%rthndgdten,         &     ! Optional
-                      grid%rphndgdten,grid%rqvndgdten,grid%rmundgdten,       &     ! Optional
-conf>>>> sfire-master
                       grid%FGDT,grid%stepfg,                        &     ! Optional
                       grid%cugd_tten,grid%cugd_ttens,grid%cugd_qvten,        &   ! Optional
                       grid%cugd_qvtens,grid%cugd_qcten,                 &   ! Optional
@@ -1468,7 +1105,6 @@ conf>>>> sfire-master
                       grid%CHXY, grid%FWETXY, grid%SNEQVOXY, grid%ALBOLDXY, grid%QSNOWXY,       &   ! Optional Noah-MP
                       grid%WSLAKEXY, grid%ZWTXY, grid%WAXY, grid%WTXY, grid%LFMASSXY, grid%RTMASSXY, & ! Optional Noah-MP
                       grid%STMASSXY, grid%WOODXY, grid%STBLCPXY, grid%FASTCPXY,                 &   ! Optional Noah-MP
-conf<<<< HEAD
                       grid%GRAINXY, grid%GDDXY,                                                 &   ! Optional Noah-MP
                       grid%CROPTYPE, grid%CROPCAT,                                                 &   ! Optional Noah-MP
                       config_flags%opt_crop,                                                    &
@@ -1480,10 +1116,6 @@ conf<<<< HEAD
                       grid%FDEPTHXY, grid%RIVERBEDXY, grid%EQZWT, grid%RIVERCONDXY, grid%PEXPXY, & ! Optional Noah-MP
                       grid%rechclim  ,                                                           & ! Optional Noah-MP
                       grid%msftx, grid%msfty,                              &
-conf====
-                      grid%XSAIXY,                                                              &   ! Optional Noah-MP
-                      grid%T2MVXY, grid%T2MBXY, grid%CHSTARXY,                                  &   ! Optional Noah-MP
-conf>>>> sfire-master
                       grid%DZR, grid%DZB, grid%DZG,                          & !Optional urban
                       grid%TR_URB2D,grid%TB_URB2D,grid%TG_URB2D,grid%TC_URB2D,    & !Optional urban
                       grid%QC_URB2D, grid%XXXR_URB2D,grid%XXXB_URB2D,        & !Optional urban
@@ -1491,7 +1123,6 @@ conf>>>> sfire-master
                       grid%TRL_URB3D, grid%TBL_URB3D, grid%TGL_URB3D,        & !Optional urban
                       grid%SH_URB2D, grid%LH_URB2D, grid%G_URB2D, grid%RN_URB2D,  & !Optional urban
                       grid%TS_URB2D, grid%FRC_URB2D, grid%UTYPE_URB2D,      & !Optional urban
-conf<<<< HEAD
                       grid%CMCR_URB2D,grid%TGR_URB2D,grid%TGRL_URB3D,grid%SMR_URB3D, & !Optional urban   
                       grid%DRELR_URB2D,grid%DRELB_URB2D,grid%DRELG_URB2D,    & !Optional urban
                       grid%FLXHUMR_URB2D,grid%FLXHUMB_URB2D,grid%FLXHUMG_URB2D,   & !Optional urban
@@ -1503,20 +1134,11 @@ conf<<<< HEAD
                       grid%SFW1_URB3D,grid%SFW2_URB3D,grid%SFR_URB3D,grid%SFG_URB3D,     & !multi-layer urban
                       grid%LP_URB2D,grid%HI_URB2D,grid%LB_URB2D,grid%HGT_URB2D,        & !multi-layer urban
                       grid%MH_URB2D,grid%STDH_URB2D,grid%LF_URB2D,                     & !SLUCM
-conf====
-                      grid%TRB_URB4D,grid%TW1_URB4D,grid%TW2_URB4D,grid%TGB_URB4D,grid%TLEV_URB3D,  & !multi-layer urban
-                      grid%QLEV_URB3D,grid%TW1LEV_URB3D,grid%TW2LEV_URB3D,        & !multi-layer urban
-                      grid%TGLEV_URB3D,grid%TFLEV_URB3D,grid%SF_AC_URB3D,         & !multi-layer urban 
-                      grid%LF_AC_URB3D,grid%CM_AC_URB3D,grid%SFVENT_URB3D,grid%LFVENT_URB3D,   & !multi-layer urban
-                      grid%SFWIN1_URB3D,grid%SFWIN2_URB3D, & !multi-layer urban
-                      grid%SFW1_URB3D,grid%SFW2_URB3D,grid%SFR_URB3D,grid%SFG_URB3D,     & !multi-layer urban
-conf>>>> sfire-master
                       grid%A_U_BEP,grid%A_V_BEP,grid%A_T_BEP,grid%A_Q_BEP,             & !multi-layer urban
                       grid%A_E_BEP,grid%B_U_BEP,grid%B_V_BEP,grid%B_T_BEP,             & !multi-layer urban
                       grid%B_Q_BEP,grid%B_E_BEP,grid%DLG_BEP,                          & !multi-layer urban
                       grid%DL_U_BEP,grid%SF_BEP,grid%VL_BEP,                           & !multi-layer urban
                       grid%TML,grid%T0ML,grid%HML,grid%H0ML,grid%HUML,grid%HVML,grid%TMOML,     & !Optional oml
-conf<<<< HEAD
                       grid%lakedepth2d,  grid%savedtke12d,  grid%snowdp2d,   grid%h2osno2d,       & !lake
                       grid%snl2d,        grid%t_grnd2d,     grid%t_lake3d,   grid%lake_icefrac3d, & !lake
                       grid%z_lake3d,     grid%dz_lake3d,    grid%t_soisno3d, grid%h2osoi_ice3d,   & !lake
@@ -1649,31 +1271,13 @@ conf<<<< HEAD
        endif
 
     ENDIF   ! no phy_init for the backwards part of the DFI
-conf====
-                      grid%itimestep, grid%fdob,            &
-                      t00, p00, a,                      & ! for obs_nudge base state
-                      grid%TYR, grid%TYRA, grid%TDLY, grid%TLAG, grid%NYEAR, grid%NDAY,grid%tmn_update, &
-                      grid%achfx, grid%aclhf, grid%acgrdflx                 &
-                      ,grid%te_temf,grid%cf3d_temf,grid%wm_temf        & ! WA
-                      ,grid%massflux_EDKF, grid%entr_EDKF, grid%detr_EDKF                & 
-                      ,grid%thl_up,grid%thv_up,grid%rt_up                                &
-                      ,grid%rv_up,grid%rc_up,grid%u_up,grid%v_up,grid%frac_up            &
-                      )
-       ENDIF   !tgs
-
-   ENDDO
-conf>>>> sfire-master
 
    CALL wrf_debug ( 100 , 'start_domain_em: After call to phy_init' )
 
    IF (config_flags%do_avgflx_em .EQ. 1) THEN
       WRITE ( message , FMT = '("start_em: initializing avgflx on domain ",I3)' ) &
            & grid%id
-conf<<<< HEAD
       CALL wrf_message(trim(message))
-conf====
-      CALL wrf_message(trim(message)) 
-conf>>>> sfire-master
       grid%avgflx_count = 0
       f_flux = config_flags%do_avgflx_cugd .EQ. 1  ! WA 9/24/10
       DO ij = 1, grid%num_tiles
@@ -1688,7 +1292,6 @@ conf>>>> sfire-master
       ENDDO
    ENDIF
 
-conf<<<< HEAD
    call wrf_debug(100,'start_em: calling lightning_init')
    CALL lightning_init ( id=grid%id, itimestep=grid%itimestep, restart=grid%restart, dt=grid%dt, dx=grid%dx   &
                     ! Namelist control options
@@ -1720,14 +1323,6 @@ conf<<<< HEAD
     call wrf_debug(100,'start_em: after calling lightning_init')
 
    END IF ! restart
-conf====
-#ifdef MCELIO
-   grid%LU_MASK = 0.
-   WHERE ( grid%lu_index .EQ. 16 ) grid%LU_MASK = 1.
-#endif
-
-   END IF
-conf>>>> sfire-master
 
 #if 0
 #include "CYCLE_TEST.inc"
@@ -1800,7 +1395,6 @@ conf>>>> sfire-master
 !--------------------------------------------------------------
 
 #ifdef DM_PARALLEL
-conf<<<< HEAD
 # include "HALO_EM_INIT_1.inc"
 # include "HALO_EM_INIT_2.inc"
 # include "HALO_EM_INIT_3.inc"
@@ -1817,18 +1411,6 @@ conf<<<< HEAD
 if(config_flags%sf_surface_physics.eq.NOAHMPSCHEME.and.config_flags%opt_run.eq.5)then
 # include "HALO_EM_HYDRO_NOAHMP_INIT.inc"
 endif
-conf====
-#  include "HALO_EM_INIT_1.inc"
-#  include "HALO_EM_INIT_2.inc"
-#  include "HALO_EM_INIT_3.inc"
-#  include "HALO_EM_INIT_4.inc"
-#  include "HALO_EM_INIT_5.inc"
-#  include "PERIOD_BDY_EM_INIT.inc"
-#  include "PERIOD_BDY_EM_MOIST.inc"
-#  include "PERIOD_BDY_EM_TKE.inc"
-#  include "PERIOD_BDY_EM_SCALAR.inc"
-#  include "PERIOD_BDY_EM_CHEM.inc"
-conf>>>> sfire-master
 #endif
 
 
@@ -1863,11 +1445,7 @@ conf>>>> sfire-master
                            its , ite , jts , jte   )
 
 ! Set the w at the surface.  If this is the start of a forecast, or if this is a cycled run
-conf<<<< HEAD
 ! and the start of that forecast, we define the w field.  However, if this a restart, then
-conf====
-! and the start of that forecast, we define the w field.  However, if this a restart, then 
-conf>>>> sfire-master
 ! we leave w alone.  Initial value is V dot grad(topo) at surface, then smoothly decaying
 ! above that.
 
@@ -1875,13 +1453,8 @@ conf>>>> sfire-master
 
 ! If W already exists (not zero), then we leave it alone.  How to do this?  We find the
 ! max/min on this node at the surface.  If parallel, we collect the max/min from all procs.
-conf<<<< HEAD
 ! If the max/min throughout the entire domain at the surface is identically 0, then we say
 ! that the W field is NOT initialized, and we run the set_w_surface routines for the
-conf====
-! If the max/min throughout the entire domain at the surface is identically 0, then we say 
-! that the W field is NOT initialized, and we run the set_w_surface routines for the 
-conf>>>> sfire-master
 ! two time levels of W.  If the field is already initialized, we do NOT run those two
 ! routines.
 
@@ -1901,7 +1474,6 @@ conf>>>> sfire-master
       IF ( ( ABS(w_max) .LT. 1.E-6 ) .AND. &
            ( ABS(w_min) .LT. 1.E-6 ) ) THEN
          w_needs_to_be_set = .TRUE.
-conf<<<< HEAD
          ! Force use_input_w to false, if there is no input w
 #if ( WRFPLUS == 1 )
          IF ( config_flags%use_input_w ) THEN
@@ -1909,8 +1481,6 @@ conf<<<< HEAD
             CALL nl_set_use_input_w (grid%id, .FALSE.)
          ENDIF
 #endif
-conf====
-conf>>>> sfire-master
       ELSE
          IF ( config_flags%use_input_w ) THEN
             w_needs_to_be_set = .FALSE.
@@ -1935,18 +1505,11 @@ conf>>>> sfire-master
                               grid%cf2, grid%cf3, grid%rdx, grid%rdy, grid%msftx, grid%msfty, &
                               ids, ide, jds, jde, kds, kde,                    &
                               ims, ime, jms, jme, kms, kme,                    &
-conf<<<< HEAD
                               its, ite, jts, jte, kts, kte                     )
       END IF
    END IF
 
    IF ( .NOT. config_flags%restart ) THEN
-conf====
-                              its, ite, jts, jte, kts, kte                     ) 
-      END IF
-
-
-conf>>>> sfire-master
 ! set up slope-radiation constant arrays based on topography
 ! paj: also computes laplacian for topo_wind
 !
@@ -2012,7 +1575,6 @@ conf>>>> sfire-master
             endif
          ENDDO
          ENDDO
-conf<<<< HEAD
 !       if topo_wind==2 (D.Ovens, C.Mass)
        else if (config_flags%topo_wind.eq.2) then
          DO j = jts,min(jte,jde-1)
@@ -2027,8 +1589,6 @@ conf<<<< HEAD
            grid%ctopo(i,j)=grid%ctopo(i,j)*vfac
          ENDDO
          ENDDO
-conf====
-conf>>>> sfire-master
        endif
 
    END IF
@@ -2151,7 +1711,6 @@ conf>>>> sfire-master
 
    ENDIF
 
-conf<<<< HEAD
 
 ! Some initializations for the simple ccn field.
 
@@ -2178,8 +1737,6 @@ conf<<<< HEAD
       END IF
    END IF
 
-conf====
-conf>>>> sfire-master
    IF (num_scalar > 0) THEN
 
 ! use of (:,:,:,loop) not efficient on DEC, but (ims,kms,jms,loop) not portable to SGI/Cray
@@ -2195,11 +1752,7 @@ conf>>>> sfire-master
    ENDIF
 
 
-conf<<<< HEAD
 #if (WRF_CHEM == 1)
-conf====
-#ifdef WRF_CHEM
-conf>>>> sfire-master
         if(config_flags%tracer_opt > 0 )then
            call initialize_tracer (tracer,config_flags%chem_in_opt, &
                                config_flags%tracer_opt,num_tracer,  &
@@ -2243,7 +1796,6 @@ conf>>>> sfire-master
                          grid%tauaerlw5,grid%tauaerlw6,grid%tauaerlw7,grid%tauaerlw8,           &
                          grid%tauaerlw9,grid%tauaerlw10,grid%tauaerlw11,grid%tauaerlw12,        &
                          grid%tauaerlw13,grid%tauaerlw14,grid%tauaerlw15,grid%tauaerlw16,       &
-conf<<<< HEAD
                          grid%dgnum4d, grid%dgnumwet4d, grid%dgnum_a1, grid%dgnum_a2,           &
                          grid%dgnum_a3, grid%dgnumwet_a1, grid%dgnumwet_a2, grid%dgnumwet_a3,   &
                          grid%pm2_5_dry,grid%pm2_5_water,grid%pm2_5_dry_ec,                &
@@ -2252,13 +1804,6 @@ conf<<<< HEAD
                          grid%last_chem_time_day,grid%last_chem_time_hour,                 &
                          grid%last_chem_time_minute,grid%last_chem_time_second,            &
                          grid%chem_in_opt,grid%kemit,grid%num_vert_mix,                       &
-conf====
-                         grid%pm2_5_dry,grid%pm2_5_water,grid%pm2_5_dry_ec,                &
-                         grid%last_chem_time_year,grid%last_chem_time_month,               &
-                         grid%last_chem_time_day,grid%last_chem_time_hour,                 &
-                         grid%last_chem_time_minute,grid%last_chem_time_second,            &
-                         grid%chem_in_opt,grid%kemit,                       &
-conf>>>> sfire-master
                          ids , ide , jds , jde , kds , kde ,                &
                          ims , ime , jms , jme , kms , kme ,                &
                          its , ite , jts , jte , kts , kte                  )
@@ -2268,33 +1813,21 @@ conf>>>> sfire-master
 !
 !       print *,'calculating initial pm'
         select case (config_flags%chem_opt)
-conf<<<< HEAD
         case (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2)
-conf====
-        case (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2,GOCARTRADM2_KPP)
-conf>>>> sfire-master
            call sum_pm_gocart (                                             &
                 grid%alt, chem, grid%pm2_5_dry, grid%pm2_5_dry_ec,grid%pm10,&
                 ids,ide, jds,jde, kds,kde,                                  &
                 ims,ime, jms,jme, kms,kme,                                  &
                 its,ite, jts,jte, kts,kte-1                                 )
-conf<<<< HEAD
         case (RADM2SORG,RADM2SORG_AQ,RADM2SORG_AQCHEM,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM_KPP, &
               RACM_ESRLSORG_AQCHEM_KPP,RACMSORG_KPP)
-conf====
-        case (RADM2SORG,RADM2SORG_AQ,RADM2SORG_AQCHEM,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM,RACMSORG_KPP)
-conf>>>> sfire-master
            call sum_pm_sorgam (                                             &
                 grid%alt, chem, grid%h2oaj, grid%h2oai,                                    &
                 grid%pm2_5_dry, grid%pm2_5_water, grid%pm2_5_dry_ec, grid%pm10,                 &
                 grid%dust_opt,ids,ide, jds,jde, kds,kde,                    &
                 ims,ime, jms,jme, kms,kme,                                  &
                 its,ite, jts,jte, kts,kte-1                                 )
-conf<<<< HEAD
          case (RACM_SOA_VBS_KPP,RACM_SOA_VBS_AQCHEM_KPP)
-conf====
-         case (RACM_SOA_VBS_KPP)
-conf>>>> sfire-master
              call sum_pm_soa_vbs (                                           &
                  grid%alt, chem, grid%h2oaj, grid%h2oai,                                   &
                  grid%pm2_5_dry, grid%pm2_5_water, grid%pm2_5_dry_ec, grid%pm10,                &
@@ -2304,11 +1837,7 @@ conf>>>> sfire-master
 
         case (CBMZ_MOSAIC_4BIN,CBMZ_MOSAIC_8BIN,CBMZ_MOSAIC_4BIN_AQ,CBMZ_MOSAIC_8BIN_AQ, &
               CBMZ_MOSAIC_DMS_4BIN, CBMZ_MOSAIC_DMS_8BIN, CBMZ_MOSAIC_DMS_4BIN_AQ,       &
-conf<<<< HEAD
               CBMZ_MOSAIC_DMS_8BIN_AQ, CRI_MOSAIC_8BIN_AQ_KPP, CRI_MOSAIC_4BIN_AQ_KPP)
-conf====
-              CBMZ_MOSAIC_DMS_8BIN_AQ)
-conf>>>> sfire-master
            call sum_pm_mosaic (                                             &
                 grid%alt, chem,                                                  &
                 grid%pm2_5_dry, grid%pm2_5_water, grid%pm2_5_dry_ec, grid%pm10,                 &
@@ -2324,10 +1853,7 @@ conf>>>> sfire-master
                     grid%pm2_5_water(i,k,j)  = 0.
                     grid%pm2_5_dry_ec(i,k,j) = 0.
                     grid%pm10(i,k,j)         = 0.
-conf<<<< HEAD
                     grid%tsoa(i,k,j)         = 0.
-conf====
-conf>>>> sfire-master
                  enddo
               enddo
            enddo
@@ -2342,13 +1868,8 @@ conf>>>> sfire-master
 
         ! initialize advective tendency diagnostics for non-chem
         if ( grid%itimestep .eq. 0 .and. config_flags%tenddiag .eq. USETENDDIAG ) then
-conf<<<< HEAD
           advh_t(:,:,:,:) = 0.
           advz_t(:,:,:,:) = 0.
-conf====
-          grid%advh_t(:,:,:,:) = 0.
-          grid%advz_t(:,:,:,:) = 0.
-conf>>>> sfire-master
         endif
 
    IF (num_chem >= PARAM_FIRST_SCALAR ) THEN
@@ -2415,7 +1936,6 @@ conf>>>> sfire-master
                          its , ite , jts , jte , &
                          its , ite , jts , jte   )
 
-conf<<<< HEAD
 #if (WRF_CHEM != 1)
       DEALLOCATE(CLDFRA_OLD)
 #endif
@@ -2599,7 +2119,15 @@ DEALLOCATE(z_at_q)
 
 
 !  FIRE
-if(config_flags%ifire.eq.2)then
+if(config_flags%ifire.eq.1)then
+
+   call sfire_driver_em_init ( grid , config_flags    &
+            ,ids,ide, kds,kde, jds,jde                &
+            ,ims,ime, kms,kme, jms,jme                &
+            ,ips,ipe, kps,kpe, jps,jpe )
+
+   CALL wrf_debug ( 100 , 'start_domain_em: After call to sfire_driver_em_init' )
+elseif(config_flags%ifire.eq.2)then
 
    call fire_driver_em_init ( grid , config_flags    &
             ,ids,ide, kds,kde, jds,jde                &
@@ -2616,34 +2144,6 @@ if( grid%traj_opt /= no_trajectory ) then
      CALL wrf_debug ( 100 , 'start_domain_em: After call to trajectory_init' )
 endif
 #endif
-conf====
-#ifndef WRF_CHEM
-      DEALLOCATE(CLDFRA_OLD)
-#endif
-#ifdef DM_PARALLEL
-#   include "HALO_EM_INIT_1.inc"
-#   include "HALO_EM_INIT_2.inc"
-#   include "HALO_EM_INIT_3.inc"
-#   include "HALO_EM_INIT_4.inc"
-#   include "HALO_EM_INIT_5.inc"
-#  include "PERIOD_BDY_EM_INIT.inc"
-#  include "PERIOD_BDY_EM_MOIST.inc"
-#  include "PERIOD_BDY_EM_TKE.inc"
-#  include "PERIOD_BDY_EM_SCALAR.inc"
-#  include "PERIOD_BDY_EM_CHEM.inc"
-#endif
-
-!  FIRE
-if(config_flags%ifire.eq.2)then
-
-   call sfire_driver_em_init ( grid , config_flags    &
-            ,ids,ide, kds,kde, jds,jde                &
-            ,ims,ime, kms,kme, jms,jme                &
-            ,ips,ipe, kps,kpe, jps,jpe ) 
-
-   CALL wrf_debug ( 100 , 'start_domain_em: After call to sfire_driver_em_init' )
-endif
-conf>>>> sfire-master
 
 
      CALL wrf_debug ( 100 , 'start_domain_em: Returning' )
@@ -2652,7 +2152,6 @@ conf>>>> sfire-master
 
    END SUBROUTINE start_domain_em
 
-conf<<<< HEAD
 !-------------------------------------------------------------------
 
    SUBROUTINE rebalance_driver_cycl ( grid )
@@ -2944,5 +2443,3 @@ conf<<<< HEAD
    END SUBROUTINE rebalance_cycl
 
 !---------------------------------------------------------------------
-conf====
-conf>>>> sfire-master

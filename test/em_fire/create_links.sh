@@ -1,6 +1,5 @@
 #!/bin/sh
 
-conf<<<< HEAD
 # Create directories with examples and link files there
 # This script is executed from compile em_fire
 # The directories are destroyed by clean -a
@@ -22,13 +21,3 @@ RRTMG_LW_DATA SOILPARM.TBL VEGPARM.TBL
 do
    ( cd rain; ln -s ../../../run/$i .)
 done
-
-conf====
-for f in * ; do
-  if [ -d $f ] ; then
-    for x in "fire.exe" "wrf.exe" "ideal.exe" "fire_input.nc" ; do
-      ln -sf ../${x} ${f}/${x}
-    done
-  fi
-done
-conf>>>> sfire-master

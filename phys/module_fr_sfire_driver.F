@@ -382,7 +382,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
             if(replay)then
                 call message('replay, halo exchange on lfn and tign')
-#include "HALO_FIRE_LFN.inc"
+#include "HALO_FIRE_LFN1.inc"
 #include "HALO_FIRE_TIGN.inc"
             endif
 
@@ -407,7 +407,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 !           computing fuel_left needs ignition time from neighbors
             call message('halo exchange on lfn width 2 and tign')
 #include "HALO_FIRE_TIGN.inc"
-#include "HALO_FIRE_LFN.inc"
+#include "HALO_FIRE_LFN1.inc"
 
         endif
        endif
@@ -488,10 +488,10 @@ subroutine sfire_driver_em ( grid , config_flags                    &
           if(fire_run)then
               if(fire_ifun.eq.2)then
 !                 halo exchange on all fuel data width 2
-#include "HALO_FIRE_FUEL.inc"
+#include "HALO_FIRE_FUEL1.inc"
 !                 fire state was initialized
                   call message('halo exchange on lfn width 2')
-#include "HALO_FIRE_LFN.inc"
+#include "HALO_FIRE_LFN1.inc"
               endif
               if(run_fuel_moisture)then
                   if(fire_ifun.eq.3)then
