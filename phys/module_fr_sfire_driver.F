@@ -162,7 +162,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
     call sfire_debug_hook(config_flags%fire_debug_hook_sec)
     call time_start
-    if(fire_ifun_start.le.1)call print_id  ! print id only once, during initialization
+!   if(fire_ifun_start.le.1)call print_id  ! print id only once, during initialization
 
 
 ! **** THE FOLLOWING REALLY SHOULD BE DONE ONCE NOT EVERY TIMESTEP
@@ -1662,11 +1662,11 @@ subroutine set_fp_from_grid(grid,fp)
 end subroutine set_fp_from_grid
 
             
-subroutine print_id
-character(len=128)::id,msg
-#include "sfire_id.inc"
-msg=id
-call message(msg,level=1)
-end subroutine print_id
+!subroutine print_id
+!character(len=128)::id,msg
+!include "sfire_id.inc"
+!msg=id
+!call message(msg,level=1)
+!end subroutine print_id
 
 end module module_fr_sfire_driver
