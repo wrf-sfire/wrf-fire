@@ -565,8 +565,6 @@ CONTAINS
       call read_array_2d_real('input_fc',grid%nfuel_cat,ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
   endif
 
-conf<<<< HEAD
-conf====
   if(config_flags%fire_hfx_given.eq.2) then
       write(6,*)'Reading given heat flux from file input_hfx'
       call read_array_2d_real('input_hfx',grid%fire_hfx,ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
