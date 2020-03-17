@@ -18,7 +18,7 @@
    USE module_tiles, ONLY : set_tiles
 #ifdef DM_PARALLEL
    USE module_dm, ONLY : wrf_dm_min_real, wrf_dm_max_real, wrf_dm_maxval, &
-e       ntasks_x, ntasks_y, &
+        ntasks_x, ntasks_y, &
         local_communicator_periodic, local_communicator, mytask, ntasks
 #else
    USE module_dm, ONLY : wrf_dm_min_real, wrf_dm_max_real

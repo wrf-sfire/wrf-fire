@@ -1128,7 +1128,7 @@ BENCH_START(fire_driver_tim)
             ,ids,ide, kds,kde, jds,jde                              &
             ,ims,ime, kms,kme, jms,jme                              &
             ,ips,ipe, kps,kpe, jps,jpe                              &
-            ,rho,grid%z_at_w,dz8w)
+            ,grid%rho,grid%z_at_w,dz8w)
         elseif(config_flags%ifire.eq.2)then 
             ! initialization moved to start_em:start_domain_em
 !            if(grid%initestep.eq.1) &
