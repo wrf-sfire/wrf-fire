@@ -1009,7 +1009,7 @@ endif
       p => grid%head_statevars%next
       DO WHILE ( ASSOCIATED( p ) )
         IF ( p%ProcOrient .NE. 'X' .AND. p%ProcOrient .NE. 'Y' ) THEN   ! no I/O for xposed variables
-          IF (wrf_at_debug_level(310))then
+          IF (wrf_at_debug_level(290))then
               ! Jan Mandel, 3/17/2020
               WRITE(message,*)"ouput_WRF: ",trim(p%VarName)," Ndim:",p%Ndim, &
               " in_use_for_config:",in_use_for_config(grid%id,TRIM(p%VarName)), &
