@@ -544,7 +544,12 @@ CONTAINS
           call read_array_2d_real   ('input_fmc_g',grid%fmc_g,    ifds,ifde,jfds,jfde,ifms,ifme,jfms,jfme) 
   endif
 
-  call read_namelist_fire(.false.)  ! read fuel coefficienrs
+ if(config_flags%ifire.eq.2)then
+ ! added in the fuel moisture pull request, the NCAR group wanted fmc_g set in wrfinput
+
+ !! calling module_fr_sfire_phys%read_namelist_fire version !!
+
+  call read_namelist_fire(.false.)  ! read fuel coefficients
 
   if(config_flags%fire_fmc_read.eq.0) then
           write(6,*)'Setting fuel moisture in wrfinput to constant ', fuelmc_g
@@ -559,6 +564,7 @@ CONTAINS
                          ifms,ifme,jfms,jfme, &
                          grid%fmc_g, 'fmc_g')
 
+ endif
 
   if(config_flags%fire_fuel_read.eq.2) then
       write(6,*)'Reading fuel map from file input_fc'
