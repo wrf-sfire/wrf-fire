@@ -1113,7 +1113,7 @@ BENCH_END(pbl_driver_tim)
 
 ! Jan Mandel's call to SFIRE
 
-      IF ((grid%sr_x > 0 .OR. grid%sr_y > 0) .AND. config_flags%ifire == 2) THEN
+      IF ((grid%sr_x > 0 .OR. grid%sr_y > 0) .AND. config_flags%ifire .ne. 0) THEN
 
 BENCH_START(fire_driver_tim)
         if(config_flags%ifire.eq.1)then 
@@ -1142,6 +1142,8 @@ BENCH_START(fire_driver_tim)
             ,ims,ime, kms,kme, jms,jme                              &
             ,ips,ipe, kps,kpe, jps,jpe                              &
             ,grid%rho,grid%z_at_w,dz8w)
+        else
+            CALL wrf_error_fatal("ifire must be 0 or 1 or 2")
         endif
 
 BENCH_END(fire_driver_tim)
