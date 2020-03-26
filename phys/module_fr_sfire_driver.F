@@ -1,4 +1,3 @@
-
 ! SFIRE - Spread fire model in WRF-Fire
 !
 !*** Jan Mandel August 2007 - March 2011 
@@ -174,6 +173,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 ! copy configuration flags to sfire internal structures
     call set_flags(config_flags)
 
+! prevent memory errors because of variables missing in registry packages
+    call check_grid_alloc(grid,config_flags)
         
     ! get ignition data 
     call fire_ignition_convert (config_flags,ignition,               &
@@ -422,6 +423,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
                 call read_emissions_table(config_flags%chem_opt,config_flags%tracer_opt)
             endif
         endif
+
 
         ! print *,'dt: ',dt,grid%dt,' diff ', dt-grid%dt
         ! need domain by 1 smaller, in last row.col winds are not set properly
@@ -1660,6 +1662,113 @@ subroutine set_fp_from_grid(grid,fp)
 
 
 end subroutine set_fp_from_grid
+
+subroutine check_grid_alloc(grid,config_flags)
+
+! check if needed arrays in grid are fully allocated
+! they may not be if they are missing in the registry packages
+! leading to memory corruption which is hard to debug
+
+    TYPE(domain) , TARGET, INTENT(IN) :: grid                             ! state 
+    TYPE (grid_config_rec_type) , INTENT(IN)  :: config_flags ! namelist
+
+    call message('check_grid_alloc: checking if grid arrays used sfire_driver_phys are allocated',level=2)
+    call check_size(size(grid%u_2),'u_2')
+    call check_size(size(grid%v_2),'v_2')
+    call check_size(size(grid%ph_2),'ph_2')
+    call check_size(size(grid%phb),'phb')
+    call check_size(size(grid%z0),'z0')
+    call check_size(size(grid%xlong),'xlong')
+    call check_size(size(grid%xlat),'xlat')
+    call check_size(size(grid%tign_in),'tign_in')
+    call check_size(size(grid%lfn),'lfn')
+    call check_size(size(grid%tign_g),'tign_g')
+    call check_size(size(grid%fire_area),'fire_area')
+    call check_size(size(grid%fuel_frac_burnt),'fuel_frac_burnt')
+    call check_size(size(grid%lfn_out),'lfn_out')
+    call check_size(size(grid%avg_fuel_frac),'avg_fuel_frac')
+    call check_size(size(grid%grnhfx),'grnhfx')
+    call check_size(size(grid%grnqfx),'grnqfx')
+    call check_size(size(grid%canhfx),'canhfx')
+    call check_size(size(grid%canqfx),'canqfx')
+    call check_size(size(grid%fgrnhfx),'fgrnhfx')
+    call check_size(size(grid%fgrnqfx),'fgrnqfx')
+    call check_size(size(grid%fcanhfx),'fcanhfx')
+    call check_size(size(grid%ros),'ros')
+    call check_size(size(grid%flineint),'flineint')
+    call check_size(size(grid%flineint2),'flineint2')
+    call check_size(size(grid%f_ros0),'f_ros0')
+    call check_size(size(grid%f_rosx),'f_rosx')
+    call check_size(size(grid%f_rosy),'f_rosy')
+    call check_size(size(grid%f_ros),'f_ros')
+    call check_size(size(grid%f_int),'f_int')
+    call check_size(size(grid%f_lineint),'f_lineint')
+    call check_size(size(grid%f_lineint2),'f_lineint2')
+    call check_size(size(grid%f_ros11),'f_ros11')
+    call check_size(size(grid%f_ros12),'f_ros12')
+    call check_size(size(grid%f_ros13),'f_ros13')
+    call check_size(size(grid%f_ros21),'f_ros21')
+    call check_size(size(grid%f_ros23),'f_ros23')
+    call check_size(size(grid%f_ros31),'f_ros31')
+    call check_size(size(grid%f_ros32),'f_ros32')
+    call check_size(size(grid%f_ros33),'f_ros33')
+    call check_size(size(grid%fxlong),'fxlong')
+    call check_size(size(grid%fxlat),'fxlat')
+    call check_size(size(grid%fire_hfx),'fire_hfx')
+    call check_size(size(grid%nfuel_cat),'nfuel_cat')
+    call check_size(size(grid%fuel_time),'fuel_time')
+    call check_size(size(grid%fz0),'fz0')
+    call check_size(size(grid%fwh),'fwh')
+    call check_size(size(grid%rainc),'rainc')
+    call check_size(size(grid%rainnc),'rainnc')
+    call check_size(size(grid%t2),'t2')
+    call check_size(size(grid%q2),'q2')
+    call check_size(size(grid%psfc),'psfc')
+    call check_size(size(grid%rh_fire),'rh_fire')
+    call check_size(size(grid%ndwi),'ndwi')
+    call check_size(size(grid%fndwi),'fndwi')
+    call message('check_grid_alloc: checking if grid arrays used in fire params are allocated',level=2)
+    call check_size(size(grid%uf),'uf')
+    call check_size(size(grid%vf),'vf')
+    call check_size(size(grid%zsf),'zsf')
+    call check_size(size(grid%dzdxf),'dzdxf')
+    call check_size(size(grid%dzdyf),'dzdyf')
+    call check_size(size(grid%bbb),'bbb')
+    call check_size(size(grid%phiwc),'phiwc')
+    call check_size(size(grid%r_0),'r_0')
+    call check_size(size(grid%fgip),'fgip')
+    call check_size(size(grid%ischap),'ischap')
+    call check_size(size(grid%fmc_g),'fmc_g')
+    call message('check_grid_alloc: checking if grid arrays used in fuel moisture are allocated',level=2)
+    if (config_flags%fmoisti_run==1)then
+        call check_size(size(grid%fmc_gc),'fmc_gc')
+        call check_size(size(grid%fmep),'fmep')
+        call check_size(size(grid%fmc_equi),'fmc_equi')
+        call check_size(size(grid%fmc_lag),'fmc_lag')
+        call check_size(size(grid%rain_old),'rain_old')
+        call check_size(size(grid%t2_old),'t2_old')
+        call check_size(size(grid%psfc_old),'psfc_old')
+        call check_size(size(grid%rh_fire),'rh_fire')
+        call check_size(size(grid%fmc_g),'fmc_g')
+    endif
+    if (config_flags%fmoisti_interp .eq. 1)then
+        call check_size(size(grid%fmc_gc),'fmc_gc')
+    endif
+
+end subroutine check_grid_alloc
+
+subroutine check_size(sz,name)
+integer, intent(in)::sz
+character(len=*), intent(in)::name
+character(len=128)::msg
+
+write(msg,'(a,a10,a,i12)')'array ',name,' has size ',sz
+call message(msg,level=2)
+if (sz < 2) then
+    write(msg,'(a,a,a,i2,a)')'array ',name,' is size ',sz,': not allocated, add to registry package'
+    call crash(trim(msg))
+endif
+end subroutine check_size
 
             
 !subroutine print_id
