@@ -34,9 +34,9 @@
  time_step_fract_den                 = 100,
  max_dom                             = 1,
  s_we                                = 1,     1,     1,
- e_we                                = 42,    43,    43,
+ e_we                                = SZ,    43,    43,
  s_sn                                = 1,     1,     1,
- e_sn                                = 42,    43,    43,
+ e_sn                                = SZ,    43,    43,
  s_vert                              = 1,     1,     1,
  e_vert                              = 41,    41,    41,
  dx                                  = 60,    30,    10,
@@ -158,7 +158,7 @@
  fire_fmc_read = 0,          ! initialize fuel moisture classes
 !
 ! verbosity
- fire_print_msg     = 2,        ! 1 print fire debugging messages
+ fire_print_msg     = 0,        ! 1 print fire debugging messages
  fire_print_file    = 0,        ! 1 write files for matlab
 !
 ! experiments
