@@ -1,6 +1,6 @@
 #!/bin/tcsh
 ### Job Name
-#PBS -N hill-NP 
+#PBS -N NM 
 ### Project code
 #PBS -A UCUD0003 
 #PBS -l walltime=2:00:00
@@ -22,4 +22,4 @@ rm rsl.out.* rsl.error.* wrfout_* wrfinput_*
 ### Run the executable
 mpiexec_mpt -np 1 omplace -vv ./ideal.exe
 mv rsl.error.0000 ideal.log
-mpiexec_mpt -np NP omplace -vv ./wrf.exe
+/usr/bin/time -v mpiexec_mpt -np NP omplace -vv ./wrf.exe
