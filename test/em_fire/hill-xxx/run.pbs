@@ -22,4 +22,5 @@ rm rsl.out.* rsl.error.* wrfout_* wrfinput_*
 ### Run the executable
 mpiexec_mpt -np 1 omplace -vv ./ideal.exe
 mv rsl.error.0000 ideal.log
+mv rsl.out.0000 ideal.out
 /usr/bin/time -v mpiexec_mpt -np NP omplace -vv ./wrf.exe
