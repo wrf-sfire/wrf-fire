@@ -4,7 +4,7 @@ cd $(dirname "$0")
 for i in 1 2 3 4 5 6 7 8 9 10
 do
 declare np=`echo "$i*$i" | bc`
-declare patch=42
+declare patch=21
 declare nm=hill_$patch-${i}x${i}
 declare sz1=`echo "$patch*$i" | bc`
 declare sz2=`echo "$patch*$i" | bc`
