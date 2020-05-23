@@ -49,7 +49,7 @@ PUBLIC:: mfuelcats
 !  4. add dfault 
 
 !*** dimensions
-   INTEGER, PARAMETER :: mfuelcats = 30     ! max number of fuel categories 
+   INTEGER, PARAMETER :: mfuelcats = 100     ! max number of fuel categories 
   integer, parameter::max_moisture_classes=5
 !***
 
