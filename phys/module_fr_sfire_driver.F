@@ -176,18 +176,6 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 ! prevent memory errors because of variables missing in registry packages
     call check_grid_alloc(grid,config_flags)
         
-    ! get ignition data 
-    call fire_ignition_convert (config_flags,ignition,               &
-             grid%fxlong, grid%fxlat,                                &
-             ifds,ifde, jfds,jfde,                                   &
-             ifms,ifme, jfms,jfme,                                   &
-             ifps,ifpe, jfps,jfpe )
-    call fire_hfx_convert (config_flags,hfx)
-
-! store computed mesh units  
-    grid%unit_fxlong = ignition%unit_fxlong
-    grid%unit_fxlat = ignition%unit_fxlat
-
 
 #ifndef SFIRE_STANDALONE
 
@@ -422,8 +410,21 @@ subroutine sfire_driver_em ( grid , config_flags                    &
                 ! need reading fuel categories first
                 call read_emissions_table(config_flags%chem_opt,config_flags%tracer_opt)
             endif
-        endif
+        elseif(fire_ifun.eq.3)then
+! ****      THIS REALLY SHOULD BE DONE ONCE NOT EVERY TIMESTEP
+!           but we cannot store the ignition structure in grid
+            call message('Processing ignition lines')
+            call fire_ignition_convert (config_flags,ignition,               &
+                grid%fxlong, grid%fxlat,                                &
+                ifds,ifde, jfds,jfde,                                   &
+                ifms,ifme, jfms,jfme,                                   &
+                ifps,ifpe, jfps,jfpe )
+            call fire_hfx_convert (config_flags,hfx) ! do we even use heat flux lines any more?
 
+!           store computed mesh units  
+            grid%unit_fxlong = ignition%unit_fxlong
+            grid%unit_fxlat = ignition%unit_fxlat
+        endif
 
         ! print *,'dt: ',dt,grid%dt,' diff ', dt-grid%dt
         ! need domain by 1 smaller, in last row.col winds are not set properly
