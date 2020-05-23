@@ -340,6 +340,9 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
       do fire_ifun=fire_ifun_start,fire_ifun_end
 
+        write(msg,'(a,i1,a)')'*** stage ',fire_ifun,' ***'
+        call message(msg)
+
         ! 1 = moisture_initialize run pass 1: interpolate height to zsf=terrain
         ! 2 = initialize run pass 2: set fuel data, terrain gradient
         ! 3 = initialize timestep: interpolate winds, check for ignition, time step on moisture model
