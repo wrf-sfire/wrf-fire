@@ -4,7 +4,7 @@ A mirror with a graphical log is at https://repo.or.cz/git-browser/by-commit.htm
 
 ## Branches ##
 * master, develop - the merged code.
-* WRF/master, WRF/develop - tracking the official WRF repository including release tags
+* WRF-track/master, WRF-track/develop, etc. - tracking the official WRF repository including release tags
 * filtered/* - rebased commits from the original wrf-fire repository, directory wrfv2_fire mapped to root:
 _  filtered/balbi
 -  filtered/devel
