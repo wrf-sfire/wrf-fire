@@ -848,13 +848,14 @@ do ij=1,num_tiles
         
     if(fire_run)then
 
-     if(ifun.eq.2)then   ! interpolate
+     if(ifun.eq.2)then   
 
       if(restart)then
           
           call message('restart - interpolation skipped')
 
-      else
+      else ! restart
+          call message ('Interpolating static data from atmosphere to fire mesh')
         if(kfmc_ndwi > 0 .and. fndwi_from_ndwi .eq.1)then
             call print_2d_stats(ips,ipe,jps,jpe,ims,ime,jms,jme,fndwi,'driver:ndwi')
             call interpolate_z2fire(id,0,                 & ! for debug output, <= 0 no output, extend strip
@@ -892,30 +893,12 @@ do ij=1,num_tiles
 !!$OMP END CRITICAL(SFIRE_DRIVER_CRIT)
 !        endif
 
-        if(ignition%longlat .eq.0)then
-            ! set ideal fire mesh coordinates - used for ignition only
-            ! do not forget to set unit_fxlong, unit_fxlat outside of parallel loop
-            !call set_ideal_coord( dxf,dyf, &
-            !    ifds,ifde,jfds,jfde,  &
-            !    ifms,ifme,jfms,jfme,  &
-            !    ifts,ifte,jfts,jfte,  &
-            !    fxlong,fxlat          )
-            !call set_ideal_coord( dx,dy, &
-            !    ids,ide,jds,jde,  &
-            !    ims,ime,jms,jme,  &
-            !    its,ite,jts,jte,  &
-            !    xlong,xlat          )
-        elseif(use_atm_vars)then
-            ! assume halo xlong xlat
-            ! interpolate nodal coordinates
-
 #ifdef DEBUG_OUT
          call write_array_m(its,ite,jts,jte,ims,ime,jms,jme,xlat,'xlat',id)
          call write_array_m(its,ite,jts,jte,ims,ime,jms,jme,xlong,'xlong',id)
 #endif
- 
         if (interpolate_long_lat)then
-         call message('Intepolating node longitude and latitude to fire mesh')
+         call message('Interpolating node longitude and latitude to fire mesh')
          call interpolate_z2fire(id,1,                 & ! for debug output, <= 0 no output
             ids,ide,  jds,jde,                    & ! atm grid dimensions
             ims,ime,  jms,jme,                    &
@@ -928,7 +911,7 @@ do ij=1,num_tiles
             xlat,                                       & ! atm grid arrays in
             fxlat)                                      ! fire grid arrays out
 
-        call interpolate_z2fire(id,1,                 & ! for debug output, <= 0 no output
+         call interpolate_z2fire(id,1,                 & ! for debug output, <= 0 no output
             ids,ide,  jds,jde,                    & ! atm grid dimensions
             ims,ime,  jms,jme,                    &
             ips,ipe,jps,jpe,                              &
@@ -939,14 +922,14 @@ do ij=1,num_tiles
             ir,jr,                                        & ! atm/fire grid ratio
             xlong,                                       & ! atm grid arrays in
             fxlong)                                      ! fire grid arrays out
-        endif
+        endif !interpolate_long_lat 
 
-        ! after the loop where zsf created exited and all synced
+        ! cannot initialize moisture model because T2 Q2 PSFC are not set yet
+
+        ! not using zsf any more but anyway
         call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fp%zsf,'driver_phys:zsf')        
  
-        ! cannot initialize moisture model because T2 Q2 PSFC are not set yet
-        endif
-     endif
+     endif !restart
 
     elseif(ifun.eq.3)then  ! interpolate winds to the fire grid
  
