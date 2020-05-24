@@ -414,13 +414,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
                 ! need reading fuel categories first
                 call read_emissions_table(config_flags%chem_opt,config_flags%tracer_opt)
             endif ! config_flags
-        elseif(fire_ifun.eq.3)then 
-!           store mesh units computed in fire_ignition_convert in stage 2
-            grid%unit_fxlong = ignition%unit_fxlong
-            grid%unit_fxlat = ignition%unit_fxlat
         endif  ! fire_ifun
-
-
         
         ! print *,'dt: ',dt,grid%dt,' diff ', dt-grid%dt
         ! need domain by 1 smaller, in last row.col winds are not set properly
@@ -501,6 +495,12 @@ subroutine sfire_driver_em ( grid , config_flags                    &
               endif
           endif
 #endif
+
+        if(fire_ifun.eq.2)then 
+!           store mesh units computed in fire_ignition_convert in stage 2
+            grid%unit_fxlong = ignition%unit_fxlong
+            grid%unit_fxlat = ignition%unit_fxlat
+        endif  ! fire_ifun
 
      if(fire_ifun.eq.6)then
          if(config_flags%chem_opt>0 .or. config_flags%tracer_opt>0)then
@@ -755,19 +755,7 @@ if(ifun.eq.1)then
          call init_fuel_cats(fmoist_run .or. fmoist_interp) ! properties of fuel categories and moisture classes from namelist.fire
 endif
 
-if(ifun.eq.3)then
-! ****      THIS REALLY SHOULD BE DONE ONCE NOT EVERY TIMESTEP
-!           but we cannot store the ignition structure in grid
-!           and we need to have fxlong fxlat
-!           must be run outside of openmp parallel do
-            call message('Processing ignition lines')
-            call fire_ignition_convert (config_flags,ignition,          &
-                fxlong, fxlat,                                          &
-                ifds,ifde, jfds,jfde,                                   &
-                ifms,ifme, jfms,jfme,                                   &
-                ifps,ifpe, jfps,jfpe )
-            call fire_hfx_convert (config_flags,hfx) ! do we even use heat flux lines any more?
-
+if(ifun.eq.2)then
  call print_chsum(itimestep,ims,ime,kms,kme,jms,jme,ids,ide,kds,kde,jds,jde,ips,ipe,kps,kpe,jps,jpe,1,0,0,u,'u')
  call print_chsum(itimestep,ims,ime,kms,kme,jms,jme,ids,ide,kds,kde,jds,jde,ips,ipe,kps,kpe,jps,jpe,0,0,1,v,'v')
  call print_chsum(itimestep,ims,ime,kms,kme,jms,jme,ids,ide,kds,kde,jds,jde,ips,ipe,kps,kpe,jps,jpe,0,1,0,ph,'ph')
@@ -1163,6 +1151,22 @@ if(ifun.eq.1)then
     endif
 endif
 #endif
+
+if(ifun.eq.2)then
+! ****      THIS REALLY SHOULD BE DONE ONCE NOT EVERY TIMESTEP
+!           we cannot store the ignition structure in grid
+!           so we set global ignition instead
+!           and we need to have fxlong fxlat for the corners (for checking)
+!           which requires MPI calls 
+!           must be run after the parallel do because of all that
+            call message('Processing ignition lines')
+            call fire_ignition_convert (config_flags,ignition,          &
+                fxlong, fxlat,                                          &
+                ifds,ifde, jfds,jfde,                                   &
+                ifms,ifme, jfms,jfme,                                   &
+                ifps,ifpe, jfps,jfpe )
+            call fire_hfx_convert (config_flags,hfx) ! do we even use heat flux lines any more?
+endif
 
 if (ifun.eq.3)then
  call print_3d_stats_by_slice(ips,ipe,1,moisture_classes,jps,jpe,ims,ime,1,nfmc,jms,jme,fmc_gc,'fmc_gc')
