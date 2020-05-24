@@ -154,7 +154,7 @@ PUBLIC:: mfuelcats
    INTEGER, SAVE      :: nfuelcats = 13     ! number of fuel categories, can be reset from namelist.fire
    INTEGER, PARAMETER :: zf = mfuelcats-nf  ! number of zero fillers in data stmt 
    INTEGER, SAVE      :: no_fuel_cat = 14   ! special no fuel category outside of 1:nfuelcats
-   INTEGER, SAVE      :: no_fuel_cat2 = 14  ! all categories between no_fuel_cat and no_fuel_cat2 are no fuel
+   INTEGER, SAVE      :: no_fuel_cat2 = huge(no_fuel_cat)  ! all categories between no_fuel_cat and no_fuel_cat2 are no fuel
    INTEGER, SAVE      :: ibeh=1             ! type of spread formula
    CHARACTER (len=80), DIMENSION(mfuelcats ), save :: fuel_name
    INTEGER, DIMENSION( mfuelcats ), save :: ichap
