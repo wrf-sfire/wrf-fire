@@ -107,6 +107,8 @@ logical:: fmoist_run, fmoist_interp, fire_run  ! which kind of model to run over
 
 integer, parameter:: ifun_beg=1, ifun_step=3, ifun_end=6  
 
+TYPE(lines_type):: ignition, hfx
+
 contains
 
 ! to write debugging information
@@ -144,7 +146,6 @@ subroutine sfire_driver_em ( grid , config_flags                    &
     real,dimension(ims:ime, kms:kme, jms:jme),intent(in), optional::rho,z_at_w,dz8w
 
 !*** local
-    TYPE(lines_type):: ignition, hfx
     integer::fire_ifun,ir,jr,istep,itimestep,i,ipe1,kpe1,jpe1,j
     logical::restart,replay
     real:: corner_ll,corner_ul,corner_ur,corner_lr, max_u, max_v, max_w, max_rho, min_rho
@@ -401,8 +402,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 #include "HALO_FIRE_TIGN.inc"
 #include "HALO_FIRE_LFN1.inc"
 
-        endif
-       endif
+        endif ! fire_ifun
+       endif ! fire_run
 #endif
 
         if(fire_ifun.eq.2)then
@@ -412,27 +413,20 @@ subroutine sfire_driver_em ( grid , config_flags                    &
             if(config_flags%chem_opt>0 .or. config_flags%tracer_opt > 0)then
                 ! need reading fuel categories first
                 call read_emissions_table(config_flags%chem_opt,config_flags%tracer_opt)
-            endif
-        elseif(fire_ifun.eq.3)then
-! ****      THIS REALLY SHOULD BE DONE ONCE NOT EVERY TIMESTEP
-!           but we cannot store the ignition structure in grid
-            call message('Processing ignition lines')
-            call fire_ignition_convert (config_flags,ignition,               &
-                grid%fxlong, grid%fxlat,                                &
-                ifds,ifde, jfds,jfde,                                   &
-                ifms,ifme, jfms,jfme,                                   &
-                ifps,ifpe, jfps,jfpe )
-            call fire_hfx_convert (config_flags,hfx) ! do we even use heat flux lines any more?
-
-!           store computed mesh units  
+            endif ! config_flags
+        elseif(fire_ifun.eq.3)then 
+!           store mesh units computed in fire_ignition_convert in stage 2
             grid%unit_fxlong = ignition%unit_fxlong
             grid%unit_fxlat = ignition%unit_fxlat
-        endif
+        endif  ! fire_ifun
 
+
+        
         ! print *,'dt: ',dt,grid%dt,' diff ', dt-grid%dt
         ! need domain by 1 smaller, in last row.col winds are not set properly
         call sfire_driver_phys ( &
             fire_ifun,                  &
+            config_flags,                                           &
             ids,ide-1, kds,kde, jds,jde-1,                          &
             ims,ime, kms,kme, jms,jme,                          &
             ips,min(ipe,ide-1), kps,kpe, jps,min(jpe,jde-1),                          & 
@@ -540,6 +534,7 @@ end subroutine sfire_driver_em
 !
 
 subroutine sfire_driver_phys (ifun,    &
+    config_flags,                                 & ! namelist.input
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
     ims,ime, kms,kme, jms,jme,                    &
     ips,ipe, kps,kpe, jps,jpe,                    &
@@ -598,6 +593,7 @@ implicit none
 
 !*** arguments
 
+TYPE (grid_config_rec_type) , INTENT(IN)  :: config_flags ! namelist, needed for ignion 
 integer, intent(in)::ifun,                        &
     ids,ide, kds,kde, jds,jde,                    & ! atm domain bounds
     ims,ime, kms,kme, jms,jme,                    & ! atm memory bounds 
@@ -760,10 +756,22 @@ if(ifun.eq.1)then
 endif
 
 if(ifun.eq.3)then
+! ****      THIS REALLY SHOULD BE DONE ONCE NOT EVERY TIMESTEP
+!           but we cannot store the ignition structure in grid
+!           and we need to have fxlong fxlat
+!           must be run outside of openmp parallel do
+            call message('Processing ignition lines')
+            call fire_ignition_convert (config_flags,ignition,          &
+                fxlong, fxlat,                                          &
+                ifds,ifde, jfds,jfde,                                   &
+                ifms,ifme, jfms,jfme,                                   &
+                ifps,ifpe, jfps,jfpe )
+            call fire_hfx_convert (config_flags,hfx) ! do we even use heat flux lines any more?
+
  call print_chsum(itimestep,ims,ime,kms,kme,jms,jme,ids,ide,kds,kde,jds,jde,ips,ipe,kps,kpe,jps,jpe,1,0,0,u,'u')
  call print_chsum(itimestep,ims,ime,kms,kme,jms,jme,ids,ide,kds,kde,jds,jde,ips,ipe,kps,kpe,jps,jpe,0,0,1,v,'v')
  call print_chsum(itimestep,ims,ime,kms,kme,jms,jme,ids,ide,kds,kde,jds,jde,ips,ipe,kps,kpe,jps,jpe,0,1,0,ph,'ph')
-endif
+endif ! ifun.eq.3
 
 call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn,'lfn')
 call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,tign,'tign')
