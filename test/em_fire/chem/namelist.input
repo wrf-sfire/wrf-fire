@@ -209,7 +209,7 @@
  chemdt                              = .1,
  io_style_emissions                  = 0,  
  emiss_opt                           = 3,          3,
- chem_in_opt                         = 1,          0,
+ chem_in_opt                         = 0,          0,
  phot_opt                            = 0,          0,
  gas_drydep_opt                      = 0,          1, 
  aer_drydep_opt                      = 0,          1, 
