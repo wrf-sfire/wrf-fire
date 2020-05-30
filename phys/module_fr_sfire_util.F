@@ -287,6 +287,7 @@ character(len=128):: msg
 character(len=1)::act
 integer::iounit,ierr
 logical::op
+CHARACTER (LEN=1024) :: entire_line
 
 !$  if (OMP_GET_THREAD_NUM() .ne. 0)then
 !$     call crash('open_input_text_file: called from parallel loop')
@@ -301,20 +302,49 @@ logical::op
     act=rw(1:1)
     select case (act)
         case ('r','R')
-            OPEN(iounit, FILE=filename,FORM='FORMATTED',STATUS='OLD',ACTION='READ',IOSTAT=ierr)
+            OPEN(iounit, FILE=TRIM(filename),FORM='FORMATTED',STATUS='OLD',ACTION='READ',IOSTAT=ierr)
+            if(ierr.ne.0)goto 998
+            ! try reading a line
+            READ ( UNIT = iounit , FMT = '(A)', IOSTAT=ierr ) entire_line
+            if(ierr.ne.0)then
+                call message('open_text_file: Cannot read from file '//TRIM(filename), level=0)
+                goto 999
+            endif
+            BACKSPACE ( UNIT = iounit )
         case ('w','W')
-            OPEN(iounit, FILE=filename,FORM='FORMATTED',STATUS='UNKNOWN',ACTION='WRITE',IOSTAT=ierr)
+            OPEN(iounit, FILE=TRIM(filename),FORM='FORMATTED',STATUS='UNKNOWN',ACTION='WRITE',IOSTAT=ierr)
+            if(ierr.ne.0)goto 998
         case default
             write(msg,*)'open_text_file: bad mode ',trim(rw),' for file ',trim(filename)
+            call crash(msg)
     end select
-    
-    if(ierr.ne.0)then 
-	write(msg,*)'open_text_file: Cannot open file ',filename
-        call crash(msg)
-    endif
     open_text_file=iounit
+    return
+    
+998 call message('open_text_file: Cannot open file '//TRIM(filename), level=0)
+999 write(msg,*)'unit ',iounit, ' error ',ierr
+    call crash(msg)
 
 end function open_text_file
+
+!
+!****************
+!
+subroutine error_namelist(nml_read_unit)
+! find error when reading namelist fails
+! adapted from frame/module_configure.f90 SUBROUTINE initial_config
+    integer,intent(in)::nml_read_unit
+    CHARACTER (LEN=1024) :: entire_line
+    CHARACTER (LEN=128) :: msg
+    BACKSPACE ( UNIT = nml_read_unit )
+    BACKSPACE ( UNIT = nml_read_unit )
+    READ ( UNIT = nml_read_unit , FMT = '(A)' ) entire_line
+    CALL message("Maybe here?: "//TRIM(entire_line),level=-1)
+    READ ( UNIT = nml_read_unit , FMT = '(A)' ) entire_line
+    CALL message("Maybe here?: "//TRIM(entire_line),level=-1)
+    write(msg,*)"Error in namelist, unit=", nml_read_unit
+    call crash(msg)
+end
 
 !
 !****************

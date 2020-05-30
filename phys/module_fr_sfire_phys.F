@@ -705,12 +705,21 @@ IF ( wrf_dm_on_monitor() ) THEN
     ! read the file
     iounit=open_text_file('namelist.fire','read')
     read(iounit,fuel_scalars,iostat=ierr)
-    if(ierr.ne.0)call crash('init_fuel_cats: error reading namelist fuel_scalars in file namelist.fire')
+    if(ierr.ne.0)then
+          call message('init_fuel_cats: error reading namelist fuel_scalars in file namelist.fire',0)
+          call error_namelist(iounit)
+    endif
     read(iounit,fuel_categories,iostat=ierr)
-    if(ierr.ne.0)call crash('init_fuel_cats: error reading namelist fuel_categories in file namelist.fire')
+    if(ierr.ne.0)then
+          call message('init_fuel_cats: error reading namelist fuel_categories in file namelist.fire')
+          call error_namelist(iounit)
+    endif
     if(init_fuel_moisture)then
         read(iounit,moisture,iostat=ierr)
-        if(ierr.ne.0)call crash('init_fuel_cats: error reading namelist moisture in file namelist.fire')
+        if(ierr.ne.0)then
+          call message('init_fuel_cats: error reading namelist moisture in file namelist.fire')
+          call error_namelist(iounit)
+        endif
     endif
     fmc_gw(1:mfuelcats,1)=fmc_gw01
     fmc_gw(1:mfuelcats,2)=fmc_gw02
