@@ -178,20 +178,20 @@ nmm_wrf : wrf
 
 #  Eulerian mass coordinate initializations
 
-em_fire : wrf
+em_sfire : wrf
 	@/bin/rm -f ideal.exe > /dev/null 2>&1
 	@/bin/rm -f wrf.exe   > /dev/null 2>&1
 	@ echo '--------------------------------------'
-	( cd main ; $(MAKE) RLFLAGS="$(RLFLAGS)" MODULE_DIRS="$(ALL_MODULES)" SOLVER=em IDEAL_CASE=fire em_ideal )
-	( cd test/em_fire ; /bin/rm -f wrf.exe ; ln -s ../../main/wrf.exe . )
-	( cd test/em_fire ; /bin/rm -f ideal.exe ; ln -s ../../main/ideal.exe . )
-	( cd test/em_fire ; /bin/rm -f README.namelist ; ln -s ../../run/README.namelist . )
-	( cd test/em_fire ; /bin/sh create_links.sh )
+	( cd main ; $(MAKE) RLFLAGS="$(RLFLAGS)" MODULE_DIRS="$(ALL_MODULES)" SOLVER=em IDEAL_CASE=sfire em_ideal )
+	( cd test/em_sfire ; /bin/rm -f wrf.exe ; ln -s ../../main/wrf.exe . )
+	( cd test/em_sfire ; /bin/rm -f ideal.exe ; ln -s ../../main/ideal.exe . )
+	( cd test/em_sfire ; /bin/rm -f README.namelist ; ln -s ../../run/README.namelist . )
+	( cd test/em_sfire ; /bin/sh create_links.sh )
 	( cd run ; /bin/rm -f ideal.exe ; ln -s ../main/ideal.exe . )
 	( cd run ; if test -f namelist.input ; then \
 		/bin/cp -f namelist.input namelist.input.backup.`date +%Y-%m-%d_%H_%M_%S` ; fi ; \
-		/bin/rm -f namelist.input ; cp ../test/em_fire/namelist.input . )
-	( cd run ; /bin/rm -f input_sounding ; ln -s ../test/em_fire/input_sounding . )
+		/bin/rm -f namelist.input ; cp ../test/em_sfire/namelist.input . )
+	( cd run ; /bin/rm -f input_sounding ; ln -s ../test/em_sfire/input_sounding . )
 	@echo " "
 	@echo "=========================================================================="
 	@echo "build started:   $(START_OF_COMPILE)"
