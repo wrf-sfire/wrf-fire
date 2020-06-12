@@ -998,9 +998,9 @@ do ij=1,num_tiles
 
           if(fire_use_windrf.eq.4)then
           
-            write(*,*)'fire_use_windrf option 4 has been selected....!'
+            call message('fire_use_windrf option 4 has been selected....!')
             write(msg, '(A20,I1)') 'fire_can_top_read = ', fire_can_top_read
-            write(*,*) msg
+            call message(msg)
 
             !Lets set the canopy height, using either a look up table, or just explictly setting it 
             !using WRF input data from LANDFIRE.
