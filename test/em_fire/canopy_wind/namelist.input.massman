@@ -123,7 +123,7 @@
  &fire ! be sure to set sr_x,sr_y in domains-namelist (to set refinement in x,y)
  ifire              = 1,    ! integer, = 0: no fire, 1=turn on sfire model
  fire_fuel_read     = 0,    ! integer, -1: from WPS, 0= use fire_fuel_cat, 1= by altitude
- fire_fuel_cat      = 3,    ! integer, if specified which fuel category?
+ fire_fuel_cat      = 2,    ! integer, if specified which fuel category?
 ! ignition 
  fire_num_ignitions = 2,         ! integer, only the first fire_num_ignition used, up to 5 allowed
  fire_ignition_ros1 = 0.1,      ! ignition rate of spread, m/s
