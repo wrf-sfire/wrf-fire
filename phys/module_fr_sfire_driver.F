@@ -918,6 +918,13 @@ do ij=1,num_tiles
             ir,jr,                                        & ! atm/fire grid ratio
             xlong,                                       & ! atm grid arrays in
             fxlong)                                      ! fire grid arrays out
+
+          do i=1,min(ifme-ifde,jfme-jfde)
+            print *,'DEBUG setting fxlong fxlat ',ifde+i,jfde+i,' to ',-900-i
+            fxlong(ifde+i,jfde+i)=-900-i
+            fxlat(ifde+i,jfde+i)=-900-i
+          enddo
+
         endif !interpolate_long_lat 
 
         ! cannot initialize moisture model because T2 Q2 PSFC are not set yet
