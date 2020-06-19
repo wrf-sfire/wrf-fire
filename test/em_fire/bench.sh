@@ -12,11 +12,12 @@ declare ppn=36
 declare nd=`echo "($np+$ppn-1)/$ppn" | bc`
 echo $i $nm $np $sz1 $sz2
 declare d=$nm
+declare run=gnu
 rm -rf $d
 cp -a hill-xxx $d
 cat hill-xxx/namelist.input | sed "s/SZ1/$sz2/" | sed "s/SZ2/$sz2/"  > $d/namelist.input
 sed "s/NP/$np/" < hill-xxx/run.sh | sed "s/NM/$nm/" > $d/run.sh
-sed "s/NP/$np/" < hill-xxx/run.pbs | sed "s/ND/$nd/" | sed "s/NM/$nm/" > $d/run.pbs
+sed "s/NP/$np/" < hill-xxx/run-$run.pbs | sed "s/ND/$nd/" | sed "s/NM/$nm/" > $d/run-$run.pbs
 # $d/run.sh
-(cd $d; qsub run.pbs; cd ..)
+(cd $d; qsub run-$run.pbs; cd ..)
 done
