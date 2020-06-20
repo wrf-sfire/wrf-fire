@@ -818,6 +818,7 @@ do ij=1,num_tiles
     write(msg,'(a,2i9)')'refinement ratio:',ir,jr
 !$OMP END CRITICAL(SFIRE_DRIVER_CRIT)
 
+    write(*,1)'PSFC_OLD in ',jte,(i,psfc_old(i,jte),i=its,ite)
     if(run_advance_moisture)then
       if(ifun.eq.3)then 
       
@@ -846,6 +847,7 @@ do ij=1,num_tiles
           call message('advance_moisture end')
       endif
     endif
+    write(*,1)'PSFC_OLD in ',jte,(i,psfc_old(i,jte),i=its,ite)
         
     if(fire_run)then
 
