@@ -821,8 +821,10 @@ do ij=1,num_tiles
     if(run_advance_moisture)then
       if(ifun.eq.3)then 
       
+1         format(a,i3,15(i3,1x,e8.2))
       ! one timestep of the moisture model
           call message('advance_moisture start')
+          write(*,1)'PSFC_OLD in ',jte,(i,psfc_old(i,jte),i=its,ite)
           call advance_moisture(    &
               itimestep.eq.1,             & ! initialize?
               ims,ime,  jms,jme,          & ! memory dimensions
@@ -840,6 +842,7 @@ do ij=1,num_tiles
               fmc_equi,                   & ! fuel moisture fields updated, by class equilibrium diagnostic
               fmc_lag                     & ! fuel moisture fields updated, by class tendency diagnostic
           )
+          write(*,1)'PSFC_OLD out',jte,(i,psfc_old(i,jte),i=its,ite)
           call message('advance_moisture end')
       endif
     endif
