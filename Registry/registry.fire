@@ -379,6 +379,12 @@ halo      HALO_FIRE_WIND_A dyn_em 8:u_2,v_2
 halo      HALO_FIRE_ZSF dyn_em 24:zsf
 halo      HALO_FIRE_FUEL dyn_em 8:fuel_frac,fuel_time,bbb,betafl,phiwc,r_0,fgip,ischap,nfuel_cat,dzdxf,dzdyf
 halo      HALO_FIRE_FUEL1 dyn_em 8:fuel_frac,fuel_time,bbb,phiwc,phisc,r_0,fgip,ischap,nfuel_cat,dzdxf,dzdyf,fz0,fwh,wz0,can_top
+
+
+#
+# SFIRE halo descriptions
+#
+halo      HALO_SFIRE_WIND_A dyn_em 24:u_2,v_2
 #
 # ----------------------------------------
 #  end fire variables and configuration

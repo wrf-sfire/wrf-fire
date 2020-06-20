@@ -79,7 +79,7 @@ use module_fr_sfire_util
 #ifdef DM_PARALLEL
     USE module_dm        , ONLY : ntasks_x,ntasks_y,local_communicator,mytask,ntasks,wrf_dm_sum_reals
     USE module_comm_dm , ONLY : halo_fire_fuel1_sub, halo_fire_tign_sub, halo_fire_wind_f_sub, &
-halo_fire_wind_a_sub, halo_fire_ph_sub, halo_fire_zsf_sub, halo_fire_longlat_sub, &
+HALO_SFIRE_WIND_A_sub, halo_fire_ph_sub, halo_fire_zsf_sub, halo_fire_longlat_sub, &
 halo_fire_phb_sub, halo_fire_z0_sub, halo_fire_lfn1_sub, HALO_FIRE_LFN_OUT_sub, &
 HALO_FIRE_MAG_sub, HALO_FIRE_MFG_sub, halo_fire_ndwi_sub
 #endif
@@ -380,8 +380,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
             endif
 
         elseif(fire_ifun.eq.3)then
-!           halo exchange on atm winds and geopotential, width 1 for interpolation
-#include "HALO_FIRE_WIND_A.inc"
+!           halo exchange on atm winds and geopotential for interpolation
+#include "HALO_SFIRE_WIND_A.inc"
 #include "HALO_FIRE_PH.inc"
 
         elseif(fire_ifun.eq.4)then
