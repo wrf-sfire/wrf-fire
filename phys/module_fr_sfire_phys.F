@@ -660,9 +660,10 @@ return
 contains
 
 subroutine copy2old
+    integer::jj
 
     write(*,*)'copy2old start'
-    write(*,1)'PSFC     in ',ite,(j,psfc(ite,j),j=jts,jte)
+    write(*,1)'PSFC val in ',ite,(j,psfc(ite,j),j=jts,jte)
     write(*,1)'PSFC_OLD in ',ite,(j,psfc_old(ite,j),j=jts,jte)
 1   format(a,i3,15(i3,1x,e8.2))
 
@@ -671,9 +672,10 @@ do j=jts,jte
         rain_old(i,j) = rainc(i,j) + rainnc(i,j)
         t2_old(i,j) = t2(i,j)
         q2_old(i,j) = q2(i,j)
-        if(i.eq.ite)write(*,1)'PSFC        ',i,(j,psfc(i,j))
+        if(i.eq.ite)write(*,1)'PSFC value  ',i,(j,psfc(i,j))
         psfc_old(i,j) = psfc(i,j)
         if(i.eq.ite)write(*,1)'PSFC_OLD set',i,(j,psfc_old(i,j))
+        write(*,1)'PSFC_OLD val',ite,(jj,psfc_old(ite,jj),jj=jts,jte)
     enddo
 enddo
     write(*,1)'PSFC_OLD out',ite,(j,psfc_old(ite,j),j=jts,jte)
