@@ -671,7 +671,9 @@ do j=jts,jte
         rain_old(i,j) = rainc(i,j) + rainnc(i,j)
         t2_old(i,j) = t2(i,j)
         q2_old(i,j) = q2(i,j)
+        if(i.eq.ite)write(*,1)'PSFC        ',i,(j,psfc(i,j))
         psfc_old(i,j) = psfc(i,j)
+        if(i.eq.ite)write(*,1)'PSFC_OLD set',i,(j,psfc_old(i,j))
     enddo
 enddo
     write(*,1)'PSFC_OLD out',ite,(j,psfc_old(ite,j),j=jts,jte)
