@@ -651,11 +651,20 @@ call print_3d_stats_by_slice(its,ite,1,moisture_classes,jts,jte,ims,ime,1,nfmc,j
 
 call copy2old
 
+    write(*,1)'PSFC     out',ite,(j,psfc(ite,j),j=jts,jte)
+    write(*,1)'PSFC_OLD out',ite,(j,psfc_old(ite,j),j=jts,jte)
+1   format(a,i3,15(i3,1x,e8.2))
+
 return
 
 contains
 
 subroutine copy2old
+
+    write(*,*)'copy2old start'
+    write(*,1)'PSFC     in ',ite,(j,psfc(ite,j),j=jts,jte)
+    write(*,1)'PSFC_OLD in ',ite,(j,psfc_old(ite,j),j=jts,jte)
+1   format(a,i3,15(i3,1x,e8.2))
 
 do j=jts,jte
     do i=its,ite
@@ -665,6 +674,8 @@ do j=jts,jte
         psfc_old(i,j) = psfc(i,j)
     enddo
 enddo
+    write(*,1)'PSFC_OLD out',ite,(j,psfc_old(ite,j),j=jts,jte)
+    write(*,*)'copy2old end'
 
 end subroutine copy2old
 

@@ -820,10 +820,10 @@ do ij=1,num_tiles
 
     write(*,1)'PSFC     in ',ite,(j,psfc(ite,j),j=jts,jte)
     write(*,1)'PSFC_OLD in ',ite,(j,psfc_old(ite,j),j=jts,jte)
+1   format(a,i3,15(i3,1x,e8.2))
     if(run_advance_moisture)then
       if(ifun.eq.3)then 
       
-1         format(a,i3,15(i3,1x,e8.2))
       ! one timestep of the moisture model
           call message('advance_moisture start')
           call advance_moisture(    &
