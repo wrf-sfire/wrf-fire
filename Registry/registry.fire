@@ -12,7 +12,7 @@ package   fire_sfire    ifire==2                    -             state:avg_fuel
 
 package   fire_sfire1    ifire==1                    -             state:avg_fuel_frac,nfuel_cat,zsf,tign_g,tign_in,fire_hfx,rthfrten,rqvfrten,grnhfx,grnqfx,canhfx,canqfx,dzdxf,dzdyf,lfn,lfn_out,fuel_frac,fire_area,uf,vf,fgrnhfx,fgrnqfx,fcanhfx,fcanhfx,fcanqfx,ros,fxlong,fxlat,fuel_time,bbb,phiwc,phisc,r_0,fgip,ischap,fz0,fwh,unit_fxlong,unit_fxlat,ndwi,ndvi,fmc_g,fmc_gc,fndwi,flineint,flineint2,f_ros0,f_rosx,f_rosy,f_ros,f_int,f_lineint,f_lineint2,f_ros11,f_ros12,f_ros13,f_ros21,f_ros23,f_ros31,f_ros32,f_ros33,wz0,can_top,cuf,cvf
 
-package  fire_fmoist_run   fmoisti_run==1           -             state:fmc_gc,fmep,fmc_equi,fmc_lag,rain_old,t2_old,psfc_old,rh_fire
+package  fire_fmoist_run   fmoisti_run==1           -             state:fmc_gc,fmep,fmc_equi,fmc_lag,t2_old,q2_old,rain_old,psfc_old,rh_fire
 package  fire_fmoist_interp fmoisti_interp==1       -             state:fmc_gc
 
 # level function history support
