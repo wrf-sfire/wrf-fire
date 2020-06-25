@@ -1759,6 +1759,7 @@ subroutine check_grid_alloc(grid,config_flags)
     call check_size(size(grid%lfn),'lfn')
     call check_size(size(grid%tign_g),'tign_g')
     call check_size(size(grid%fire_area),'fire_area')
+    call check_size(size(grid%fuel_frac),'fuel_frac')
     call check_size(size(grid%fuel_frac_burnt),'fuel_frac_burnt')
     call check_size(size(grid%lfn_out),'lfn_out')
     call check_size(size(grid%avg_fuel_frac),'avg_fuel_frac')
@@ -1832,6 +1833,13 @@ subroutine check_grid_alloc(grid,config_flags)
     endif
     if (config_flags%fmoisti_interp .eq. 1)then
         call check_size(size(grid%fmc_gc),'fmc_gc')
+    endif
+    call message('check_grid_alloc: checking if grid arrays used in emissions are allocated',level=2)
+    if(config_flags%chem_opt>0 )then
+        call check_size(size(grid%chem),'chem')
+    endif
+    if(config_flags%tracer_opt>0 )then
+        call check_size(size(grid%tracer),'tracer')
     endif
 
 end subroutine check_grid_alloc
