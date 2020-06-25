@@ -1,4 +1,3 @@
-!WRF:MEDIATION_LAYER:FIRE_MODEL
 
 !*** Jan Mandel August 2007 - February 2010
 !*** email: Jan.Mandel@gmail.com
@@ -9,7 +8,7 @@
 module module_fr_sfire_atm
 
 use module_model_constants, only: cp,xlv,g
-use module_fr_sfire_phys, only: fire_wind_height,have_fuel_cats,fcz0,fcwh,nfuelcats,no_fuel_cat,no_fuel_cat2,windrf,itree,fueldepthm
+use module_fr_sfire_phys, only: fire_wind_height,have_fuel_cats,fcz0,fcwh,nfuelcats,no_fuel_cat,no_fuel_cat2,windrf,itree,fueldepthm,mfuelcats
 use module_fr_sfire_util
 USE module_dm , only : wrf_dm_sum_reals
 
@@ -183,11 +182,13 @@ real, parameter:: & ! reciprocal molecular weights  (mol/g)
 
 real, parameter:: mw_air=28.97   ! molecular weight of air g/mol
 
-! should be declared in the registry and stored in the state in future because of restarts
+integer, parameter:: max_tracer=10, max_chem=64
 
-real, pointer, save, dimension(:)::c_chem
-real, pointer, save, dimension(:)::c_fuel
-real, pointer, save, dimension(:)::c_tracer
+! cumulative emissions - should be stored in the state, will be wrong on restarts
+real, save, dimension(max_chem)::c_chem
+real, save, dimension(mfuelcats)::c_fuel
+real, save, dimension(max_tracer)::c_tracer
+
 logical, save:: emis_read = .false.
 integer, save:: msglevel =1,printsums=0 ! when to print sums
 integer, parameter:: line=5 ! number of species, emissions, etc. per line
@@ -369,20 +370,17 @@ call wrf_dm_bcast_real(tr17_8, nfuelcats)
 
 if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
    ! should be stored in the registry future because of restarts
-   write(msg,'(3(a,i3,1x))')'allocating c_chem size',num_chem,'c_tracer size',num_tracer,'c_fuel size',nfuelcats
+   write(msg,'(3(a,i3,1x))')'c_chem size',num_chem,'c_tracer size',num_tracer,'c_fuel size',nfuelcats
    call message(msg,level=2)
-   if(num_chem>0)then
-      allocate(c_chem(num_chem))
-      c_chem=0.  ! cumulative burnt
+   if(num_chem>max_chem)then
+      call crash('read_emissions_table: increase max_chem')
    endif
-   if(num_tracer>0)then
-      allocate(c_tracer(num_tracer))
-      c_tracer=0.  ! cumulative burnt
+   c_chem=0.  ! cumulative burnt
+   if(num_tracer>max_tracer)then
+      call crash('read_emissions_table: increase max_tracer')
    endif
-   allocate(c_fuel(nfuelcats))
+   c_tracer=0.  ! cumulative burnt
    c_fuel=0.  ! total per timestep, rate burnt, cumulative burnt
-   write(msg,'(a,i3,a,i3)')'allocated c_chem size',size(c_chem),' c_fuel size',size(c_fuel)
-   call message(msg,level=2)
 endif
 
 emis_read=.true.
@@ -1036,8 +1034,11 @@ if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
     ! get rates
     r_fuel = s_fuel/dt 
     ! add to cumulative totals
-    if(size(c_fuel).ne.nfuelcats)call crash('add_fire_emissions: bad size c_fuel')
-    c_fuel = c_fuel + s_fuel
+    if(mfuelcats < nfuelcats)call crash('add_fire_emissions: bad size c_fuel')
+    do i=1,nfuelcats
+        c_fuel(i) = c_fuel(i) + s_fuel(i)
+    enddo
+
 
 #ifdef WRF_CHEM
     call wrf_dm_sum_reals(a_chem,g_chem)
@@ -1045,8 +1046,10 @@ if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
     call wrf_dm_sum_reals(t_chem,s_chem)
     s_chem = s_chem*dx*dy 
     r_chem = s_chem/dt 
-    if(size(c_chem).ne.num_chem)call crash('add_fire_emissions: bad size c_chem')
-    c_chem = c_chem + s_chem
+    if(max_chem<num_chem)call crash('add_fire_emissions: bad size c_chem')
+    do i=1,num_chem
+        c_chem(i) = c_chem(i) + s_chem(i)
+    enddo
 
     call message('Total emissions in g or mol per the table',level=msglevel)
     do i=1,chem_np,line
@@ -1067,8 +1070,10 @@ if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
         call wrf_dm_sum_reals(t_tracer,s_tracer)
         s_tracer = s_tracer*dx*dy 
         r_tracer = s_tracer/dt 
-        if(size(c_tracer).ne.num_tracer)call crash('add_fire_emissions: bad size c_tracer')
-        c_tracer = c_tracer + s_tracer
+        if(max_tracer<num_tracer)call crash('add_fire_emissions: bad size c_tracer')
+        do i=1,num_tracer
+            c_tracer(i) = c_tracer(i) + s_tracer(i)
+        enddo
     
         call message('Total emissions in g',level=msglevel)
         do i=1,tracer_np,line
