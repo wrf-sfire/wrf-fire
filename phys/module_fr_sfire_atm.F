@@ -1162,6 +1162,15 @@ do i=1,np,line
 enddo
 
 if(maxval(pointers) > ubound(array,4) .or. minval(pointers) < lbound(array,4))then 
+    write(msg,994)minval(pointers),maxval(pointers)
+994 format('Pointer values min',i3,' max',i3)
+    call message(msg,level=0)
+    write(msg,993)'array ',array_name,' has dimensions ',&
+         lbound(array,1),ubound(array,1), &
+         lbound(array,2),ubound(array,2), &
+         lbound(array,3),ubound(array,3), &
+         lbound(array,4),ubound(array,4)
+    call message(msg,level=0)
     write(msg,'(3a)')'add_fire_emissions: a ',array_name,' pointer is out of bounds'
     call crash(msg)
 endif
