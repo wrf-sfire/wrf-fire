@@ -68,6 +68,7 @@
  ifsnow                              = 0,
  icloud                              = 0,
  num_soil_layers                     = 5,
+ num_land_cat                        = 33,
  mp_zero_out                         = 0,
  /
 
@@ -204,6 +205,7 @@
  kemit                               = 19,
  !chem_opt                            = 2,
  chem_opt                            = 300,
+ !chem_opt                            = 0,
  bioemdt                             = 1,
  photdt                              = 1,
  chemdt                              = .1,
