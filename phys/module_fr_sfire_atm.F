@@ -1136,7 +1136,7 @@ character(len=*), dimension(:)::pointer_names
 integer, dimension(:)::pointers
 
 !*** local
-integer::np,i,m,j
+integer::np,i,m,j,ps,pe
 character(len=256)::msg
 
 !** executable
@@ -1161,19 +1161,24 @@ do i=1,np,line
    call message(' ')
 enddo
 
-if(maxval(pointers) > ubound(array,4) .or. minval(pointers) < lbound(array,4))then 
-    write(msg,994)minval(pointers),maxval(pointers)
-994 format('Pointer values min',i3,' max',i3)
-    call message(msg,level=0)
-    write(msg,993)'array ',array_name,' has dimensions ',&
+ps = lbound(array,4)
+pe = ubound(array,4)
+do i=1,np
+    write(msg,995)array_name,'species',trim(pointer_names(i)),'pointer',pointers(i)
+995 format(a,1x,a,1x,a,1x,a,i3)
+    call message(msg,level=2)
+    if(pointers(i) < ps .or. pointers(i) > pe) then 
+        write(msg,993)'array ',array_name,' has dimensions ',&
          lbound(array,1),ubound(array,1), &
          lbound(array,2),ubound(array,2), &
          lbound(array,3),ubound(array,3), &
          lbound(array,4),ubound(array,4)
-    call message(msg,level=0)
-    write(msg,'(3a)')'add_fire_emissions: a ',array_name,' pointer is out of bounds'
-    call crash(msg)
-endif
+        call message(msg,level=-1)
+        write(msg,995)array_name,'species',trim(pointer_names(i)),'pointer',pointers(i)
+        call message(msg,level=-1)
+        call crash('add_fire_emissions: pointer out of bounds')
+    endif
+enddo
 !$OMP END CRITICAL(SFIRE_ATM_CRIT)
 end subroutine check_pointers
 
