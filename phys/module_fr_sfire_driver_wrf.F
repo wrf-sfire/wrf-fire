@@ -36,6 +36,8 @@ subroutine sfire_driver_em_init (grid , config_flags               &
             ,ims,ime, kms,kme, jms,jme                              &
             ,ips,ipe, kps,kpe, jps,jpe
 
+#include "commit_decl"
+
     ! local
     integer :: &  ! fire mesh sizes
              ifds,ifde, kfds,kfde, jfds,jfde,                              &
@@ -45,6 +47,7 @@ subroutine sfire_driver_em_init (grid , config_flags               &
     ! dummies
 
     call message('sfire_driver_em_init: SFIRE initialization start')
+    call message(commit_version,level=0)
 
     ! get fire mesh dimensions
     CALL get_ijk_from_subgrid (  grid ,                   &

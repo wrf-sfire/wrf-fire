@@ -72,14 +72,14 @@ use module_fr_sfire_phys, only: fire_params, init_fuel_cats, fuel_moisture, &
    advance_moisture, moisture_classes, &
    fire_rate_of_spread
 use module_fr_sfire_atm, only: apply_windrf,interpolate_wind2fire_height,interpolate_atm2fire, &
-   interpolate_z2fire,setup_wind_log_interpolation
+   interpolate_z2fire,setup_wind_log_interpolation,find_trees_fmesh,massman_fwh
 use module_fr_sfire_util
 !use module_fr_sfire_util, only: lines_type,fire_max_lines
 ! Driver layer modules
 #ifdef DM_PARALLEL
     USE module_dm        , ONLY : ntasks_x,ntasks_y,local_communicator,mytask,ntasks,wrf_dm_sum_reals
     USE module_comm_dm , ONLY : halo_fire_fuel1_sub, halo_fire_tign_sub, halo_fire_wind_f_sub, &
-halo_fire_wind_a_sub, halo_fire_ph_sub, halo_fire_zsf_sub, halo_fire_longlat_sub, &
+HALO_SFIRE_WIND_A_sub, halo_fire_ph_sub, halo_fire_zsf_sub, halo_fire_longlat_sub, &
 halo_fire_phb_sub, halo_fire_z0_sub, halo_fire_lfn1_sub, HALO_FIRE_LFN_OUT_sub, &
 HALO_FIRE_MAG_sub, HALO_FIRE_MFG_sub, halo_fire_ndwi_sub
 #endif
@@ -149,7 +149,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
     integer::fire_ifun,ir,jr,istep,itimestep,i,ipe1,kpe1,jpe1,j
     logical::restart,replay
     real:: corner_ll,corner_ul,corner_ur,corner_lr, max_u, max_v, max_w, max_rho, min_rho
-    character(len=128)msg
+    character(len=128)msg, msg2
     type(fire_params)::fp
     real:: moisture_time
 
@@ -380,8 +380,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
             endif
 
         elseif(fire_ifun.eq.3)then
-!           halo exchange on atm winds and geopotential, width 1 for interpolation
-#include "HALO_FIRE_WIND_A.inc"
+!           halo exchange on atm winds and geopotential for interpolation
+#include "HALO_SFIRE_WIND_A.inc"
 #include "HALO_FIRE_PH.inc"
 
         elseif(fire_ifun.eq.4)then
@@ -459,7 +459,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
             grid%fire_hfx,                                & !
             grid%nfuel_cat,                               & ! input, or internal for safekeeping
             grid%fuel_time,                      & 
-            grid%fz0, grid%fwh,                    &
+            grid%wz0,                            &          !wrf roughness length on fire mesh
+            grid%fz0, grid%fwh,grid%can_top,grid%cuf,grid%cvf, &
             fp,                                    & ! structure with pointers passed to spread rate calculation
             config_flags%nfmc,         & ! moisture model variables start
             run_advance_moisture,run_fuel_moisture,dt_moisture,     &    ! moisture model control
@@ -569,8 +570,9 @@ subroutine sfire_driver_phys (ifun,    &
     fxlong,fxlat,                                 & !  
     fire_hfx,                                     & ! 
     nfuel_cat,                                    & ! in array, data, fire grid, or constant internal
-    fuel_time,                                & ! save constant internal data, fire grid
-    fz0,fwh,                                      &
+    fuel_time,                                    & ! save constant internal data, fire grid
+    wz0,                                          &
+    fz0,fwh,can_top,cuf,cvf,                  &
     fp,                                           & ! fire params
     nfmc,                                     & ! number of fuel moisture classes
     run_advance_moisture,run_fuel_moisture,dt_moisture,& ! moisture model control
@@ -639,7 +641,7 @@ real,intent(out),dimension(ims:ime,jms:jme)::&
 real, dimension(ims:ime, jms:jme), intent(inout)::xlong, xlat, ndwi ! inout because of extension at bdry
     
 real, intent(inout), dimension(ifms:ifme,jfms:jfme):: & ! fuel data; can be also set inside (cell based, fire grid)
-    fz0,fwh,                                          &  
+    fz0,fwh,can_top,cuf,cvf,wz0,                            &  
     nfuel_cat,fndwi                                      
 
 real, intent(inout), dimension(ifms:ifme, jfms:jfme)::     &
@@ -961,6 +963,8 @@ do ij=1,num_tiles
             ifts,ifte,jfts,jfte,                    &
             nfuel_cat,fp%vx,fp%vy)
 
+            wz0 = 0             !Set WRF roughness length to 0 since we dont use this for option 4.
+
         else
           call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fz0,'driver_phys:fz0')        
           call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
@@ -985,9 +989,81 @@ do ij=1,num_tiles
             nfuel_cat,fp%vx,fp%vy)
           endif
 
+
+          !If we are deploying the Massman parameterization, we need to interpolate our winds
+          !down to the canopy height instead of the FWH. Here we will need to call the interpolate_wind2can
+          !subroutine, for our specified canopy height assigned in the namelist (not yet implemented, 
+          !this is just going to be hard coded for now). Once this is done, we can use the massman 
+          !parameterization to scale the winds down to the FWH.
+
+          if(fire_use_windrf.eq.4)then
+          
+            call message('fire_use_windrf option 4 has been selected....!')
+            write(msg, '(A20,I1)') 'fire_can_top_read = ', fire_can_top_read
+            call message(msg)
+
+            !Lets set the canopy height, using either a look up table, or just explictly setting it 
+            !using WRF input data from LANDFIRE.
+
+            if(fire_can_top_read == 0)then
+
+                can_top = 0                             ! Initialize canopy top array on fire mesh 
+
+                call find_trees_fmesh(id,             & ! to identify debugging prints and files if needed
+                ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+                ims,ime, kms,kme, jms,jme,                    &
+                ips,ipe,jps,jpe,                              &
+                its,ite,jts,jte,                              &
+                ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+                ifms, ifme, jfms, jfme,                       &
+                ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+                ifts,ifte,jfts,jfte,                          &
+                ir,jr,                                        & ! atm/fire grid ratio
+                can_top, nfuel_cat)                             ! tree canopy height info 
+            
+            end if 
+
+
+            !Compute canopy top winds. Save this variable to cuf and cvf, which is like
+            !vf and uf in terms of dimensionality, except that its canopy top winds.
+
+            call interpolate_wind2fire_height(id,         & ! to identify debugging prints and files if needed
+            ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+            ims,ime, kms,kme, jms,jme,                    &
+            ips,ipe,jps,jpe,                              &
+            its,ite,jts,jte,                              &
+            ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+            ifms, ifme, jfms, jfme,                       &
+            ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+            ifts,ifte,jfts,jfte,                          &
+            ir,jr,                                        & ! atm/fire grid ratio
+            u_frame, v_frame,                             & ! velocity frame correction
+            u,v,ph,phb,                                   & ! input atmospheric arrays
+            wz0,can_top,                                  & ! input fire arrays
+            cuf,cvf)                                        ! output fire arrays
+
+
+            !Lets call our massman parameterization and scale winds winds within 'forests'
+            !within 'forests' using this scheme. uf and vf values that fall within 
+            !forests are modifed accordingly, which will change the fire ROS.
+
+            call massman_fwh(id,                          & ! to identify debugging prints and files if needed   
+            ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+            ims,ime, kms,kme, jms,jme,                    &
+            ips,ipe,jps,jpe,                              &
+            its,ite,jts,jte,                              &
+            ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+            ifms, ifme, jfms, jfme,                       &
+            ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+            ifts,ifte,jfts,jfte,                          &
+            ir,jr,                                        & ! atm/fire grid ratio
+            cuf,cvf,                                      & ! canopy top winds (input)
+            nfuel_cat,                                    & ! fire fuel category (input)
+            can_top,                                      & ! canopy top (input)
+            fp%vx,fp%vy)
+
+          endif
         endif
-
-
       endif
 
     elseif(ifun.eq.4)then
@@ -1056,8 +1132,8 @@ do ij=1,num_tiles
             ifts,ifte,jfts,jfte,                          &
             ir,jr,                                        & ! atm/fire grid ratio
             z0,                                           & ! atm grid arrays in
-            nfuel_cat,                              & ! fuel data per point 
-            fz0,fwh)                                  ! fire arrays out
+            nfuel_cat,                                    & ! fuel data per point 
+            fz0,fwh,wz0)                                    ! fire arrays out
 
     
     elseif(ifun.eq.6)then 
@@ -1630,7 +1706,7 @@ fire_fmc_read           = config_flags%fire_fmc_read
 fire_ignition_clamp     = config_flags%fire_ignition_clamp
 kfmc_ndwi               = config_flags%kfmc_ndwi
 fndwi_from_ndwi         = config_flags%fndwi_from_ndwi 
-
+fire_can_top_read       = config_flags%fire_can_top_read
 end subroutine set_flags
 
 !
@@ -1683,6 +1759,7 @@ subroutine check_grid_alloc(grid,config_flags)
     call check_size(size(grid%lfn),'lfn')
     call check_size(size(grid%tign_g),'tign_g')
     call check_size(size(grid%fire_area),'fire_area')
+    call check_size(size(grid%fuel_frac),'fuel_frac')
     call check_size(size(grid%fuel_frac_burnt),'fuel_frac_burnt')
     call check_size(size(grid%lfn_out),'lfn_out')
     call check_size(size(grid%avg_fuel_frac),'avg_fuel_frac')
@@ -1718,6 +1795,8 @@ subroutine check_grid_alloc(grid,config_flags)
     call check_size(size(grid%fuel_time),'fuel_time')
     call check_size(size(grid%fz0),'fz0')
     call check_size(size(grid%fwh),'fwh')
+    call check_size(size(grid%uah),'uah')
+    call check_size(size(grid%vah),'vah')
     call check_size(size(grid%rainc),'rainc')
     call check_size(size(grid%rainnc),'rainnc')
     call check_size(size(grid%t2),'t2')
@@ -1746,12 +1825,21 @@ subroutine check_grid_alloc(grid,config_flags)
         call check_size(size(grid%fmc_lag),'fmc_lag')
         call check_size(size(grid%rain_old),'rain_old')
         call check_size(size(grid%t2_old),'t2_old')
+        call check_size(size(grid%q2_old),'q2_old')
+        call check_size(size(grid%rain_old),'rain_old')
         call check_size(size(grid%psfc_old),'psfc_old')
         call check_size(size(grid%rh_fire),'rh_fire')
         call check_size(size(grid%fmc_g),'fmc_g')
     endif
     if (config_flags%fmoisti_interp .eq. 1)then
         call check_size(size(grid%fmc_gc),'fmc_gc')
+    endif
+    call message('check_grid_alloc: checking if grid arrays used in emissions are allocated',level=2)
+    if(config_flags%chem_opt>0 )then
+        call check_size(size(grid%chem),'chem')
+    endif
+    if(config_flags%tracer_opt>0 )then
+        call check_size(size(grid%tracer),'tracer')
     endif
 
 end subroutine check_grid_alloc

@@ -13,6 +13,9 @@ _  filtered/balbi
 -  filtered/submitted-to-3.3
 -  filtered/wrf-fire-branch-for-fmc-merge
 -  fuel-moisture-model
+* wrf-fire-track/* - the original wrf-fire
+-  wrf-fire-track/master
+-  wrf-fire-track/dvm_branch
   
 ## How to upgrade WRF version ##
 * git checkout WRF/master

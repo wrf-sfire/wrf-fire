@@ -1,14 +1,14 @@
-!WRF:MEDIATION_LAYER:FIRE_MODEL
 
 !*** Jan Mandel August 2007 - February 2010
 !*** email: Jan.Mandel@gmail.com
 
 ! Routines dealing with the atmosphere
 
+
 module module_fr_sfire_atm
 
 use module_model_constants, only: cp,xlv,g
-use module_fr_sfire_phys, only: fire_wind_height,have_fuel_cats,fcz0,fcwh,nfuelcats,no_fuel_cat,no_fuel_cat2,windrf
+use module_fr_sfire_phys, only: fire_wind_height,have_fuel_cats,fcz0,fcwh,nfuelcats,no_fuel_cat,no_fuel_cat2,windrf,itree,fueldepthm,mfuelcats
 use module_fr_sfire_util
 USE module_dm , only : wrf_dm_sum_reals
 
@@ -182,11 +182,13 @@ real, parameter:: & ! reciprocal molecular weights  (mol/g)
 
 real, parameter:: mw_air=28.97   ! molecular weight of air g/mol
 
-! should be declared in the registry and stored in the state in future because of restarts
+integer, parameter:: max_tracer=10, max_chem=64
 
-real, pointer, save, dimension(:)::c_chem
-real, pointer, save, dimension(:)::c_fuel
-real, pointer, save, dimension(:)::c_tracer
+! cumulative emissions - should be stored in the state, will be wrong on restarts
+real, save, dimension(max_chem)::c_chem
+real, save, dimension(mfuelcats)::c_fuel
+real, save, dimension(max_tracer)::c_tracer
+
 logical, save:: emis_read = .false.
 integer, save:: msglevel =1,printsums=0 ! when to print sums
 integer, parameter:: line=5 ! number of species, emissions, etc. per line
@@ -368,20 +370,17 @@ call wrf_dm_bcast_real(tr17_8, nfuelcats)
 
 if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
    ! should be stored in the registry future because of restarts
-   write(msg,'(3(a,i3,1x))')'allocating c_chem size',num_chem,'c_tracer size',num_tracer,'c_fuel size',nfuelcats
+   write(msg,'(3(a,i3,1x))')'c_chem size',num_chem,'c_tracer size',num_tracer,'c_fuel size',nfuelcats
    call message(msg,level=2)
-   if(num_chem>0)then
-      allocate(c_chem(num_chem))
-      c_chem=0.  ! cumulative burnt
+   if(num_chem>max_chem)then
+      call crash('read_emissions_table: increase max_chem')
    endif
-   if(num_tracer>0)then
-      allocate(c_tracer(num_tracer))
-      c_tracer=0.  ! cumulative burnt
+   c_chem=0.  ! cumulative burnt
+   if(num_tracer>max_tracer)then
+      call crash('read_emissions_table: increase max_tracer')
    endif
-   allocate(c_fuel(nfuelcats))
+   c_tracer=0.  ! cumulative burnt
    c_fuel=0.  ! total per timestep, rate burnt, cumulative burnt
-   write(msg,'(a,i3,a,i3)')'allocated c_chem size',size(c_chem),' c_fuel size',size(c_fuel)
-   call message(msg,level=2)
 endif
 
 emis_read=.true.
@@ -1035,8 +1034,11 @@ if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
     ! get rates
     r_fuel = s_fuel/dt 
     ! add to cumulative totals
-    if(size(c_fuel).ne.nfuelcats)call crash('add_fire_emissions: bad size c_fuel')
-    c_fuel = c_fuel + s_fuel
+    if(mfuelcats < nfuelcats)call crash('add_fire_emissions: bad size c_fuel')
+    do i=1,nfuelcats
+        c_fuel(i) = c_fuel(i) + s_fuel(i)
+    enddo
+
 
 #ifdef WRF_CHEM
     call wrf_dm_sum_reals(a_chem,g_chem)
@@ -1044,8 +1046,10 @@ if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
     call wrf_dm_sum_reals(t_chem,s_chem)
     s_chem = s_chem*dx*dy 
     r_chem = s_chem/dt 
-    if(size(c_chem).ne.num_chem)call crash('add_fire_emissions: bad size c_chem')
-    c_chem = c_chem + s_chem
+    if(max_chem<num_chem)call crash('add_fire_emissions: bad size c_chem')
+    do i=1,num_chem
+        c_chem(i) = c_chem(i) + s_chem(i)
+    enddo
 
     call message('Total emissions in g or mol per the table',level=msglevel)
     do i=1,chem_np,line
@@ -1066,8 +1070,10 @@ if(fire_print_msg .ge. msglevel .and.printsums .gt. 0)then
         call wrf_dm_sum_reals(t_tracer,s_tracer)
         s_tracer = s_tracer*dx*dy 
         r_tracer = s_tracer/dt 
-        if(size(c_tracer).ne.num_tracer)call crash('add_fire_emissions: bad size c_tracer')
-        c_tracer = c_tracer + s_tracer
+        if(max_tracer<num_tracer)call crash('add_fire_emissions: bad size c_tracer')
+        do i=1,num_tracer
+            c_tracer(i) = c_tracer(i) + s_tracer(i)
+        enddo
     
         call message('Total emissions in g',level=msglevel)
         do i=1,tracer_np,line
@@ -1817,7 +1823,7 @@ subroutine setup_wind_log_interpolation(          &
             ir,jr,                                        & ! atm/fire grid ratio
             z0,                                           & ! atm grid arrays in
             nfuel_cat,                                    & ! fire array in
-            fz0,fwh)                                        ! fire arrays out
+            fz0,fwh,wz0)                                    ! fire arrays out
 !*** arguments 
 integer, intent(in)::                    &
     ids,ide, jds,jde,                    & ! atm domain bounds
@@ -1831,8 +1837,10 @@ integer, intent(in)::                    &
 real,intent(in),dimension(ims:ime,jms:jme)::z0    ! landuse roughness length
 real,intent(in),dimension(ifms:ifme,jfms:jfme)::nfuel_cat   ! fuel category
 real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
-    fz0,                                          & ! roughness height
-    fwh                                             ! height to read the wind from
+    fz0,                                          & ! roughness height (fire)
+    fwh,                                          & ! height to read the wind from
+    wz0                                             ! WRF roughness height
+
 !*** local
 integer::i,j,ii,jj,k,id=0
 character(len=128)::msg
@@ -1863,7 +1871,15 @@ real::r
             endif
           enddo
        enddo
-
+       do j=jts,jte
+         do i=its,ite
+            do jj=(j-1)*jr+1,(j-1)*jr+jr
+               do ii=(i-1)*ir+1,(i-1)*ir+ir
+                  wz0(ii,jj)=z0(i,j)
+               enddo
+            enddo
+         enddo
+       enddo
      case(2)
         call message('fire_wind_log_interp=2: log interpolation on fire mesh' // &
           'piecewise constant roughness from landuse, constant fire_wind_height')
@@ -1872,10 +1888,11 @@ real::r
               do jj=(j-1)*jr+1,(j-1)*jr+jr
                  do ii=(i-1)*ir+1,(i-1)*ir+ir
                      fz0(ii,jj)=z0(i,j)
+                     wz0(ii,jj)=z0(i,j)
                  enddo
               enddo
            enddo
-       enddo
+        enddo
        do j=jfts,jfte
           do i=ifts,ifte
             k = int(nfuel_cat(i,j))
@@ -1911,6 +1928,7 @@ real::r
                 fz0(i,j)=-1.
                 fwh(i,j)=-1.
             endif
+            wz0(i,j) = 0      ! Not using WRF roughness length here so set to 0.
           enddo
        enddo
 
@@ -1985,6 +2003,28 @@ real::r
       else
        call message('setup_wind_log_interpolation: not using wind reduction factors')
       endif
+
+     case(4)
+      call message('setup_wind_log_interpolation: resetting wind interpolation height from wind reduction factors (DVM NEW)')
+      do j=jfts,jfte
+         do i=ifts,ifte
+           k = int(nfuel_cat(i,j))
+           if(k.ne.no_fuel_cat)then 
+               fwh(i,j) = fz0(i,j) ** (1.-windrf(k)) * fire_wind_height ** windrf(k) ! GMD paper eq. (26)
+
+               if (.not. fz0(i,j) > 0. .or. .not. fwh(i,j) > fz0(i,j))then
+!$OMP CRITICAL(SFIRE_ATM_CRIT)
+                 write(msg,*)'category ',k,'windrf=',windrf(k),' fire_wind_height=',fire_wind_height
+                 call message(msg,level=-1)
+                 write(msg,*)'i=',i,' j=',j,' fz0(i,j)=',fz0(i,j),' fwh(i,j)=',fwh(i,j)
+                 call message(msg,level=-1)
+!$OMP END CRITICAL(SFIRE_ATM_CRIT)
+                 call crash('setup_wind_log_interpolation: must have fwh > fz0 > 0')
+               endif
+
+           endif
+         enddo
+      enddo
 
      case default
         !$OMP CRITICAL(SFIRE_ATM_CRIT)
@@ -2072,7 +2112,7 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
   integer::itst,itet,jtst,jtet
   integer::iftst,iftet,jftst,jftet
   real:: wjcb,wjcm,wicb,wicm,ht,i_g,loght,zr,ht_last,logwh,wh,loght_last,uk,vk,uk1,vk1,z0,logz0
-  real, dimension (its-1:ite+1,kds:kde,jts-1:jte+1):: z
+  real, dimension (its-1:ite+1,kds:kde,jts-1:jte+1)::z,zw
   character(len=128)::msg
 
 !*** executable
@@ -2099,15 +2139,12 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
   do j = jtst,jtet
     do k=kds,kdmax+1
       do i = itst,itet       
-        z(i,k,j) = (ph(i,k,j)+phb(i,k,j))*i_g      ! altitude of the bottom w-point 
-
-        ! print *,'i,k,j=',i,k,j,'ph, phb, z=',ph(i,k,j),phb(i,k,j),z(i,k,j)
-
+        zw(i,k,j) = (ph(i,k,j)+phb(i,k,j))*i_g      ! altitude of the bottom w-point 
       enddo
     enddo
     do k=kds,kdmax
       do i = itst,itet       
-        z(i,k,j) = (z(i,k,j)+z(i,k+1,j))*0.5 - z(i,kds,j)   ! height of the cell center 
+        z(i,k,j) = (zw(i,k,j)+zw(i,k+1,j))*0.5 - zw(i,kds,j) ! height of the cell center above the bottom
       enddo
     enddo
   enddo
@@ -2144,27 +2181,22 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
       z0 = fz0(i,j)                    ! roughness length 
       wh = fwh(i,j)                    ! wind height
 
-      ! print *,'i=',i,' j=',j,' icb=',icb,' jcb=',jcb,' z0=',z0,' wh=',wh
-
-
       if( wh > z0 .and. z0 > 0)then
 
       ht_last=z0                     ! initialize starting height of this layer
       loop_k: do k=kds,kdmax         ! search for layer k such that ht(k-1)<=wh<ht(k), ht(0)=z0
         ! interpolate height from atmospheric cell midpoints
         ht=interpolate_h(its-1,ite+1,kds,kde,jts-1,jts+1,icm,k,jcm,wicm,wjcm,z)
-        
-        ! print *,'i=',i,' j=',j,'k=',k,' ht=',ht
-
         if(.not. ht < wh) exit loop_k ! found layer k this point is in
         ht_last = ht
       enddo loop_k
+
       if(k .gt. kdmax) then
           goto 91  ! run out of vertical levels, this must be wrong
       endif
       kmin=min(k,kmin)
       kmax=max(k,kmax)
-      ! found layer k, ht_last < wh <= ht
+      ! found layer k, ht_last < wh <= ht 
       logz0 = log(z0)
       logwh= log(wh)
       loght_last = log(ht_last)
@@ -2172,25 +2204,14 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
 
       ! interpolate u at level k from staggered coarse grid: boundary in i, midpoints in j
       uk=interpolate_h(ims,ime,kms,kme,jms,jme,icb,k,jcm,wicb,wjcm,u) - u_frame
-
-      ! print *,'i=',i,' j=',j,' uk=',uk
-
       ! interpolate v at level k from staggered coarse grid: midpoints in i, boundary in j
       vk=interpolate_h(ims,ime,kms,kme,jms,jme,icm,k,jcb,wicm,wjcb,v) - v_frame
-
-      ! print *,'i=',i,' j=',j,' vk=',vk
 
       if(k.gt.kds)then           ! interpolate u,v horizontaly at the previous layer,  k-1
         ! interpolate u at level k-1 from staggered coarse grid: boundary in i, midpoints in j
         uk1=interpolate_h(ims,ime,kms,kme,jms,jme,icb,k-1,jcm,wicb,wjcm,u)
-        
-        ! print *,'i=',i,' j=',j,' uk1=',uk1
-
         ! interpolate v at level k-1 from staggered coarse grid: midpoints in i, boundary in j
         vk1=interpolate_h(ims,ime,kms,kme,jms,jme,icm,k-1,jcb,wicm,wjcb,v)
-        
-        ! print *,'i=',i,' j=',j,' uk1=',uk1
-
       else ! there is no previous layer, wind at roughness is assumed 0
         uk1=0. 
         vk1=0.
@@ -2199,14 +2220,11 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
       ! log interpolate the wind to wh
       uf(i,j)= uk1 + (uk - uk1) * ( logwh - loght_last) / (loght - loght_last)
       vf(i,j)= vk1 + (vk - vk1) * ( logwh - loght_last) / (loght - loght_last)
-        
-      ! print *,'i=',i,' j=',j,' uk=',uk,' vk=',vk,' uk1=',uk1,' vk1=',vk1,' uf=',uf(i,j),' vf=',vf(i,j)
 
     else
-      ! no fuel, no wind 
+      ! below roughness or roughness zero, no wind 
       uf(i,j) = 0.
       vf(i,j) = 0.
-
     endif
 
     enddo loop_i
@@ -2288,5 +2306,301 @@ subroutine coarse(ix,nr,ia,ic,w)
 end subroutine coarse
 
 end subroutine interpolate_wind2fire_height
+
+
+subroutine find_trees_fmesh(id,       & ! to identify debugging prints and files if needed
+  ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+  ims,ime, kms,kme, jms,jme,                    &
+  ips,ipe,jps,jpe,                              &
+  its,ite,jts,jte,                              &
+  ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+  ifms, ifme, jfms, jfme,                       &
+  ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+  ifts,ifte,jfts,jfte,                          &
+  ir,jr,                                        & ! atm/fire grid ratio
+  can_top,nfuel_cat)                              ! canopy top and fuel cat (input)
+
+
+  implicit none
+
+  !*** arguments
+  integer, intent(in):: id,                     & ! debug identification
+  ids,ide, kds,kde, jds,jde,                    & ! atm domain bounds
+  ims,ime, kms,kme, jms,jme,                    & ! atm memory bounds 
+  ips,ipe,jps,jpe,                              &
+  its,ite,jts,jte,                              & ! atm tile bounds
+  ifds, ifde, jfds, jfde,                       & ! fire domain bounds
+  ifms, ifme, jfms, jfme,                       & ! fire memory bounds
+  ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+  ifts,ifte,jfts,jfte,                          & ! fire tile bounds
+  ir,jr                                         
+
+  real,intent(in),dimension(ifms:ifme,jfms:jfme)::nfuel_cat
+  real,intent(inout),dimension(ifms:ifme,jfms:jfme)::can_top
+
+
+  !*** local variables
+  
+  integer :: i, j, iveg, tree_type
+  real, dimension(8) :: z_max
+  
+
+  !Canopy height lookup table
+
+  z_max   = (/10.,20.,15.,24.,22.5,10.,2.2,0.73/)
+
+
+  !Loop through each i j point within our patch and relate our nfuel category # to a 
+  !canopy height, which we specify in our fire namelist file. 
+
+  do j = jfts,jfte
+    do i = ifts,ifte
+
+      iveg = nfuel_cat(i,j)
+      tree_type = itree(iveg)
+
+      !If the nfuel category is associated with a fuel type that is not associated with a
+      !tree (designated as a '0' within the fire.namelist file), set the canopy top height 
+      !as 0.
+
+      if(tree_type /= 0) then
+        
+        !write(*,*) z_max(tree_type)
+        can_top(i,j) = z_max(tree_type)
+
+      else 
+
+        can_top(i,j) = 0 
+
+      end if 
+
+    enddo
+  enddo
+
+
+end subroutine find_trees_fmesh
+
+
+subroutine massman_fwh(id,       & ! to identify debugging prints and files if needed
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe,jps,jpe,                              &
+    its,ite,jts,jte,                              &
+    ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+    ifms, ifme, jfms, jfme,                       &
+    ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+    ifts,ifte,jfts,jfte,                          &
+    ir,jr,                                        & ! atm/fire grid ratio
+    cuf,cvf,                                      & ! canopy top winds (input)
+    nfuel_cat,                                    & ! fire fuel category (input)
+    can_top,                                      & ! canopy top and FWH heights (input)
+    uf,vf)                                          ! fwh winds (input and output)
+
+    implicit none
+
+    !*** arguments
+    integer, intent(in):: id,                     & ! debug identification
+    ids,ide, kds,kde, jds,jde,                    & ! atm domain bounds
+    ims,ime, kms,kme, jms,jme,                    & ! atm memory bounds 
+    ips,ipe,jps,jpe,                              &
+    its,ite,jts,jte,                              & ! atm tile bounds
+    ifds, ifde, jfds, jfde,                       & ! fire domain bounds
+    ifms, ifme, jfms, jfme,                       & ! fire memory bounds
+    ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+    ifts,ifte,jfts,jfte,                          & ! fire tile bounds
+    ir,jr                                         
+
+    real,intent(in),dimension(ifms:ifme,jfms:jfme)::&
+    cuf,cvf,                                       & ! canopy winds on fire mesh
+    nfuel_cat,                                     & ! fuel categories on fire mesh
+    can_top                                          ! cantop top and fire wind heights on fire mesh       
+    
+    real,intent(inout),dimension(ifms:ifme,jfms:jfme)::uf,vf
+
+    !*** local variables
+
+    real :: xi_og, k, c1, c3, c2, mid_fh
+    real :: ha, z_og, drag_index, cantop_frac, C_surf, N, cd, zeta_sum, u_scale,z_top
+    real, dimension(8) :: xi_max, sigma_u, sigma_l, PAI, big_cd, z_max, d1
+    real, dimension(20) :: z_agl, xi, fa, zeta, Ub, Ut, u
+    integer :: iveg, i, j, z, znum
+
+
+    !---------------------------------------------------------------------------------------!
+    !   Fortran code for the Massman et al. 2017 parameterzation for within-canopy winds.   !
+    !   This parameterization was specifically greared toward downscaling winds above the   !
+    !   canopy displacement height to the fire flame height. However, this parameterization !
+    !   could be applied for other applications involving canopy winds and forested areas.  !
+    !                                                                                       !
+    !   Written by DVM on 5/3/2019                                                          !
+    !   W.J. Massman, J.M. Forthofer, and M.A. Finney, 2017 : An improved canopy wind       !
+    !   model for predicting wind. Can. J. For. Res. 47: 594–603.                           !                     
+    !---------------------------------------------------------------------------------------!
+
+
+    !iveg = 5               !Hardcoded value for trouble shooting
+
+
+    !Model constants used by the Massman canopy parameterization 
+
+    xi_og = 0.0025          !"Ground" roughness length (in xi coordinates) [unitless]
+    k = 0.40                !Von Karman constant
+    c1 = 0.38               !used to compute ratio beteen u* and u at canopy top height [Wang 2012]
+    c3 = 15                 !used to compute ratio beteen u* and u at canopy top height [Wang 2012]
+    c2 = c1+k/log(xi_og)    !used to compute ratio beteen u* and u at canopy top height [Wang 2012]
+
+    znum = 20               !Number of vertical levels for our canopy model? (20 is the default)
+
+
+    !Computations for an arbituary function for 0 < xi < 1 that describes the 'desired mathematical 
+    !shape of the plant surface distribution'. The assigned values below corresponds to:
+    ! 
+    !        Aspen, Scots Pine, Jack Pine, Loblolly Pine, Hardwood, Spruce, Corn and Rice.
+
+    xi_max  = (/0.36,0.60,0.58,0.60,0.84,0.60,0.94,0.62/)
+    sigma_u = (/0.60,0.30,0.20,0.10,0.13,0.38,0.03,0.50/)
+    sigma_l = (/0.20,0.10,0.20,0.27,0.30,0.16,0.60,0.45/)
+    PAI     = (/3.28,2.41,2.14,3.78,4.93,5.73,2.94,3.10/)
+    big_cd  = (/0.20,0.25,0.27,0.20,0.09,0.20,0.30,0.30/)
+    z_max   = (/10.,20.,15.,24.,22.5,10.,2.2,0.73/)
+    d1      = (/0.,0.,-0.7,0.,2.,0.,0.,0./)
+
+
+    !Loop through each i j point within our patch
+    do j = jfts,jfte
+      do i = ifts,ifte
+
+
+        !What is the height of the tree canopy for the gridcell we are working on?
+        !If z_top equals 0, we are not working with a gridcell with trees, thus 
+        !we don't want to modify our u and v winds on the fire mesh so cycle to 
+        !the next iteration.  
+        
+        z_top = can_top(i,j)
+
+        if(z_top == 0) then 
+          cycle
+        end if 
+        
+
+        !Determine tree type based on whats prescribed in the namelist.fire file. 
+        
+        iveg = itree(nfuel_cat(i,j))
+
+
+        !Compute the heights for our vertical coordinate based on the vegetation 
+        !height (z_max) that was assigned. Heights are in mAGL. In addition, 
+        !compute a unitless height coordinate (xi).
+
+        do z = 1, znum
+          if(z>1) then
+              z_agl(z) = z_agl(z-1) + z_top/(znum-1)
+          else
+              z_agl(z) = 0
+          end if 
+        end do 
+
+        xi = z_agl/z_top
+      
+
+        !Let compute fa, from equation 2 of the Massman paper.
+
+        do z = 1, znum
+          if(xi(z)>=xi_max(iveg)) then
+              fa(z) = exp((-(xi(z)-xi_max(iveg))**2)/(sigma_u(iveg)**2))
+          else
+              fa(z) = exp((-(xi_max(iveg)-xi(z))**2)/(sigma_l(iveg)**2))
+          end if   
+        end do 
+      
+      
+        !Equation 1 of Massman et al. [2017] for 'nondimensional plant surface distribution
+      
+        ha = sum((fa/sum(fa))*PAI(iveg))
+      
+      
+        !"Ground" roughness length (in height coordinates) [mAGL], according to Massman et al. [2017]
+      
+        z_og = xi_og*z_top  
+      
+      
+        !Drag area index, which simplifies down to the drag coefficient (Cd) x the plant area index 
+        !(PAI) Massman et al. [2017]. This is needed to compute the ratio between u* and u 
+        !(cantop_frac, eqn. 10), N (variables from Massman, 1997). 
+      
+        drag_index = big_cd(iveg)*PAI(iveg)
+      
+        cantop_frac = c1 - c2*exp(-c3*drag_index)
+      
+        C_surf = (cantop_frac**2)*2
+      
+        N = drag_index/C_surf
+      
+      
+        !cd represents the 'bulk drag coefficient' at a given height. Since d1 and p1 are set zero
+        !, equation 3 in Massman et al. 2017 simplifies down to cd(xi) = Cd... easy peasy!
+      
+        cd = big_cd(iveg)
+      
+      
+        !Lastly, we need to compute the cumulative drag area as zeta which is a function of xi
+      
+        zeta_sum = 0
+      
+        do z = 1, znum
+          zeta(z) = cd*(fa(z)/sum(fa))*PAI(iveg)+zeta_sum
+          zeta_sum = zeta(z)
+        end do 
+      
+      
+        !Canopy wind and stress profiles (computed from eqn 6 and 7 Massman et al [2017])
+      
+        do z = 1, znum
+          if(xi(z)>=xi_og) then
+            Ub(z) = log(xi(z)/xi_og)/log(1/xi_og)
+          else
+            Ub(z) = 0
+          end if   
+        end do 
+      
+        Ut  = cosh((N*zeta)/drag_index)/cosh(N)
+      
+      
+        !Compute the non-dimensional wind profile (u(z)/u(h)) in eqn. 11 Massman et al [2017])
+      
+        u = Ut*Ub      
+
+
+        !What is the mid-flame height? We assume that the flame height is fuel depthx2,
+        !thus the mid-flame height is set as the fuel depth. See Andrews et al. 2012.
+        !Fuel depth is a namelist.fire parameter, which can be obtained by the fuel
+        !category of the gridcell of interest.
+
+        mid_fh = fueldepthm(nfuel_cat(i,j))
+
+
+        !Finally, find the nearest two vertical levels to our mid-flame height, and interpolate our
+        !wind to the mid-flame height using a simple interpolation scheme. 
+
+        do z = 1, znum
+          if(z_agl(z)>=mid_fh) then
+              u_scale = (((z_agl(z-1)-mid_fh)*(u(z-1)-u(z)))/(z_agl(z)-z_agl(z-1)))+u(z-1)
+              EXIT
+          end if 
+        end do 
+      
+        !Scale our u and v winds at the mid-flame height using our non-dimensional wind 
+        !profile, which was interpolated to the mid-flame height. 
+
+        uf(i,j) = cuf(i,j)*u_scale
+        vf(i,j) = cvf(i,j)*u_scale
+
+
+      enddo
+    enddo
+
+
+end subroutine massman_fwh
+
 
 end module module_fr_sfire_atm
