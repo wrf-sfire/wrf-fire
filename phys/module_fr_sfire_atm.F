@@ -445,6 +445,16 @@ character(len=8)::tracer_names(tracer_np)
 call check_mesh_2dim(its,ite,jts,jte,ims,ime,jms,jme)
 call check_mesh_2dim(ifts,ifte,jtfs,jfte,ifms,ifme,jfms,jfme)
 
+if(fire_print_msg .ge. msglevel)then
+!$OMP CRITICAL(SFIRE_ATM_CRIT)
+900 format(a,i3,1x,a,i3)
+    write(msg,900)'tracer_opt=',tracer_opt,'chem_opt=',chem_opt
+    call message(msg,level=msglevel)
+    call print_dims_4d('tracer',tracer)
+    call print_dims_4d('chem',chem)
+!$OMP END CRITICAL(SFIRE_ATM_CRIT)
+endif
+
 if(.not.emis_read)call crash('add_fire_emissions: read_emissions_table must be called first') 
 write(msg,'(a,i3,a,i3,a,i3)')'add_fire_emissions: chem_opt=',chem_opt,' species ',num_chem,' tracers',num_tracer
 call message(msg)
@@ -1143,15 +1153,7 @@ character(len=256)::msg
 np=ubound(pointers,1)
 
 
-993 format(3a,4(1x,i3,':',i3))
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
-write(msg,993)'array ',array_name,' has dimensions ',&
-         lbound(array,1),ubound(array,1), &
-         lbound(array,2),ubound(array,2), &
-         lbound(array,3),ubound(array,3), &
-         lbound(array,4),ubound(array,4)
-call message(msg)
-
 do i=1,np,line
    m=min(i+line-1,np)
    write(msg,'(a,8(1x,a8))')'Species',(trim(pointer_names(j)),j=i,m)
@@ -1168,12 +1170,7 @@ do i=1,np
 995 format(a,1x,a,1x,a,1x,a,i3)
     call message(msg,level=2)
     if(pointers(i) < ps .or. pointers(i) > pe) then 
-        write(msg,993)'array ',array_name,' has dimensions ',&
-         lbound(array,1),ubound(array,1), &
-         lbound(array,2),ubound(array,2), &
-         lbound(array,3),ubound(array,3), &
-         lbound(array,4),ubound(array,4)
-        call message(msg,level=-1)
+        call print_dims_4d(array_name,array)
         write(msg,995)array_name,'species',trim(pointer_names(i)),'pointer',pointers(i)
         call message(msg,level=-1)
         call crash('add_fire_emissions: pointer out of bounds')
@@ -1182,6 +1179,29 @@ enddo
 !$OMP END CRITICAL(SFIRE_ATM_CRIT)
 end subroutine check_pointers
 
+!
+!***
+!
+
+subroutine print_dims_4d(array_name,array)
+! print line with 4D array name and dimensions
+
+!*** arguments
+character(len=*), intent(in) ::array_name
+real, dimension(:,:,:,:), intent(in) ::array
+
+!*** local
+character(len=256)::msg
+
+!*** executable
+993 format(3a,4(1x,i3,':',i3))
+write(msg,993)'array ',array_name,' has dimensions ',&
+         lbound(array,1),ubound(array,1), &
+         lbound(array,2),ubound(array,2), &
+         lbound(array,3),ubound(array,3), &
+         lbound(array,4),ubound(array,4)
+call message(msg,level=-1)
+end subroutine print_dims_4d
 
 !
 !***
