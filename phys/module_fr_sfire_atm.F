@@ -447,8 +447,8 @@ call check_mesh_2dim(ifts,ifte,jtfs,jfte,ifms,ifme,jfms,jfme)
 
 if(fire_print_msg .ge. msglevel)then
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
-900 format(a,i3,1x,a,i3)
-    write(msg,900)'tracer_opt=',tracer_opt,'chem_opt=',chem_opt
+900 format(4(a,"=",i3,1x))
+    write(msg,900)'add_fire_emissions: chem_opt',chem_opt,'tracer_opt',tracer_opt,'num_chem',num_chem,'num_tracer',num_tracer
     call message(msg,level=msglevel)
     call print_dims_4d('tracer',tracer)
     call print_dims_4d('chem',chem)
@@ -456,7 +456,6 @@ if(fire_print_msg .ge. msglevel)then
 endif
 
 if(.not.emis_read)call crash('add_fire_emissions: read_emissions_table must be called first') 
-write(msg,'(a,i3,a,i3,a,i3)')'add_fire_emissions: chem_opt=',chem_opt,' species ',num_chem,' tracers',num_tracer
 call message(msg)
 
 #ifdef WRF_CHEM
