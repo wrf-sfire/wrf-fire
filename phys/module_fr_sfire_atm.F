@@ -80,8 +80,7 @@ p_seas_2, &
 p_seas_3, &
 p_seas_4, &
 p_p10 
-#endif
-
+#else
 USE module_state_description, only: &
 p_tr17_1, &
 p_tr17_2, &
@@ -91,6 +90,7 @@ p_tr17_5, &
 p_tr17_6, &
 p_tr17_7, &
 p_tr17_8
+#endif
 
 implicit none
 
@@ -429,14 +429,17 @@ real, dimension(mfuelcats)::s_fuel,t_fuel,r_fuel  ! total per timestep, rate bur
 #ifdef WRF_CHEM
 real, dimension(num_chem) ::s_chem,t_chem,r_chem  ! total per timestep, rate burnt
 real, dimension(num_chem) ::a_chem,g_chem  ! concentration in ground level 1 
-integer, parameter:: chem_np=59
+integer, parameter:: chem_np=58
 integer:: chem_pointers(chem_np)
 character(len=8)::chem_names(chem_np)
-#endif
-real, dimension(num_tracer) ::s_tracer,t_tracer,r_tracer  ! total per timestep, rate burnt
-
+integer, parameter:: tracer_np=1
+integer:: tracer_pointers(tracer_np)
+#else
 integer, parameter:: tracer_np=8
 integer:: tracer_pointers(tracer_np)
+#endif
+
+real, dimension(num_tracer) ::s_tracer,t_tracer,r_tracer  ! total per timestep, rate burnt
 character(len=8)::tracer_names(tracer_np)
 
 !*** executable
@@ -495,7 +498,7 @@ p_isopr, &
 p_macr, &
 p_mek, &
 p_mvk, &
-p_smoke, &
+! p_smoke, &
 p_sulf, &
 p_dms, &
 p_msa, &
@@ -557,7 +560,7 @@ chem_names= (/ &
 'macr    ', &
 'mek     ', &
 'mvk     ', &
-'smoke   ', &
+! 'smoke   ', &
 'sulf    ', &
 'dms     ', &
 'msa     ', &
@@ -572,7 +575,13 @@ chem_names= (/ &
 'seas_4  ', &
 'p10     ' /)
 
-#endif
+tracer_pointers= (/ &
+p_smoke  /)
+
+tracer_names= (/ &
+'smoke  ' /)
+
+#else
 
 tracer_pointers= (/ &
 p_tr17_1, &
@@ -593,6 +602,7 @@ tracer_names= (/ &
 'tr17_6  ', &
 'tr17_7  ', &
 'tr17_8  ' /)
+#endif
 
 if(fire_print_msg .ge. msglevel)then
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
@@ -961,11 +971,16 @@ do j=max(jds+1,jts),min(jte,jde-1)          ! safe distance from domain boundary
                chem(i,k1,j,p_p10  )=chem(i,k1,j,p_p10  )+emis*conv
 
 #endif
-               if (num_tracer >0)then
+               if (num_tracer > 0)then
 
                      ! treat tracers exactly the same as aerosols, emissions g/kg fuel burned, tracer concentration ug/kg dry air
                      conv = avgw*1e6/(rho(i,k1,j)*dz8w(i,k1,j))
 
+#ifdef WRF_CHEM
+                     emis=smoke (cat)*fuel_burnt                                    ! emission from fire cell
+                     t_tracer(p_smoke) = t_tracer(p_smoke) + emis                         ! add to total
+                     tracer(i,k1,j,p_smoke )=tracer(i,k1,j,p_smoke )+emis*conv
+#else
                      emis=tr17_1 (cat)*fuel_burnt                                    ! emission from fire cell
                      t_tracer(p_tr17_1) = t_tracer(p_tr17_1) + emis                         ! add to total
                      tracer(i,k1,j,p_tr17_1 )=tracer(i,k1,j,p_tr17_1 )+emis*conv
@@ -997,6 +1012,7 @@ do j=max(jds+1,jts),min(jte,jde-1)          ! safe distance from domain boundary
                      emis=tr17_8 (cat)*fuel_burnt                                    ! emission from fire cell
                      t_tracer(p_tr17_8) = t_tracer(p_tr17_8) + emis                         ! add to total
                      tracer(i,k1,j,p_tr17_8 )=tracer(i,k1,j,p_tr17_8 )+emis*conv
+#endif
                 endif
            enddo
        enddo
@@ -1155,7 +1171,7 @@ np=ubound(pointers,1)
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
 do i=1,np,line
    m=min(i+line-1,np)
-   write(msg,'(a,8(1x,a8))')'Species',(trim(pointer_names(j)),j=i,m)
+   write(msg,'(a7,8(1x,a8))')array_name,(trim(pointer_names(j)),j=i,m)
    call message(msg,level=msglevel)
    write(msg,'(a,8i9)')     'Pointer',(pointers(j),j=i,m)
    call message(msg,level=msglevel)
