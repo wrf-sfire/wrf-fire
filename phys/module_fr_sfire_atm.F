@@ -80,7 +80,8 @@ p_seas_2, &
 p_seas_3, &
 p_seas_4, &
 p_p10 
-#else
+#endif
+
 USE module_state_description, only: &
 p_tr17_1, &
 p_tr17_2, &
@@ -90,7 +91,6 @@ p_tr17_5, &
 p_tr17_6, &
 p_tr17_7, &
 p_tr17_8
-#endif
 
 implicit none
 
@@ -432,15 +432,13 @@ real, dimension(num_chem) ::a_chem,g_chem  ! concentration in ground level 1
 integer, parameter:: chem_np=58
 integer:: chem_pointers(chem_np)
 character(len=8)::chem_names(chem_np)
-integer, parameter:: tracer_np=1
-integer:: tracer_pointers(tracer_np)
-#else
-integer, parameter:: tracer_np=8
-integer:: tracer_pointers(tracer_np)
 #endif
+integer, parameter:: tracer_np_max=8
+integer:: tracer_pointers(tracer_np_max)
 
 real, dimension(num_tracer) ::s_tracer,t_tracer,r_tracer  ! total per timestep, rate burnt
-character(len=8)::tracer_names(tracer_np)
+character(len=8)::tracer_names(tracer_np_max)
+integer::tracer_np  ! actual number of tracer pointers
 
 !*** executable
 
@@ -575,34 +573,41 @@ chem_names= (/ &
 'seas_4  ', &
 'p10     ' /)
 
-tracer_pointers= (/ &
-p_smoke  /)
-
-tracer_names= (/ &
-'smoke  ' /)
-
-#else
-
-tracer_pointers= (/ &
-p_tr17_1, &
-p_tr17_2, &
-p_tr17_3, &
-p_tr17_4, &
-p_tr17_5, &
-p_tr17_6, &
-p_tr17_7, &
-p_tr17_8  /)
-
-tracer_names= (/ &
-'tr17_1  ', &
-'tr17_2  ', &
-'tr17_3  ', &
-'tr17_4  ', &
-'tr17_5  ', &
-'tr17_6  ', &
-'tr17_7  ', &
-'tr17_8  ' /)
 #endif
+
+if (tracer_opt == 0) then
+    call message('add_fire_emissions: no tracers')
+    tracer_np = 0
+#ifdef WRF_CHEM
+elseif (tracer_opt == 1) then
+    tracer_pointers(1:1)= (/ p_smoke  /)
+    tracer_names(1:1)= (/ 'smoke  ' /)
+    tracer_np = 1
+#endif
+elseif (tracer_opt == 2) then
+    tracer_pointers(1:8)= (/ &
+       p_tr17_1, &
+       p_tr17_2, &
+       p_tr17_3, &
+       p_tr17_4, &
+       p_tr17_5, &
+       p_tr17_6, &
+       p_tr17_7, &
+       p_tr17_8  /)
+    tracer_names(1:8)= (/ &
+       'tr17_1  ', &
+       'tr17_2  ', &
+       'tr17_3  ', &
+       'tr17_4  ', &
+       'tr17_5  ', &
+       'tr17_6  ', &
+       'tr17_7  ', &
+       'tr17_8  ' /)
+    tracer_np = 8
+else
+    call crash('add_fire_emissions: tracer_opt value not supported')
+endif
+
 
 if(fire_print_msg .ge. msglevel)then
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
@@ -616,8 +621,12 @@ if(fire_print_msg .ge. msglevel)then
 !$OMP END CRITICAL(SFIRE_ATM_CRIT)
 endif
 
-call check_pointers('chem',chem,chem_names,chem_pointers)
-call check_pointers('tracer',tracer,tracer_names,tracer_pointers)
+#ifdef WRF_CHEM
+    call check_pointers('chem',chem,chem_np,chem_names,chem_pointers)
+#endif
+if(tracer_opt>0)then
+    call check_pointers('tracer',tracer,tracer_np,tracer_names,tracer_pointers)
+endif
 
 ! compute mesh sizes
 isz1 = ite-its+1
@@ -971,16 +980,20 @@ do j=max(jds+1,jts),min(jte,jde-1)          ! safe distance from domain boundary
                chem(i,k1,j,p_p10  )=chem(i,k1,j,p_p10  )+emis*conv
 
 #endif
-               if (num_tracer > 0)then
+               if (tracer_opt > 0) then
 
                      ! treat tracers exactly the same as aerosols, emissions g/kg fuel burned, tracer concentration ug/kg dry air
                      conv = avgw*1e6/(rho(i,k1,j)*dz8w(i,k1,j))
+               endif
 
 #ifdef WRF_CHEM
+               if (tracer_opt == 1) then
                      emis=smoke (cat)*fuel_burnt                                    ! emission from fire cell
                      t_tracer(p_smoke) = t_tracer(p_smoke) + emis                         ! add to total
                      tracer(i,k1,j,p_smoke )=tracer(i,k1,j,p_smoke )+emis*conv
-#else
+               endif
+#endif
+               if (tracer_opt == 2) then
                      emis=tr17_1 (cat)*fuel_burnt                                    ! emission from fire cell
                      t_tracer(p_tr17_1) = t_tracer(p_tr17_1) + emis                         ! add to total
                      tracer(i,k1,j,p_tr17_1 )=tracer(i,k1,j,p_tr17_1 )+emis*conv
@@ -1012,7 +1025,6 @@ do j=max(jds+1,jts),min(jte,jde-1)          ! safe distance from domain boundary
                      emis=tr17_8 (cat)*fuel_burnt                                    ! emission from fire cell
                      t_tracer(p_tr17_8) = t_tracer(p_tr17_8) + emis                         ! add to total
                      tracer(i,k1,j,p_tr17_8 )=tracer(i,k1,j,p_tr17_8 )+emis*conv
-#endif
                 endif
            enddo
        enddo
@@ -1151,23 +1163,21 @@ end subroutine add_fire_emissions
 !***
 !
 
-subroutine check_pointers(array_name,array,pointer_names,pointers)
+subroutine check_pointers(array_name,array,np,pointer_names,pointers)
 implicit none
 
 !*** arguments
-character(len=*)::array_name
-real, dimension(:,:,:,:)::array
-character(len=*), dimension(:)::pointer_names
-integer, dimension(:)::pointers
+character(len=*),intent(in)::array_name
+real, dimension(:,:,:,:),intent(in)::array
+integer, intent(in)::np
+character(len=*), dimension(:),intent(in)::pointer_names
+integer, dimension(:),intent(in)::pointers
 
 !*** local
-integer::np,i,m,j,ps,pe
+integer::i,m,j,ps,pe
 character(len=256)::msg
 
 !** executable
-np=ubound(pointers,1)
-
-
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
 do i=1,np,line
    m=min(i+line-1,np)
