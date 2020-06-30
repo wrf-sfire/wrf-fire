@@ -445,18 +445,7 @@ character(len=8)::tracer_names(tracer_np)
 call check_mesh_2dim(its,ite,jts,jte,ims,ime,jms,jme)
 call check_mesh_2dim(ifts,ifte,jtfs,jfte,ifms,ifme,jfms,jfme)
 
-if(fire_print_msg .ge. msglevel)then
-!$OMP CRITICAL(SFIRE_ATM_CRIT)
-900 format(4(a,"=",i3,1x))
-    write(msg,900)'add_fire_emissions: chem_opt',chem_opt,'tracer_opt',tracer_opt,'num_chem',num_chem,'num_tracer',num_tracer
-    call message(msg,level=msglevel)
-    call print_dims_4d('tracer',tracer)
-    call print_dims_4d('chem',chem)
-!$OMP END CRITICAL(SFIRE_ATM_CRIT)
-endif
-
 if(.not.emis_read)call crash('add_fire_emissions: read_emissions_table must be called first') 
-call message(msg)
 
 #ifdef WRF_CHEM
 chem_pointers= (/ &
@@ -583,8 +572,6 @@ chem_names= (/ &
 'seas_4  ', &
 'p10     ' /)
 
-
-call check_pointers('chem',chem,chem_names,chem_pointers)
 #endif
 
 tracer_pointers= (/ &
@@ -607,6 +594,19 @@ tracer_names= (/ &
 'tr17_7  ', &
 'tr17_8  ' /)
 
+if(fire_print_msg .ge. msglevel)then
+!$OMP CRITICAL(SFIRE_ATM_CRIT)
+900 format(6(a,"=",i3,1x))
+    write(msg,900)'add_fire_emissions: chem_opt',chem_opt,'tracer_opt',tracer_opt, &
+        'num_chem',num_chem,'num_tracer',num_tracer, &
+        'max chem',maxval(chem_pointers),'max tracer',maxval(tracer_pointers)
+    call message(msg,level=msglevel)
+    call print_dims_4d('tracer',tracer)
+    call print_dims_4d('chem',chem)
+!$OMP END CRITICAL(SFIRE_ATM_CRIT)
+endif
+
+call check_pointers('chem',chem,chem_names,chem_pointers)
 call check_pointers('tracer',tracer,tracer_names,tracer_pointers)
 
 ! compute mesh sizes
