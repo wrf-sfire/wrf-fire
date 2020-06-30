@@ -1834,23 +1834,22 @@ subroutine check_grid_alloc(grid,config_flags)
         call check_size(size(grid%fmc_gc),'fmc_gc')
     endif
     call message('check_grid_alloc: checking if grid arrays used in emissions are allocated',level=2)
-    if(config_flags%chem_opt>0 )then
-        call check_size(size(grid%chem),'chem')
-    endif
-    if(config_flags%tracer_opt>0 )then
-        call check_size(size(grid%tracer),'tracer')
-    endif
+    call check_size(size(grid%chem),'chem',config_flags%chem_opt)
+    call check_size(size(grid%tracer),'tracer',config_flags%tracer_opt)
 
 end subroutine check_grid_alloc
 
-subroutine check_size(sz,name)
+subroutine check_size(sz,name,req)
 integer, intent(in)::sz
+integer, optional::req
 character(len=*), intent(in)::name
 character(len=128)::msg
+logical::strict = .false.
 
 write(msg,'(a,a10,a,i12)')'array ',name,' has size ',sz
 call message(msg,level=2)
-if (sz < 2) then
+if(present(req)) strict=req > 0
+if (sz < 2 .and. strict) then
     write(msg,'(a,a,a,i2,a)')'array ',name,' is size ',sz,': not allocated, add to registry package'
     call crash(trim(msg))
 endif

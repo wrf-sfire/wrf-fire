@@ -427,12 +427,14 @@ character(len=128)msg
 
 real, dimension(mfuelcats)::s_fuel,t_fuel,r_fuel  ! total per timestep, rate burnt
 #ifdef WRF_CHEM
+integer, parameter:: chem_np=58
+#else
+integer, parameter:: chem_np=0
+#endif
 real, dimension(num_chem) ::s_chem,t_chem,r_chem  ! total per timestep, rate burnt
 real, dimension(num_chem) ::a_chem,g_chem  ! concentration in ground level 1 
-integer, parameter:: chem_np=58
 integer:: chem_pointers(chem_np)
 character(len=8)::chem_names(chem_np)
-#endif
 integer, parameter:: tracer_np_max=8
 integer:: tracer_pointers(tracer_np_max)
 
