@@ -616,7 +616,10 @@ if(fire_print_msg .ge. msglevel)then
 900 format(6(a,"=",i3,1x))
     write(msg,900)'add_fire_emissions: chem_opt',chem_opt,'tracer_opt',tracer_opt, &
         'num_chem',num_chem,'num_tracer',num_tracer, &
-        'max chem',maxval(chem_pointers),'max tracer',maxval(tracer_pointers)
+#ifdef WRF_CHEM
+        'max chem',maxval(chem_pointers), &
+#endif
+        'max tracer',maxval(tracer_pointers)
     call message(msg,level=msglevel)
     call print_dims_4d('tracer',tracer)
     call print_dims_4d('chem',chem)
