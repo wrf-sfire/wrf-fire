@@ -2180,6 +2180,7 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
   character(len=128)::msg
 
 !*** executable
+  call pnetcdf_write_uv
 
   if(.not. have_wind_log_interpolation) call crash('interpolate_wind2fire_height: wind_log_interpolation must be set up first')
 
@@ -2666,5 +2667,32 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
 
 end subroutine massman_fwh
 
+subroutine pnetcdf_write_uv
+    use pnetcdf
+    use mpi
+    implicit none
+    integer::comm,ncid,ierr
+    character(LEN=256) filename
 
+    call wrf_get_dm_communicator(comm)
+    filename = "wrf.nc"
+    ierr = nf90mpi_open(comm, filename, NF90_NOWRITE, &
+                           MPI_INFO_NULL, ncid)
+    call check(ierr,"nf90mpi_open")
+    call message("nf90mpi_open OK")
+    ierr = nf90mpi_close(ncid)
+    call check(ierr,"nf90mpi_close")
+
+end subroutine pnetcdf_write_uv
+
+subroutine check(ierr,errmsg)
+    implicit none
+    integer, intent(in)::ierr
+    character*(*), intent(in)::errmsg
+    character(len=256)msg
+    if(ierr.ne.0)then
+        write(msg,"(a,a,i6)")trim(errmsg)," error",ierr
+        call crash(trim(msg))
+    endif
+end subroutine check
 end module module_fr_sfire_atm
