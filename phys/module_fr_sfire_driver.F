@@ -966,6 +966,11 @@ do ij=1,num_tiles
             wz0 = 0             !Set WRF roughness length to 0 since we dont use this for option 4.
 
         else
+
+          ! read/write pnetcdf wind file
+          call pnetcdf_write_uv
+
+          ! wind vertical interpolation`
           call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fz0,'driver_phys:fz0')        
           call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
             ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
@@ -1867,5 +1872,35 @@ end subroutine check_size
 !msg=id
 !call message(msg,level=1)
 !end subroutine print_id
+
+
+subroutine pnetcdf_write_uv
+    use pnetcdf
+    use mpi
+    implicit none
+    integer::comm,ncid,ierr
+    character(LEN=256) filename
+
+    call wrf_get_dm_communicator(comm)
+    filename = "wrf.nc"
+    ierr = nf90mpi_open(comm, filename, NF90_NOWRITE, &
+                           MPI_INFO_NULL, ncid)
+    call check(ierr,"nf90mpi_open")
+    call message("nf90mpi_open OK")
+    ierr = nf90mpi_close(ncid)
+    call check(ierr,"nf90mpi_close")
+
+end subroutine pnetcdf_write_uv
+
+subroutine check(ierr,errmsg)
+    implicit none
+    integer, intent(in)::ierr
+    character*(*), intent(in)::errmsg
+    character(len=256)msg
+    if(ierr.ne.0)then
+        write(msg,"(a,a,i6)")trim(errmsg)," error",ierr
+        call crash(trim(msg))
+    endif
+end subroutine check
 
 end module module_fr_sfire_driver
