@@ -62,10 +62,12 @@
 ! For current activity and development trends please check out
 ! http://ccm.ucdenver.edu/wiki/User:Jmandel/blog
 ! http://www.openwfm.org/wiki/WRF-Fire_development_notes
-! 
+!  
 
 module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
+
+use pnetcdf
 
 use module_fr_sfire_model, only: sfire_model
 use module_fr_sfire_phys, only: fire_params, init_fuel_cats, fuel_moisture, &
@@ -1875,7 +1877,6 @@ end subroutine check_size
 
 
 subroutine pnetcdf_write_uv
-    use pnetcdf
     use mpi
     implicit none
     integer::comm,ncid,ierr
@@ -1883,22 +1884,20 @@ subroutine pnetcdf_write_uv
 
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    ierr = nf90mpi_open(comm, filename, NF90_NOWRITE, &
-                           MPI_INFO_NULL, ncid)
-    call check(ierr,"nf90mpi_open")
+    call check(nf90mpi_open(comm, filename, NF90_NOWRITE, &
+                           MPI_INFO_NULL, ncid),"nf90mpi_open")
     call message("nf90mpi_open OK")
-    ierr = nf90mpi_close(ncid)
-    call check(ierr,"nf90mpi_close")
+    call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_uv
 
 subroutine check(ierr,errmsg)
     implicit none
     integer, intent(in)::ierr
-    character*(*), intent(in)::errmsg
+    character(len=*), intent(in)::errmsg
     character(len=256)msg
     if(ierr.ne.0)then
-        write(msg,"(a,a,i6)")trim(errmsg)," error",ierr
+        write(msg,"(a,a,i6,1x,a)")trim(errmsg)," error",ierr,nf90mpi_strerror(ierr)
         call crash(trim(msg))
     endif
 end subroutine check
