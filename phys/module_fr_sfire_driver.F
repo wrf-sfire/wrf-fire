@@ -1879,14 +1879,26 @@ end subroutine check_size
 subroutine pnetcdf_write_uv
     use mpi
     implicit none
-    integer::comm,ncid,ierr
-    character(LEN=256) filename
+    integer::comm,ncid,ierr,varid,xtype, ndims,natts, dimids(5),i
+    integer(kind=MPI_OFFSET_KIND) :: length
+    character(LEN=256):: filename, msg
+    character(len=nf90_max_name):: name
 
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, filename, NF90_NOWRITE, &
-                           MPI_INFO_NULL, ncid),"nf90mpi_open")
+    call check(nf90mpi_open(comm, trim(filename), NF90_NOWRITE, &
+                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
     call message("nf90mpi_open OK")
+    call check(nf90mpi_inq_varid(ncid,"U",varid),"nf90mpi_inq_varid:U")
+    call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable:U")
+    write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "dimids",dimids, "natts",natts
+    call message(msg)
+    do i=1,ndims
+        call check(nf90mpi_inquire_dimension(ncid, dimids(i), name, length),"nf90mpi_inquire_dimension")
+        write(msg,*)"dimension ",i,trim(name)," length",length
+        call message(msg)
+    enddo
+    
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_uv
