@@ -68,6 +68,7 @@ module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
 
 use pnetcdf
+use mpi
 
 use module_fr_sfire_model, only: sfire_model
 use module_fr_sfire_phys, only: fire_params, init_fuel_cats, fuel_moisture, &
@@ -1877,31 +1878,41 @@ end subroutine check_size
 
 
 subroutine pnetcdf_write_uv
-    use mpi
     implicit none
-    integer::comm,ncid,ierr,varid,xtype, ndims,natts, dimids(5),i
-    integer(kind=MPI_OFFSET_KIND) :: length
-    character(LEN=256):: filename, msg
+    integer::comm,ncid,varid
     character(len=nf90_max_name):: name
+    character(LEN=256):: filename, msg
 
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), NF90_NOWRITE, &
+    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
-    call message("nf90mpi_open OK")
     call check(nf90mpi_inq_varid(ncid,"U",varid),"nf90mpi_inq_varid:U")
-    call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable:U")
-    write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "dimids",dimids, "natts",natts
+    call pnetcdf_var_info(ncid,varid)
+    call check(nf90mpi_inq_varid(ncid,"V",varid),"nf90mpi_inq_varid:V")
+    call pnetcdf_var_info(ncid,varid)
+    call check(nf90mpi_inq_varid(ncid,"W",varid),"nf90mpi_inq_varid:W")
+    call pnetcdf_var_info(ncid,varid)
+    call check (nf90mpi_close(ncid),"nf90mpi_close")
+
+end subroutine pnetcdf_write_uv
+
+subroutine pnetcdf_var_info(ncid,varid)
+    integer, intent(in)::ncid,varid
+    integer:: xtype, ndims, natts, dimids(10),i
+    integer(kind=MPI_OFFSET_KIND) :: length
+    character(len=nf90_max_name):: name
+    character(LEN=256):: filename, msg
+
+    call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable")
+    write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "natts",natts
     call message(msg)
     do i=1,ndims
         call check(nf90mpi_inquire_dimension(ncid, dimids(i), name, length),"nf90mpi_inquire_dimension")
         write(msg,*)"dimension ",i,trim(name)," length",length
         call message(msg)
     enddo
-    
-    call check (nf90mpi_close(ncid),"nf90mpi_close")
-
-end subroutine pnetcdf_write_uv
+end subroutine pnetcdf_var_info
 
 subroutine check(ierr,errmsg)
     implicit none
