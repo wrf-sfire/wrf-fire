@@ -1885,7 +1885,7 @@ subroutine pnetcdf_write_uv
 
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
+    call check(nf90mpi_open(comm, trim(filename), NF90_NOWRITE, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
     call check(nf90mpi_inq_varid(ncid,"U",varid),"nf90mpi_inq_varid:U")
     call pnetcdf_var_info(ncid,varid)
@@ -1899,19 +1899,31 @@ end subroutine pnetcdf_write_uv
 
 subroutine pnetcdf_var_info(ncid,varid)
     integer, intent(in)::ncid,varid
-    integer:: xtype, ndims, natts, dimids(10),i
-    integer(kind=MPI_OFFSET_KIND) :: length
+    integer, parameter::mdims = 20
+    integer:: xtype, ndims, natts, dimids(mdims),i,attnum,values(mdims)
+    integer(kind=MPI_OFFSET_KIND) :: len
     character(len=nf90_max_name):: name
     character(LEN=256):: filename, msg
 
     call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable")
+    if(ndims>mdims)call crash("pnetcdf_var_info: increase mdims")
     write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "natts",natts
     call message(msg)
     do i=1,ndims
-        call check(nf90mpi_inquire_dimension(ncid, dimids(i), name, length),"nf90mpi_inquire_dimension")
-        write(msg,*)"dimension ",i,trim(name)," length",length
+        call check(nf90mpi_inquire_dimension(ncid, dimids(i), name, len),"nf90mpi_inquire_dimension")
+        write(msg,*)"dimension ",i,trim(name)," length",len
         call message(msg)
     enddo
+    do i=1,natts
+        attnum = i
+        call check(nf90mpi_inq_attname(ncid, varid, attnum, name),"nf90mpi_inq_attname")
+        call check(nf90mpi_inquire_attribute(ncid, varid, trim(name), xtype, len, attnum),"nf90mpi_inquire_attribute")
+        if(len>mdims)call crash("pnetcdf_var_info: increase mdims")
+        call check(nf90mpi_get_att(ncid, varid, trim(name), values),"nf90mpi_get_att")
+        write(msg,*)"attribute ",i,trim(name)," values",values(1:len)
+        call message(msg)
+    enddo
+
 end subroutine pnetcdf_var_info
 
 subroutine check(ierr,errmsg)
