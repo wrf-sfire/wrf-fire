@@ -1896,7 +1896,7 @@ subroutine pnetcdf_write_wind(                    &
     real,intent(in),dimension(ims:ime,kms:kme,jms:jme)::u,v, & ! wind velocity (m/s) (staggered atm grid) 
                               ph, phb                            ! geopotential (w-points atm grid)
 !*** local
-    integer::comm,ncid,varid
+    integer::comm,ncid,varid,dims(4)
     character(len=nf90_max_name):: name
     character(LEN=256):: filename, msg
 
@@ -1905,19 +1905,21 @@ subroutine pnetcdf_write_wind(                    &
     filename = "wrf.nc"
     call check(nf90mpi_open(comm, trim(filename), NF90_NOWRITE, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
-    call pnetcdf_var_info(ncid,"U")
-    call pnetcdf_var_info(ncid,"V")
-    call pnetcdf_var_info(ncid,"PH")
-    call pnetcdf_var_info(ncid,"PHB")
+    call pnetcdf_var_info(ncid,"U",dims)
+    call pnetcdf_var_info(ncid,"V",dims)
+    call pnetcdf_var_info(ncid,"PH",dims)
+    call pnetcdf_var_info(ncid,"PHB",dims)
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_wind
 
-subroutine pnetcdf_var_info(ncid,varname)
+subroutine pnetcdf_var_info(ncid,varname,dims,prints)
     implicit none
 !*** arguments
     integer, intent(in)::ncid
     character(len=*)::varname
+    integer,intent(out)::dims(:)
+    integer,intent(in),optional::prints 
 !*** local
     integer, parameter::mdims = 256
     integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum,varid
@@ -1927,17 +1929,28 @@ subroutine pnetcdf_var_info(ncid,varname)
     real:: values_real(mdims)
     character(len=mdims):: values_char
     character(LEN=256):: filename, msg
+    logical::verbose=.true.
+
+    if(present(prints)) verbose = prints>0
+     
 
     call check(nf90mpi_inq_varid(ncid,trim(varname),varid),"nf90mpi_inq_varid"//trim(varname))
     call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable")
     if(ndims>mdims)call crash("pnetcdf_var_info: increase mdims")
-    write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "natts",natts
-    call message(msg)
+    if(ndims>size(dims))call crash("pnetcdf_var_info: dims too short")
+    if(verbose)then
+        write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "natts",natts
+        call message(msg)
+    endif
     do i=1,ndims
         call check(nf90mpi_inquire_dimension(ncid, dimids(i), name, len),"nf90mpi_inquire_dimension")
-        write(msg,*)"dimension ",i,trim(name)," length",len
-        call message(msg)
+        dims(i)=len
+        if(verbose)then
+            write(msg,*)"dimension ",i,trim(name)," length",len
+            call message(msg)
+        endif
     enddo
+    if(.not.verbose)return
     do i=1,natts
         attnum = i
         call check(nf90mpi_inq_attname(ncid, varid, attnum, name),"nf90mpi_inq_attname")
@@ -1960,7 +1973,6 @@ subroutine pnetcdf_var_info(ncid,varname)
         end select
         call message(msg)
     enddo
-
 end subroutine pnetcdf_var_info
 
 subroutine check(ierr,errmsg)
