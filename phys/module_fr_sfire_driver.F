@@ -1900,9 +1900,12 @@ end subroutine pnetcdf_write_uv
 subroutine pnetcdf_var_info(ncid,varid)
     integer, intent(in)::ncid,varid
     integer, parameter::mdims = 20
-    integer:: xtype, ndims, natts, dimids(mdims),i,attnum,values(mdims)
+    integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum
     integer(kind=MPI_OFFSET_KIND) :: len
     character(len=nf90_max_name):: name
+    integer:: values_int(mdims)
+    real:: values_real(mdims)
+    character(len=mdims):: values_char
     character(LEN=256):: filename, msg
 
     call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable")
@@ -1919,8 +1922,21 @@ subroutine pnetcdf_var_info(ncid,varid)
         call check(nf90mpi_inq_attname(ncid, varid, attnum, name),"nf90mpi_inq_attname")
         call check(nf90mpi_inquire_attribute(ncid, varid, trim(name), xtype, len, attnum),"nf90mpi_inquire_attribute")
         if(len>mdims)call crash("pnetcdf_var_info: increase mdims")
-        call check(nf90mpi_get_att(ncid, varid, trim(name), values),"nf90mpi_get_att")
-        write(msg,*)"attribute ",i,trim(name)," values",values(1:len)
+        !write(msg,*)"attribute ",i,trim(name),' type',xtype
+        !call message(msg)
+        select case (xtype) 
+            case (nf90_char)
+                call check(nf90mpi_get_att(ncid, varid, trim(name), values_char),"nf90mpi_get_att")
+                write(msg,*)"attribute ",i,trim(name)," type ",xtype," values",len," : ",trim(values_char)
+            case (nf90_int,nf90_short,nf90_ushort,nf90_uint,nf90_int64,nf90_uint64)
+                call check(nf90mpi_get_att(ncid, varid, trim(name), values_int),"nf90mpi_get_att")
+                write(msg,*)"attribute ",i,trim(name)," type ",xtype," values",len," : ",(values_int(j),j=1,len)
+            case (nf90_float,nf90_double)
+                call check(nf90mpi_get_att(ncid, varid, trim(name), values_real),"nf90mpi_get_att")
+                write(msg,*)"attribute ",i,trim(name)," type ",xtype," values",len," : ",(values_real(j),j=1,len)
+            case default
+                write(msg,*)'attribute type ',xtype,' not supported'
+        end select
         call message(msg)
     enddo
 
