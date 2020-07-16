@@ -971,7 +971,11 @@ do ij=1,num_tiles
         else
 
           ! read/write pnetcdf wind file
-          call pnetcdf_write_uv
+          call pnetcdf_write_wind(                          &
+              ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+              ims,ime, kms,kme, jms,jme,                    &
+              ips,ipe, kps,kpe, jps,jpe,                    &
+              u,v,ph,phb)
 
           ! wind vertical interpolation`
           call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fz0,'driver_phys:fz0')        
@@ -1877,30 +1881,46 @@ end subroutine check_size
 !end subroutine print_id
 
 
-subroutine pnetcdf_write_uv
+subroutine pnetcdf_write_wind(                    &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe,                    &
+    u,v,ph,phb)
     implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe                     
+    real,intent(in),dimension(ims:ime,kms:kme,jms:jme)::u,v, & ! wind velocity (m/s) (staggered atm grid) 
+                              ph, phb                            ! geopotential (w-points atm grid)
+!*** local
     integer::comm,ncid,varid
     character(len=nf90_max_name):: name
     character(LEN=256):: filename, msg
 
+!*** executable
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
     call check(nf90mpi_open(comm, trim(filename), NF90_NOWRITE, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
-    call check(nf90mpi_inq_varid(ncid,"U",varid),"nf90mpi_inq_varid:U")
-    call pnetcdf_var_info(ncid,varid)
-    call check(nf90mpi_inq_varid(ncid,"V",varid),"nf90mpi_inq_varid:V")
-    call pnetcdf_var_info(ncid,varid)
-    call check(nf90mpi_inq_varid(ncid,"W",varid),"nf90mpi_inq_varid:W")
-    call pnetcdf_var_info(ncid,varid)
+    call pnetcdf_var_info(ncid,"U")
+    call pnetcdf_var_info(ncid,"V")
+    call pnetcdf_var_info(ncid,"PH")
+    call pnetcdf_var_info(ncid,"PHB")
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
-end subroutine pnetcdf_write_uv
+end subroutine pnetcdf_write_wind
 
-subroutine pnetcdf_var_info(ncid,varid)
-    integer, intent(in)::ncid,varid
-    integer, parameter::mdims = 20
-    integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum
+subroutine pnetcdf_var_info(ncid,varname)
+    implicit none
+!*** arguments
+    integer, intent(in)::ncid
+    character(len=*)::varname
+!*** local
+    integer, parameter::mdims = 256
+    integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum,varid
     integer(kind=MPI_OFFSET_KIND) :: len
     character(len=nf90_max_name):: name
     integer:: values_int(mdims)
@@ -1908,6 +1928,7 @@ subroutine pnetcdf_var_info(ncid,varid)
     character(len=mdims):: values_char
     character(LEN=256):: filename, msg
 
+    call check(nf90mpi_inq_varid(ncid,trim(varname),varid),"nf90mpi_inq_varid"//trim(varname))
     call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable")
     if(ndims>mdims)call crash("pnetcdf_var_info: increase mdims")
     write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "natts",natts
