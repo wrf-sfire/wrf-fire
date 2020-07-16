@@ -1903,26 +1903,94 @@ subroutine pnetcdf_write_wind(                    &
 !*** executable
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), NF90_NOWRITE, &
+    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
-    call pnetcdf_var_info(ncid,"U",dims)
-    call pnetcdf_var_info(ncid,"V",dims)
-    call pnetcdf_var_info(ncid,"PH",dims)
-    call pnetcdf_var_info(ncid,"PHB",dims)
+    !call pnetcdf_var_info(ncid,"U",dims,varid)
+    !call pnetcdf_var_info(ncid,"V",dims,varid)
+    !call pnetcdf_var_info(ncid,"PH",dims,varid)
+    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    call  pnetcdf_write_arr(ncid,                &
+        ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+        ims,ime, kms,kme, jms,jme,                    &
+        ips,ipe, kps,kpe, jps,jpe,                    &
+        u,"U")
+    call  pnetcdf_write_arr(ncid,                &
+        ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+        ims,ime, kms,kme, jms,jme,                    &
+        ips,ipe, kps,kpe, jps,jpe,                    &
+        u,"U")
+    call  pnetcdf_write_arr(ncid,                &
+        ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+        ims,ime, kms,kme, jms,jme,                    &
+        ips,ipe, kps,kpe, jps,jpe,                    &
+        ph,"PH")
+    ! PHB is constant
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_wind
 
-subroutine pnetcdf_var_info(ncid,varname,dims,prints)
+subroutine pnetcdf_write_arr(ncid,                &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe,                    &
+    a,name)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ncid,                                         & ! open pnetcdf file
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe                     
+    real,intent(in),dimension(ims:ime,kms:kme,jms:jme)::a  
+    character(LEN=*),intent(in):: name
+
+!*** local
+    integer(kind=MPI_OFFSET_KIND),dimension(4)::star,cnts
+    integer::i,j,k,varid,ends(4),dims(4)
+    real,dimension(:,:,:,:),allocatable::at
+    character(len=256) msg
+
+    ! get idx
+    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    star   = (/ips,jps,kps,1/)
+    ends   = (/ipe,jpe,kpe,1/)
+    ends   = min(ends,dims)
+    ! at end of domain, extend patch by one
+    if (ends(1).eq.dims(1)-1)ends(1)=dims(1) 
+    if (ends(2).eq.dims(2)-1)ends(2)=dims(2)
+    cnts = ends - star + 1
+    
+    ! transpose a -> at
+    allocate(at(star(1):ends(1),star(2):ends(2),star(3):ends(3),1))
+    do k=star(3),ends(3)
+        do j=star(2),ends(2)
+            do i=star(1),ends(1)
+                at(i,j,k,1)=a(i,k,j)
+            enddo
+        enddo
+    enddo
+
+    write(msg,*)"writing ",trim(name),star(1),ends(1),star(2),ends(2),star(3),ends(3)
+    call message(msg)
+ 
+    ! write to file
+    call check(nf90mpi_put_var_all(ncid, varid, at, start = star, count = cnts),"nf90mpi_put_var:"//trim(name))
+
+    deallocate(at)
+    
+end subroutine pnetcdf_write_arr
+
+subroutine pnetcdf_var_info(ncid,varname,dims,varid,prints)
     implicit none
 !*** arguments
     integer, intent(in)::ncid
     character(len=*)::varname
-    integer,intent(out)::dims(:)
+    integer,intent(out)::dims(:),varid
     integer,intent(in),optional::prints 
 !*** local
     integer, parameter::mdims = 256
-    integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum,varid
+    integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum
     integer(kind=MPI_OFFSET_KIND) :: len
     character(len=nf90_max_name):: name
     integer:: values_int(mdims)
