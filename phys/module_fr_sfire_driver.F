@@ -62,10 +62,13 @@
 ! For current activity and development trends please check out
 ! http://ccm.ucdenver.edu/wiki/User:Jmandel/blog
 ! http://www.openwfm.org/wiki/WRF-Fire_development_notes
-! 
+!  
 
 module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
+
+use pnetcdf
+use mpi
 
 use module_fr_sfire_model, only: sfire_model
 use module_fr_sfire_phys, only: fire_params, init_fuel_cats, fuel_moisture, &
@@ -966,6 +969,15 @@ do ij=1,num_tiles
             wz0 = 0             !Set WRF roughness length to 0 since we dont use this for option 4.
 
         else
+
+          ! read/write pnetcdf wind file
+          call pnetcdf_write_wind(                          &
+              ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+              ims,ime, kms,kme, jms,jme,                    &
+              ips,ipe, kps,kpe, jps,jpe,                    &
+              u,v,ph,phb)
+
+          ! wind vertical interpolation`
           call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fz0,'driver_phys:fz0')        
           call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
             ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
@@ -1244,6 +1256,10 @@ if(ifun.eq.2)then
             call fire_hfx_convert (config_flags,hfx) ! do we even use heat flux lines any more?
 endif
 
+ call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn,'lfn')
+ call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn_out,'lfn_out')
+ call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,tign,'tign')
+
 if (ifun.eq.3)then
  call print_3d_stats_by_slice(ips,ipe,1,moisture_classes,jps,jpe,ims,ime,1,nfmc,jms,jme,fmc_gc,'fmc_gc')
  call print_chsum(itimestep,ims,ime,1,nfmc,jms,jme,ids,ide,1,moisture_classes,jds,jde,ips,ipe,1,moisture_classes,jps,jpe,0,0,0,fmc_gc,'fmc_gc')
@@ -1256,8 +1272,9 @@ if (ifun.eq.4)then
  !call print_chsum(itimestep,ims,ime,1,1,jms,jme,ids,ide,1,1,jds,jde,ips,ipe,1,1,jps,jpe,0,0,1,vah,'vah')
  call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,fp%vx,'uf')
  call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,fp%vy,'vf')
- call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn,'lfn')
- call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,tign,'tign')
+ !call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn,'lfn')
+ !call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn_out,'lfn_out')
+ !call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,tign,'tign')
 
 #ifdef DEBUG_OUT
     if(pid.gt.0)then
@@ -1274,8 +1291,6 @@ if (ifun.eq.4)then
 endif
 
 if(ifun.eq.5)then
-    call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,lfn,'lfn')
-    call print_chsum(itimestep,ifms,ifme,1,1,jfms,jfme,ifds,ifde,1,1,jfds,jfde,ifps,ifpe,1,1,jfps,jfpe,0,0,0,tign,'tign')
 #ifdef DEBUG_OUT
     if(pid.gt.0)then
         call write_array_m(ifps,ifpe,jfps,jfpe,ifms,ifme,jfms,jfme,lfn,'lfn',pid)
@@ -1864,5 +1879,179 @@ end subroutine check_size
 !msg=id
 !call message(msg,level=1)
 !end subroutine print_id
+
+
+subroutine pnetcdf_write_wind(                    &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe,                    &
+    u,v,ph,phb)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe                     
+    real,intent(in),dimension(ims:ime,kms:kme,jms:jme)::u,v, & ! wind velocity (m/s) (staggered atm grid) 
+                              ph, phb                            ! geopotential (w-points atm grid)
+!*** local
+    integer::comm,ncid,varid,dims(4)
+    character(len=nf90_max_name):: name
+    character(LEN=256):: filename, msg
+
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    filename = "wrf.nc"
+    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
+                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    !call pnetcdf_var_info(ncid,"U",dims,varid)
+    !call pnetcdf_var_info(ncid,"V",dims,varid)
+    !call pnetcdf_var_info(ncid,"PH",dims,varid)
+    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    call  pnetcdf_write_arr(ncid,                &
+        ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+        ims,ime, kms,kme, jms,jme,                    &
+        ips,ipe, kps,kpe, jps,jpe,                    &
+        u,"U")
+    call  pnetcdf_write_arr(ncid,                &
+        ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+        ims,ime, kms,kme, jms,jme,                    &
+        ips,ipe, kps,kpe, jps,jpe,                    &
+        u,"U")
+    call  pnetcdf_write_arr(ncid,                &
+        ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+        ims,ime, kms,kme, jms,jme,                    &
+        ips,ipe, kps,kpe, jps,jpe,                    &
+        ph,"PH")
+    ! PHB is constant
+    call check (nf90mpi_close(ncid),"nf90mpi_close")
+
+end subroutine pnetcdf_write_wind
+
+subroutine pnetcdf_write_arr(ncid,                &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe,                    &
+    a,name)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ncid,                                         & ! open pnetcdf file
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe                     
+    real,intent(in),dimension(ims:ime,kms:kme,jms:jme)::a  
+    character(LEN=*),intent(in):: name
+
+!*** local
+    integer(kind=MPI_OFFSET_KIND),dimension(4)::star,cnts
+    integer::i,j,k,varid,ends(4),dims(4)
+    real,dimension(:,:,:,:),allocatable::at
+    character(len=256) msg
+
+    ! get idx
+    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    star   = (/ips,jps,kps,1/)
+    ends   = (/ipe,jpe,kpe,1/)
+    ends   = min(ends,dims)
+    ! at end of domain, extend patch by one
+    if (ends(1).eq.dims(1)-1)ends(1)=dims(1) 
+    if (ends(2).eq.dims(2)-1)ends(2)=dims(2)
+    cnts = ends - star + 1
+    
+    ! transpose a -> at
+    allocate(at(star(1):ends(1),star(2):ends(2),star(3):ends(3),1))
+    do k=star(3),ends(3)
+        do j=star(2),ends(2)
+            do i=star(1),ends(1)
+                at(i,j,k,1)=a(i,k,j)
+            enddo
+        enddo
+    enddo
+
+    write(msg,*)"writing ",trim(name),star(1),ends(1),star(2),ends(2),star(3),ends(3)
+    call message(msg)
+ 
+    ! write to file
+    call check(nf90mpi_put_var_all(ncid, varid, at, start = star, count = cnts),"nf90mpi_put_var:"//trim(name))
+
+    deallocate(at)
+    
+end subroutine pnetcdf_write_arr
+
+subroutine pnetcdf_var_info(ncid,varname,dims,varid,prints)
+    implicit none
+!*** arguments
+    integer, intent(in)::ncid
+    character(len=*)::varname
+    integer,intent(out)::dims(:),varid
+    integer,intent(in),optional::prints 
+!*** local
+    integer, parameter::mdims = 256
+    integer:: xtype, ndims, natts, dimids(mdims),i,j,attnum
+    integer(kind=MPI_OFFSET_KIND) :: len
+    character(len=nf90_max_name):: name
+    integer:: values_int(mdims)
+    real:: values_real(mdims)
+    character(len=mdims):: values_char
+    character(LEN=256):: filename, msg
+    logical::verbose=.true.
+
+    if(present(prints)) verbose = prints>0
+     
+
+    call check(nf90mpi_inq_varid(ncid,trim(varname),varid),"nf90mpi_inq_varid"//trim(varname))
+    call check(nf90mpi_inquire_variable(ncid, varid, name, xtype, ndims, dimids, natts),"nf90mpi_inquire_variable")
+    if(ndims>mdims)call crash("pnetcdf_var_info: increase mdims")
+    if(ndims>size(dims))call crash("pnetcdf_var_info: dims too short")
+    if(verbose)then
+        write(msg,*)"variable ",trim(name), " xtype",xtype, "ndims",ndims, "natts",natts
+        call message(msg)
+    endif
+    do i=1,ndims
+        call check(nf90mpi_inquire_dimension(ncid, dimids(i), name, len),"nf90mpi_inquire_dimension")
+        dims(i)=len
+        if(verbose)then
+            write(msg,*)"dimension ",i,trim(name)," length",len
+            call message(msg)
+        endif
+    enddo
+    if(.not.verbose)return
+    do i=1,natts
+        attnum = i
+        call check(nf90mpi_inq_attname(ncid, varid, attnum, name),"nf90mpi_inq_attname")
+        call check(nf90mpi_inquire_attribute(ncid, varid, trim(name), xtype, len, attnum),"nf90mpi_inquire_attribute")
+        if(len>mdims)call crash("pnetcdf_var_info: increase mdims")
+        !write(msg,*)"attribute ",i,trim(name),' type',xtype
+        !call message(msg)
+        select case (xtype) 
+            case (nf90_char)
+                call check(nf90mpi_get_att(ncid, varid, trim(name), values_char),"nf90mpi_get_att")
+                write(msg,*)"attribute ",i,trim(name)," type ",xtype," values",len," : ",trim(values_char)
+            case (nf90_int,nf90_short,nf90_ushort,nf90_uint,nf90_int64,nf90_uint64)
+                call check(nf90mpi_get_att(ncid, varid, trim(name), values_int),"nf90mpi_get_att")
+                write(msg,*)"attribute ",i,trim(name)," type ",xtype," values",len," : ",(values_int(j),j=1,len)
+            case (nf90_float,nf90_double)
+                call check(nf90mpi_get_att(ncid, varid, trim(name), values_real),"nf90mpi_get_att")
+                write(msg,*)"attribute ",i,trim(name)," type ",xtype," values",len," : ",(values_real(j),j=1,len)
+            case default
+                write(msg,*)'attribute type ',xtype,' not supported'
+        end select
+        call message(msg)
+    enddo
+end subroutine pnetcdf_var_info
+
+subroutine check(ierr,errmsg)
+    implicit none
+    integer, intent(in)::ierr
+    character(len=*), intent(in)::errmsg
+    character(len=256)msg
+    if(ierr.ne.0)then
+        write(msg,"(a,a,i6,1x,a)")trim(errmsg)," error",ierr,nf90mpi_strerror(ierr)
+        call crash(trim(msg))
+    endif
+end subroutine check
 
 end module module_fr_sfire_driver

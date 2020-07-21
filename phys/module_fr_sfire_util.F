@@ -1560,7 +1560,7 @@ character(len=256)msg
 if(fire_print_msg.le.0)return
 
 ipe1=ifval(ipe.eq.ide.and.istag.ne.0,ipe+1,ipe)
-kpe1=ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe)
+kpe1=min(ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe),kme)
 jpe1=ifval(jpe.eq.jde.and.jstag.ne.0,jpe+1,jpe)
 is=ifval(istag.ne.0,1,0)
 ks=ifval(kstag.ne.0,1,0)
@@ -1568,7 +1568,7 @@ js=ifval(jstag.ne.0,1,0)
 
 lsum=0
 do j=jps,jpe1
-  do k=kps,kpe1-1
+  do k=kps,kpe1
     do i=ips,ipe1
       rel=a(i,k,j)
       lsum=ieor(lsum,iel)
