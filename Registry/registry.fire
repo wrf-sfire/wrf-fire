@@ -353,6 +353,12 @@ rconfig  real     fire_slope_factor         namelist,fire         max_domains   
 state    real            -          ikjftb  tracer        1         -     -    -
 state    real         fire_smoke    ikjftb  tracer        1         -     irhusdf=(bdy_interp:dt)    "fire_smoke"         "fire_smoke"     "g_smoke/kg_air"
 package  tracer_fire  tracer_opt==3       -             tracer:fire_smoke
+
+#
+# flags SFIRE only
+#
+
+rconfig   integer sfire_upwinding         namelist,fire         max_domains            3       -     "sfire_upwinding" "upwind normal spread: 1=standard, 2=godunov, 3=eno, 4=sethian" "1"
 #
 # Fire halo descriptions
 #

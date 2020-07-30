@@ -2052,6 +2052,7 @@ real:: te,diffLx,diffLy,diffRx,diffRy, &
    diffCx,diffCy,diff2x,diff2y,grad,rr, &
    ros_back,ros_wind,ros_slope,advx,advy,scale,nvx,nvy,speed
 integer::i,j,itso,iteo,jtso,jteo,ierrx,nerr
+integer::upwind_err=0
 character(len=128)msg,msg2
 
 ! constants
@@ -2099,7 +2100,7 @@ intrinsic max,min,sqrt,nint,tiny,huge
             diffCy = diffLy+diffRy
     
             !upwinding - select right or left derivative
-            select case(fire_upwinding)
+            select case(sfire_upwinding)
             case(0)  ! none
                 grad=sqrt(diffCx**2 + diffCy**2)
             case(1) ! standard
@@ -2119,6 +2120,7 @@ intrinsic max,min,sqrt,nint,tiny,huge
                         + max(diffLy,0.)**2+min(diffRy,0.)**2)
             case default
                 grad=0.
+                upwind_err=1
             end select
   
             ! normal direction, from central differences
@@ -2156,6 +2158,8 @@ intrinsic max,min,sqrt,nint,tiny,huge
             tend(i,j)=te
         enddo
     enddo        
+
+    if(upwind_err>0)call crash('sfire_upwinding value not supported, 3 recommended')
 
     if(nerr>0)then
 !$OMP CRITICAL(SFIRE_CORE_CRIT)
