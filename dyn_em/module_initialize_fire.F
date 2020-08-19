@@ -734,6 +734,9 @@ CONTAINS
               grid%zsf)                         ! array
   
       ! compute the terrain gradient by differencing
+      print *,'shape(zsf)=',shape(grid%zsf)
+      print *,'shape(dzdxf)=',shape(grid%dzdxf)
+      print *,'shape(dzdyf)=',shape(grid%dzdyf)
       do j=jfts,jfte
          do i=ifts,ifte
             grid%dzdxf(i,j) = (grid%zsf(i+1,j)-grid%zsf(i-1,j))/(2.*fdx)
