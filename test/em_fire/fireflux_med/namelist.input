@@ -116,8 +116,8 @@
  /
 
  &namelist_quilt
- nio_tasks_per_group = 8,
- nio_groups = 1,
+! nio_tasks_per_group = 8,
+! nio_groups = 1,
  /
 
  &fire ! be sure to set sr_x,sr_y in domains-namelist (to set refinement in x,y)
