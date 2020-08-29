@@ -862,8 +862,8 @@ real,intent(out) :: lfn_subcl,tign_subcl
 !
 
 
-real :: a,b,c,err
-err=0.0001
+real :: a,b,c
+character(len=256)::msg
 
 call check_lfn_tign_ij(0,1,'tign_lfn_four_pnts_interp',time_now,lfn1,tign1) 
 call check_lfn_tign_ij(0,2,'tign_lfn_four_pnts_interp',time_now,lfn2,tign2) 
@@ -899,7 +899,13 @@ else ! some on fire
            a=a+lfn4*lfn4
            b=b+(tign4-time_now)*lfn4
       endif 
-      if (.not. a>0.) call crash('tign_lfn_four_pnts_interp: none of lfn < 0')
+      if (.not. a>0.)then
+!$OMP CRITICAL(SFIRE_CORE_CRIT)
+          write(msg,*)'lfn1,2,3,4,_subcl = ',lfn1,lfn2,lfn3,lfn3,lfn_subcl
+!$OMP END CRITICAL(SFIRE_CORE_CRIT)
+          call message(msg,level=0)
+          call crash('tign_lfn_four_pnts_interp: none of lfn < 0')
+      endif
       if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
       c=b/a;
       tign_subcl=c*lfn_subcl+time_now;
