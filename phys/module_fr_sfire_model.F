@@ -165,7 +165,7 @@ if(ifun.eq.1)then       ! do nothing, init pass 1 is outside only
               lfn(i,j) = tign(i,j) - time_start ! <0 if burning at the end of the time step
             enddo
           enddo
-          call check_lfn_tign('starting replay',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
+          call check_lfn_tign('replay, lfn from tign',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
         endif
 elseif(ifun.eq.2)then   
         ! initialize all arrays that the model will not change later
@@ -226,15 +226,17 @@ elseif(ifun.eq.2)then
             
         endif
 
+        call check_lfn_tign('time step start',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
+
         if(replay) then
           call message('replay, recomputing fuel fraction')
-          call check_lfn_tign('recomputing fuel fraction',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
           call fuel_left( &
             ifds,ifde,jfds,jfde, &
             ifms,ifme,jfms,jfme, &
             ifts,ifte,jfts,jfte, &
             ifms,ifme,jfms,jfme, &
             lfn,tign,fuel_time,time_start,fuel_frac,fire_area) !fuel_frac is global
+          call check_lfn_tign('recomputed fuel fraction',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
         endif
 
 elseif(ifun.eq.3)then   ! ignition if so specified
