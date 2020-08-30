@@ -267,8 +267,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
     itimestep=grid%itimestep
     restart=config_flags%restart .or. config_flags%cycling .or. config_flags%fire_restart ! skip state initialization
     replay= time_step_start+dt .le.  config_flags%fire_perimeter_time
-94  format('Time step',f11.3,' end',f11.3,' perimeter_time',f11.3,' setting replay ',l1)
-    write(msg,94)time_step_start,time_step_start+dt,config_flags%fire_perimeter_time,replay
+94  format('Time step',i11,' from',f11.3,' to',f11.3,' perimeter_time',f11.3,' setting replay ',l1)
+    write(msg,94)itimestep,time_step_start,time_step_start+dt,config_flags%fire_perimeter_time,replay
     call message(msg)
 95  format('namelist.input restart ',l1,' cycling ',l1,' fire_restart ',l1,' setting restart ',l1)
     write(msg,95)config_flags%restart,config_flags%cycling,config_flags%fire_restart,restart
