@@ -405,7 +405,8 @@ do j=jfts,jfte
 enddo
 
 !$OMP CRITICAL(SFIRE_CORE_CRIT)
-write(msg,'(a,f9.2,1x,a)')'check_lfn_tign OK',time_now,s
+1 format('check_lfn_tign OK',f9.2,1x,a,1x,i5,':',i5,i5,':',i5)
+write(msg,1)time_now,trim(s),ifts,ifte,jfts,jfte
 !$OMP END CRITICAL(SFIRE_CORE_CRIT)
 call message(msg)
 
@@ -425,12 +426,12 @@ character(len=128):: msg
 
 if(.not. lfnij<0. .and. tignij<time_now)then
 !$OMP CRITICAL(SFIRE_CORE_CRIT)
-   write(msg,*)'i,j=',i,j,' lfn=',lfnij,' tign=',tignij,' time_now=',time_now
-   call message(msg,level=0)
-   write(msg,*)' tign-time_now=',tignij-time_now
-   call message(msg,level=0)
-   msg=s//': inconsistent state: lfn>=0 and tign<time_now'
-   call warning(msg)
+1  format(a,i5,',',i5,a,g13.6,a,g13.6,a,g13.6)
+   msg = trim(s)//':check_lfn_tign_ij: inconsistent state'
+   call warning(msg,level=0)
+   write(msg,1)'i,j=',i,j,' lfn=',lfnij,'>=0 tign=',tignij,'< time_now=',time_now
+   call warning(msg,level=0)
+   call crash(msg) ! instead of just warning in check_lfn_tign_ij
 !$OMP END CRITICAL(SFIRE_CORE_CRIT)
 endif
 
@@ -615,6 +616,8 @@ do j=jts,jte
    enddo
 enddo
 
+call check_lfn_tign('fuel_left',time_now,its,ite,jts,jte,ims,ime,jms,jme,lfn, tign)
+
 do icl=its1,ite1
   do jcl=jts1,jte1
     helpsum1=0
@@ -735,6 +738,8 @@ real, intent(out),dimension(3,3)::tff,lff
 !
 
 !**********************
+
+      call check_lfn_tign('tign_lfn_interpolation',time_now,icl-1,icl,jcl-1,jcl,ims,ime,jms,jme,lfn, tign)
 	
 !       Direct calculation tif and lff, avoiding big auxiliary arrays, just for case ir=jr=2
 ! Checking whether icl or jcl is on the boundary
@@ -743,7 +748,8 @@ real, intent(out),dimension(3,3)::tff,lff
                                      tign(icl,jcl),lfn(icl-1,jcl-1),lfn(icl-1,jcl),      &
                                      lfn(icl,jcl-1),lfn(icl,jcl),lff(1,1),tff(1,1),time_now)
 
-      call tign_lfn_line_interp(tign(icl-1,jcl),tign(icl,jcl),lfn(icl-1,jcl),lfn(icl,jcl), &
+      call tign_lfn_line_interp(icl-1,jcl,icl,jcl, &
+                             tign(icl-1,jcl),tign(icl,jcl),lfn(icl-1,jcl),lfn(icl,jcl), &
                              lff(1,2),tff(1,2),time_now)
 
 
@@ -751,20 +757,23 @@ real, intent(out),dimension(3,3)::tff,lff
                                      tign(icl,jcl+1),lfn(icl-1,jcl),lfn(icl-1,jcl+1),      &
                                      lfn(icl,jcl),lfn(icl,jcl+1),lff(1,3),tff(1,3),time_now)
 
-      call tign_lfn_line_interp(tign(icl,jcl-1),tign(icl,jcl),lfn(icl,jcl-1),lfn(icl,jcl), &
+      call tign_lfn_line_interp(icl,jcl-1,icl,jcl, &
+                             tign(icl,jcl-1),tign(icl,jcl),lfn(icl,jcl-1),lfn(icl,jcl), &
                              lff(2,1),tff(2,1),time_now)
 
       lff(2,2)=lfn(icl,jcl)
       tff(2,2)=tign(icl,jcl)
 
-      call tign_lfn_line_interp(tign(icl,jcl+1),tign(icl,jcl),lfn(icl,jcl+1),lfn(icl,jcl), &
+      call tign_lfn_line_interp(icl,jcl+1,icl,jcl, &
+                             tign(icl,jcl+1),tign(icl,jcl),lfn(icl,jcl+1),lfn(icl,jcl), &
                              lff(2,3),tff(2,3),time_now)
 
       call tign_lfn_four_pnts_interp(tign(icl,jcl-1),tign(icl,jcl),tign(icl+1,jcl-1),  & 
                                      tign(icl+1,jcl),lfn(icl,jcl-1),lfn(icl,jcl),      &
                                      lfn(icl+1,jcl-1),lfn(icl+1,jcl),lff(3,1),tff(3,1),time_now)
 
-      call tign_lfn_line_interp(tign(icl+1,jcl),tign(icl,jcl),lfn(icl+1,jcl),lfn(icl,jcl), &
+      call tign_lfn_line_interp(icl+1, jcl, icl, jcl, &
+                             tign(icl+1,jcl),tign(icl,jcl),lfn(icl+1,jcl),lfn(icl,jcl), &
                              lff(3,2),tff(3,2),time_now)
 
       call tign_lfn_four_pnts_interp(tign(icl,jcl),tign(icl,jcl+1),tign(icl+1,jcl),  & 
@@ -777,12 +786,13 @@ end subroutine tign_lfn_interpolation
 !************************
 !
 
-subroutine tign_lfn_line_interp(tign1,tign2,lfn1,lfn2,lfn_subcl,tign_subcl,time_now)
+subroutine tign_lfn_line_interp(i1,j1,i2,j2,tign1,tign2,lfn1,lfn2,lfn_subcl,tign_subcl,time_now)
 !***purpose: computes time of ignition of the point(*_subcl) that lies on the line
 ! between two points, whose lfn and tign is known
 
 !*** arguments
 !
+integer,intent(in):: i1,j1,i2,j2 ! indices of the ends of the line, diagnotics
 real,intent(in) :: tign1,tign2   ! ignition times at the two endpoints
 real,intent(in) :: lfn1,lfn2     ! level set function at the two endpoints
 real,intent(in) :: time_now      ! tign>=time_now => no fire
@@ -790,7 +800,7 @@ real,intent(out) :: lfn_subcl,tign_subcl ! interpolated to midpoint
 
 ! Case 1: both points are on fire -> tign is interpolated linearly
 ! Case 2: both points are not on fire -> tign_subcl=time_now, not burning
-! Case 3: One point is not fire, another is not -> tign_subcl set from
+! Case 3: One point is on fire, another is not -> tign_subcl set from
 !         the equation  tign - time_now = c*lfn, where the proportionality
 !         constant is found from the values of tign and lfn at the burning endpoint.
 !         In particular, lfn(x)=0 implies tign(x)=time_now, so the representations of
@@ -799,28 +809,41 @@ real,intent(out) :: lfn_subcl,tign_subcl ! interpolated to midpoint
 
 !*** local
 real :: c
+character(len=128)::msg
 
 !*** executable
 
 ! check consistency of inputs
-call check_lfn_tign_ij(0,1,'tign_lfn_line_interp',time_now,lfn1,tign1) 
-call check_lfn_tign_ij(0,2,'tign_lfn_line_interp',time_now,lfn2,tign2) 
+call check_lfn_tign_ij(i1,j1,'tign_lfn_line_interp',time_now,lfn1,tign1) 
+call check_lfn_tign_ij(i2,j2,'tign_lfn_line_interp',time_now,lfn2,tign2) 
 
 lfn_subcl=0.5*(lfn1+lfn2)  ! interpolate lfn linearly
 
-if (.not. lfn_subcl < 0.) then ! never test floats on equality
-   tign_subcl=time_now         ! midpoint not on fire => none on fire
+if (.NOT.(lfn1 < 0.).AND..NOT.(lfn2 < 0.)) then
+   tign_subcl=time_now         ! none on fire
 elseif ((lfn1 < 0.).AND.(lfn2 < 0.)) then
    tign_subcl=0.5*(tign1+tign2) ! both on fire, interpolate linearly
 else  ! one is on fire one is not
-   if (lfn1 < 0) then  ! 1 is on fire, 2 is not
+   if (lfn1 < 0.) then  ! 1 is on fire, 2 is not
       c = (tign1-time_now)/lfn1
-   elseif (lfn2 < 0) then
+   elseif (lfn2 < 0.) then
       c = (tign2-time_now)/lfn2
    else
       call crash('tign_lfn_line_interp: one of lfn1 or lfn2 should be < 0')
    endif
-   if( c < 0.)call crash('tign_lfn_line_interp: bad ignition times, c<0')
+   if( c < 0.)then
+!$OMP CRITICAL(SFIRE_CORE_CRIT)
+       write(msg,*)'tign1,tign2,time_now ',tign1,tign2,time_now 
+       call message(msg,level=0)
+       write(msg,*)'tign1-time_now,lfn1 ',tign1-time_now,lfn1 
+       call message(msg,level=0)
+       write(msg,*)'tign2-time_now,lfn2 ',tign2-time_now,lfn2 
+       call message(msg,level=0)
+       write(msg,*)'c ',c 
+       call message(msg,level=0)
+!$OMP END CRITICAL(SFIRE_CORE_CRIT)
+       call crash('tign_lfn_line_interp: bad ignition times, c<0')
+   endif
    tign_subcl=c*lfn_subcl+time_now;
 endif
 end subroutine tign_lfn_line_interp
