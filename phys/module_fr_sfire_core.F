@@ -431,6 +431,7 @@ if(.not. lfnij<0. .and. tignij<time_now)then
    call warning(msg,level=0)
    write(msg,1)'i,j=',i,j,' lfn=',lfnij,'>=0 tign=',tignij,'< time_now=',time_now
    call warning(msg,level=0)
+   call crash(msg) ! instead of just warning in check_lfn_tign_ij
 !$OMP END CRITICAL(SFIRE_CORE_CRIT)
 endif
 
