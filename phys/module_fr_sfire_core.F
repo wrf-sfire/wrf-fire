@@ -790,7 +790,7 @@ real,intent(out) :: lfn_subcl,tign_subcl ! interpolated to midpoint
 
 ! Case 1: both points are on fire -> tign is interpolated linearly
 ! Case 2: both points are not on fire -> tign_subcl=time_now, not burning
-! Case 3: One point is not fire, another is not -> tign_subcl set from
+! Case 3: One point is on fire, another is not -> tign_subcl set from
 !         the equation  tign - time_now = c*lfn, where the proportionality
 !         constant is found from the values of tign and lfn at the burning endpoint.
 !         In particular, lfn(x)=0 implies tign(x)=time_now, so the representations of
@@ -799,6 +799,7 @@ real,intent(out) :: lfn_subcl,tign_subcl ! interpolated to midpoint
 
 !*** local
 real :: c
+character(len=128)::msg
 
 !*** executable
 
@@ -808,19 +809,31 @@ call check_lfn_tign_ij(0,2,'tign_lfn_line_interp',time_now,lfn2,tign2)
 
 lfn_subcl=0.5*(lfn1+lfn2)  ! interpolate lfn linearly
 
-if (.not. lfn_subcl < 0.) then ! never test floats on equality
-   tign_subcl=time_now         ! midpoint not on fire => none on fire
+if (.NOT.(lfn1 < 0.).AND..NOT.(lfn2 < 0.)) then
+   tign_subcl=time_now         ! none on fire
 elseif ((lfn1 < 0.).AND.(lfn2 < 0.)) then
    tign_subcl=0.5*(tign1+tign2) ! both on fire, interpolate linearly
 else  ! one is on fire one is not
-   if (lfn1 < 0) then  ! 1 is on fire, 2 is not
+   if (lfn1 < 0.) then  ! 1 is on fire, 2 is not
       c = (tign1-time_now)/lfn1
-   elseif (lfn2 < 0) then
+   elseif (lfn2 < 0.) then
       c = (tign2-time_now)/lfn2
    else
       call crash('tign_lfn_line_interp: one of lfn1 or lfn2 should be < 0')
    endif
-   if( c < 0.)call crash('tign_lfn_line_interp: bad ignition times, c<0')
+   if( c < 0.)then
+!$OMP CRITICAL(SFIRE_CORE_CRIT)
+       write(msg,*)'tign1,tign2,time_now ',tign1,tign2,time_now 
+       call message(msg,level=0)
+       write(msg,*)'tign1-time_now,lfn1 ',tign1-time_now,lfn1 
+       call message(msg,level=0)
+       write(msg,*)'tign2-time_now,lfn2 ',tign2-time_now,lfn2 
+       call message(msg,level=0)
+       write(msg,*)'c ',c 
+       call message(msg,level=0)
+!$OMP END CRITICAL(SFIRE_CORE_CRIT)
+       call crash('tign_lfn_line_interp: bad ignition times, c<0')
+   endif
    tign_subcl=c*lfn_subcl+time_now;
 endif
 end subroutine tign_lfn_line_interp
