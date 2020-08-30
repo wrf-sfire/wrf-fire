@@ -893,7 +893,6 @@ call check_lfn_tign_ij(0,2,'tign_lfn_four_pnts_interp',time_now,lfn2,tign2)
 call check_lfn_tign_ij(0,3,'tign_lfn_four_pnts_interp',time_now,lfn3,tign3) 
 call check_lfn_tign_ij(0,4,'tign_lfn_four_pnts_interp',time_now,lfn4,tign4) 
  
-lfn_subcl=0.25*(lfn1+lfn2+lfn3+lfn4)
 
 if(.NOT.(lfn1 < 0.).AND..NOT.(lfn2 < 0.).AND..NOT.(lfn3 < 0.).AND..NOT.(lfn4 < 0.)) then
 ! none on fire, most frequent
@@ -904,8 +903,11 @@ elseif((lfn1 < 0.).AND.(lfn2 < 0.).AND.(lfn3 < 0.).AND.(lfn4 < 0.)) then
       tign_subcl=0.25*(tign1+tign2+tign3+tign4)  ! all on fire, interpolate
 else ! some on fire
       ! Case 3
-      ! tign_subcl~=c*lfn_subcl+time_now
+      ! looking for c such that tign_subcl~=c*lfn_subcl+time_now
+      lfn_subcl=0.25*(lfn1+lfn2+lfn3+lfn4)
       scale = -minval((/lfn1,lfn2,lfn3,lfn4/))
+      a=0.
+      b=0.
       if (lfn1 < 0.) then
          a=a+(lfn1/scale)**2
          b=b+(tign1-time_now)*(lfn1/scale)
@@ -924,10 +926,10 @@ else ! some on fire
       endif 
       if (.not. a>0. .or. .not. scale>0.)then
 !$OMP CRITICAL(SFIRE_CORE_CRIT)
-          write(msg,*)'lfn1,2,3,4,_subcl = ',lfn1,lfn2,lfn3,lfn3,lfn_subcl,' scale=',scale
+          write(msg,*)'lfn1,2,3,4,_subcl,ssq = ',lfn1,lfn2,lfn3,lfn3,lfn_subcl,a,' scale=',scale
 !$OMP END CRITICAL(SFIRE_CORE_CRIT)
           call message(msg,level=0)
-          call crash('tign_lfn_four_pnts_interp: internal: none of lfn < 0 ?')
+          call crash('tign_lfn_four_pnts_interp: internal: not a>0, none of lfn < 0 ?')
       endif
       if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
       c=b/a
