@@ -856,14 +856,15 @@ real,intent(out) :: lfn_subcl,tign_subcl
 !
 ! solution for 'c' would be 
 !
-!         sum(lfn(Ai)*lfn(Ai)
-!    c=   ------------------------------, both sums are over Ai, s.t lfn(Ai)<0
 !         sum(tign(Ai)-time_now)*lfn(Ai)
+!    c=   ------------------------------, both sums are over Ai, s.t lfn(Ai)<0
+!         sum(lfn(Ai)*lfn(Ai))
 !
 
 
-real :: a,b,c
-character(len=256)::msg
+real :: a,b,c,scale
+real :: tign_subcl_old
+character(len=128)::msg
 
 call check_lfn_tign_ij(0,1,'tign_lfn_four_pnts_interp',time_now,lfn1,tign1) 
 call check_lfn_tign_ij(0,2,'tign_lfn_four_pnts_interp',time_now,lfn2,tign2) 
@@ -872,7 +873,8 @@ call check_lfn_tign_ij(0,4,'tign_lfn_four_pnts_interp',time_now,lfn4,tign4)
  
 lfn_subcl=0.25*(lfn1+lfn2+lfn3+lfn4)
 
-if(.not. lfn_subcl < 0.) then ! midpoint not on fire, most frequent
+if(.NOT.(lfn1 < 0.).AND..NOT.(lfn2 < 0.).AND..NOT.(lfn3 < 0.).AND..NOT.(lfn4 < 0.)) then
+! none on fire, most frequent
       ! Case 2  
       tign_subcl=time_now
 elseif((lfn1 < 0.).AND.(lfn2 < 0.).AND.(lfn3 < 0.).AND.(lfn4 < 0.)) then
@@ -881,6 +883,34 @@ elseif((lfn1 < 0.).AND.(lfn2 < 0.).AND.(lfn3 < 0.).AND.(lfn4 < 0.)) then
 else ! some on fire
       ! Case 3
       ! tign_subcl~=c*lfn_subcl+time_now
+      scale = -minval((/lfn1,lfn2,lfn3,lfn4/))
+      if (lfn1 < 0.) then
+         a=a+(lfn1/scale)**2
+         b=b+(tign1-time_now)*(lfn1/scale)
+      endif
+      if (lfn2 < 0.) then
+           a=a+(lfn2/scale)**2
+           b=b+(tign2-time_now)*(lfn2/scale)
+      endif
+      if (lfn3 < 0.) then
+           a=a+(lfn3/scale)**2
+           b=b+(tign3-time_now)*(lfn3/scale)
+      endif
+      if (lfn4 < 0.) then
+           a=a+(lfn4/scale)**2
+           b=b+(tign4-time_now)*(lfn4/scale)
+      endif 
+      if (.not. a>0.)then
+!$OMP CRITICAL(SFIRE_CORE_CRIT)
+          write(msg,*)'lfn1,2,3,4,_subcl = ',lfn1,lfn2,lfn3,lfn3,lfn_subcl,' scale=',scale
+!$OMP END CRITICAL(SFIRE_CORE_CRIT)
+          call message(msg,level=0)
+          call crash('tign_lfn_four_pnts_interp: none of lfn < 0')
+      endif
+      if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
+      c=b/a
+      tign_subcl=c*(lfn_subcl/scale)+time_now;
+
       a=0; 
       b=0;
       if (lfn1 < 0.) then
@@ -908,7 +938,10 @@ else ! some on fire
       endif
       if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
       c=b/a;
-      tign_subcl=c*lfn_subcl+time_now;
+      tign_subcl_old=c*lfn_subcl+time_now;
+      write(msg,*)'old, new, dif',tign_subcl, tign_subcl_old, tign_subcl-tign_subcl_old
+      call message(msg,level=0)
+      
 endif
 
 end subroutine tign_lfn_four_pnts_interp
