@@ -863,7 +863,6 @@ real,intent(out) :: lfn_subcl,tign_subcl
 
 
 real :: a,b,c,scale
-real :: tign_subcl_old
 character(len=128)::msg
 
 call check_lfn_tign_ij(0,1,'tign_lfn_four_pnts_interp',time_now,lfn1,tign1) 
@@ -900,47 +899,17 @@ else ! some on fire
            a=a+(lfn4/scale)**2
            b=b+(tign4-time_now)*(lfn4/scale)
       endif 
-      if (.not. a>0.)then
+      if (.not. a>0. .or. .not. scale>0.)then
 !$OMP CRITICAL(SFIRE_CORE_CRIT)
           write(msg,*)'lfn1,2,3,4,_subcl = ',lfn1,lfn2,lfn3,lfn3,lfn_subcl,' scale=',scale
 !$OMP END CRITICAL(SFIRE_CORE_CRIT)
           call message(msg,level=0)
-          call crash('tign_lfn_four_pnts_interp: none of lfn < 0')
+          call crash('tign_lfn_four_pnts_interp: internal: none of lfn < 0 ?')
       endif
       if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
       c=b/a
       tign_subcl=c*(lfn_subcl/scale)+time_now;
 
-      a=0; 
-      b=0;
-      if (lfn1 < 0.) then
-         a=a+lfn1*lfn1
-         b=b+(tign1-time_now)*lfn1
-      endif
-      if (lfn2 < 0.) then
-           a=a+lfn2*lfn2 
-           b=b+(tign2-time_now)*lfn2
-      endif
-      if (lfn3 < 0.) then
-           a=a+lfn3*lfn3
-           b=b+(tign3-time_now)*lfn3
-      endif
-      if (lfn4 < 0.) then
-           a=a+lfn4*lfn4
-           b=b+(tign4-time_now)*lfn4
-      endif 
-      if (.not. a>0.)then
-!$OMP CRITICAL(SFIRE_CORE_CRIT)
-          write(msg,*)'lfn1,2,3,4,_subcl = ',lfn1,lfn2,lfn3,lfn3,lfn_subcl
-!$OMP END CRITICAL(SFIRE_CORE_CRIT)
-          call message(msg,level=0)
-          call crash('tign_lfn_four_pnts_interp: none of lfn < 0')
-      endif
-      if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
-      c=b/a;
-      tign_subcl_old=c*lfn_subcl+time_now;
-      write(msg,*)'old, new, dif',tign_subcl, tign_subcl_old, tign_subcl-tign_subcl_old
-      call message(msg,level=0)
       
 endif
 
