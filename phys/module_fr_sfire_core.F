@@ -404,11 +404,11 @@ do j=jfts,jfte
     enddo
 enddo
 
-!$OMP CRITICAL(SFIRE_CORE_CRIT)
-1 format('check_lfn_tign OK',f9.2,1x,a,1x,i5,':',i5,i5,':',i5)
-write(msg,1)time_now,trim(s),ifts,ifte,jfts,jfte
-!$OMP END CRITICAL(SFIRE_CORE_CRIT)
-call message(msg)
+! !$OMP CRITICAL(SFIRE_CORE_CRIT)
+! 1 format('check_lfn_tign OK',f9.2,1x,a,1x,i5,':',i5,i5,':',i5)
+! write(msg,1)time_now,trim(s),ifts,ifte,jfts,jfte
+! !$OMP END CRITICAL(SFIRE_CORE_CRIT)
+! call message(msg)
 
 end subroutine check_lfn_tign 
 
