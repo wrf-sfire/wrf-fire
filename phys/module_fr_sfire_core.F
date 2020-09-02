@@ -748,33 +748,29 @@ real, intent(out),dimension(3,3)::tff,lff
                                      tign(icl,jcl),lfn(icl-1,jcl-1),lfn(icl-1,jcl),      &
                                      lfn(icl,jcl-1),lfn(icl,jcl),lff(1,1),tff(1,1),time_now)
 
-      call tign_lfn_line_interp(icl-1,jcl,icl,jcl, &
-                             tign(icl-1,jcl),tign(icl,jcl),lfn(icl-1,jcl),lfn(icl,jcl), &
-                             lff(1,2),tff(1,2),time_now)
+      call tign_lfn_line_interp(tign(icl-1,jcl),tign(icl,jcl),lfn(icl-1,jcl),lfn(icl,jcl), &
+                             lff(1,2),tff(1,2),time_now,icl-1,jcl,icl,jcl)
 
 
       call tign_lfn_four_pnts_interp(tign(icl-1,jcl),tign(icl-1,jcl+1),tign(icl,jcl),  & 
                                      tign(icl,jcl+1),lfn(icl-1,jcl),lfn(icl-1,jcl+1),      &
                                      lfn(icl,jcl),lfn(icl,jcl+1),lff(1,3),tff(1,3),time_now)
 
-      call tign_lfn_line_interp(icl,jcl-1,icl,jcl, &
-                             tign(icl,jcl-1),tign(icl,jcl),lfn(icl,jcl-1),lfn(icl,jcl), &
-                             lff(2,1),tff(2,1),time_now)
+      call tign_lfn_line_interp(tign(icl,jcl-1),tign(icl,jcl),lfn(icl,jcl-1),lfn(icl,jcl), &
+                             lff(2,1),tff(2,1),time_now,icl,jcl-1,icl,jcl)
 
       lff(2,2)=lfn(icl,jcl)
       tff(2,2)=tign(icl,jcl)
 
-      call tign_lfn_line_interp(icl,jcl+1,icl,jcl, &
-                             tign(icl,jcl+1),tign(icl,jcl),lfn(icl,jcl+1),lfn(icl,jcl), &
-                             lff(2,3),tff(2,3),time_now)
+      call tign_lfn_line_interp(tign(icl,jcl+1),tign(icl,jcl),lfn(icl,jcl+1),lfn(icl,jcl), &
+                             lff(2,3),tff(2,3),time_now,icl,jcl+1,icl,jcl)
 
       call tign_lfn_four_pnts_interp(tign(icl,jcl-1),tign(icl,jcl),tign(icl+1,jcl-1),  & 
                                      tign(icl+1,jcl),lfn(icl,jcl-1),lfn(icl,jcl),      &
                                      lfn(icl+1,jcl-1),lfn(icl+1,jcl),lff(3,1),tff(3,1),time_now)
 
-      call tign_lfn_line_interp(icl+1, jcl, icl, jcl, &
-                             tign(icl+1,jcl),tign(icl,jcl),lfn(icl+1,jcl),lfn(icl,jcl), &
-                             lff(3,2),tff(3,2),time_now)
+      call tign_lfn_line_interp(tign(icl+1,jcl),tign(icl,jcl),lfn(icl+1,jcl),lfn(icl,jcl), &
+                             lff(3,2),tff(3,2),time_now,icl+1, jcl, icl, jcl)
 
       call tign_lfn_four_pnts_interp(tign(icl,jcl),tign(icl,jcl+1),tign(icl+1,jcl),  & 
                                      tign(icl+1,jcl+1),lfn(icl,jcl),lfn(icl,jcl+1),      &
@@ -786,17 +782,17 @@ end subroutine tign_lfn_interpolation
 !************************
 !
 
-subroutine tign_lfn_line_interp(i1,j1,i2,j2,tign1,tign2,lfn1,lfn2,lfn_subcl,tign_subcl,time_now)
+subroutine tign_lfn_line_interp(tign1,tign2,lfn1,lfn2,lfn_subcl,tign_subcl,time_now,i1,j1,i2,j2)
 !***purpose: computes time of ignition of the point(*_subcl) that lies on the line
 ! between two points, whose lfn and tign is known
 
 !*** arguments
 !
-integer,intent(in):: i1,j1,i2,j2 ! indices of the ends of the line, diagnotics
 real,intent(in) :: tign1,tign2   ! ignition times at the two endpoints
 real,intent(in) :: lfn1,lfn2     ! level set function at the two endpoints
 real,intent(in) :: time_now      ! tign>=time_now => no fire
 real,intent(out) :: lfn_subcl,tign_subcl ! interpolated to midpoint
+integer,intent(in):: i1,j1,i2,j2 ! indices of the endpoints of the line, for checking only
 
 ! Case 1: both points are on fire -> tign is interpolated linearly
 ! Case 2: both points are not on fire -> tign_subcl=time_now, not burning
@@ -819,8 +815,8 @@ call check_lfn_tign_ij(i2,j2,'tign_lfn_line_interp',time_now,lfn2,tign2)
 
 lfn_subcl=0.5*(lfn1+lfn2)  ! interpolate lfn linearly
 
-if (.NOT.(lfn1 < 0.).AND..NOT.(lfn2 < 0.)) then
-   tign_subcl=time_now         ! none on fire
+if (.not. lfn_subcl < 0.) then ! never test floats on equality
+   tign_subcl=time_now         ! midpoint not on fire => none on fire
 elseif ((lfn1 < 0.).AND.(lfn2 < 0.)) then
    tign_subcl=0.5*(tign1+tign2) ! both on fire, interpolate linearly
 else  ! one is on fire one is not
@@ -893,9 +889,9 @@ call check_lfn_tign_ij(0,2,'tign_lfn_four_pnts_interp',time_now,lfn2,tign2)
 call check_lfn_tign_ij(0,3,'tign_lfn_four_pnts_interp',time_now,lfn3,tign3) 
 call check_lfn_tign_ij(0,4,'tign_lfn_four_pnts_interp',time_now,lfn4,tign4) 
  
+lfn_subcl=0.25*(lfn1+lfn2+lfn3+lfn4)
 
-if(.NOT.(lfn1 < 0.).AND..NOT.(lfn2 < 0.).AND..NOT.(lfn3 < 0.).AND..NOT.(lfn4 < 0.)) then
-! none on fire, most frequent
+if(.not. lfn_subcl < 0.) then ! midpoint not on fire, most frequent
       ! Case 2  
       tign_subcl=time_now
 elseif((lfn1 < 0.).AND.(lfn2 < 0.).AND.(lfn3 < 0.).AND.(lfn4 < 0.)) then
@@ -903,8 +899,7 @@ elseif((lfn1 < 0.).AND.(lfn2 < 0.).AND.(lfn3 < 0.).AND.(lfn4 < 0.)) then
       tign_subcl=0.25*(tign1+tign2+tign3+tign4)  ! all on fire, interpolate
 else ! some on fire
       ! Case 3
-      ! looking for c such that tign_subcl~=c*lfn_subcl+time_now
-      lfn_subcl=0.25*(lfn1+lfn2+lfn3+lfn4)
+      ! tign_subcl~=c*lfn_subcl+time_now
       scale = -minval((/lfn1,lfn2,lfn3,lfn4/))
       a=0.
       b=0.
@@ -934,8 +929,6 @@ else ! some on fire
       if( b < 0.)call crash('tign_lfn_four_pnts_interp: bad ignition times, b<0') ! can have 0 because of rounding
       c=b/a
       tign_subcl=c*(lfn_subcl/scale)+time_now;
-
-      
 endif
 
 end subroutine tign_lfn_four_pnts_interp
