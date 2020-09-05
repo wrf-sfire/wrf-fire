@@ -1162,11 +1162,15 @@ do j=jfts,jfte
         if(k.lt.1.or.k.gt.nfuelcats)then
 !$OMP CRITICAL(SFIRE_PHYS_CRIT)
             write(msg,'(3(a,i5))')'nfuel_cat(', i ,',',j,')=',k
-!$OMP END CRITICAL(SFIRE_PHYS_CRIT)
-            call message(msg)
+            call message(msg,level=0)
             if(k.eq.0)then
-                call message('Possibly nfuel_cat is uninitialized on input')
+                call message('Possibly nfuel_cat is uninitialized on input',level=0)
             endif
+            write(msg,'(a,i5)')'nfuel_cat must between 1 and nfuel_cat=',nfuelcats
+            call message(msg,level=0)
+            write(msg,'(a,i5,a,i10,a)')' or ',no_fuel_cat,' and',no_fuel_cat2,' for no fuel'
+            call message(msg,level=0)
+!$OMP END CRITICAL(SFIRE_PHYS_CRIT)
             call crash('set_fire_params: fuel category out of bounds')
         endif
 
