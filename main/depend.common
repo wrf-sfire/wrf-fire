@@ -1346,6 +1346,8 @@ module_wrf_top.o: ../frame/module_machine.o \
                   ../frame/module_wrf_error.o \
                   ../frame/module_state_description.o \
                   ../frame/module_cpl.o \
+                  ../inc/commit_decl \
+                  ../inc/version_decl \
                   $(ESMF_MOD_DEPENDENCE)
 
 # End of DEPENDENCIES for main
