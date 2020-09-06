@@ -1180,7 +1180,7 @@ character(len=*),intent(in)::name
 real,intent(in)::min_a,max_a,avg_a
 !*** local
 character(len=128)::msg
-character(len=30)::id
+character(len=35)::id
 !*** executable
 if(.not.avg_a.eq.avg_a)then
     msg='NaN detected in '//trim(name)
