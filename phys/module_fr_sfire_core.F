@@ -67,7 +67,11 @@ if (fire_perimeter_time > 0. .and. fire_tign_in_time > 0.)then
 endif
 
 if(fire_perimeter_time > 0.)then
-  call message('init_no_fire: using given ignition time to replay history',level=1)
+  
+  write(msg,'(a,g14.6)')'init_no_fire: using given ignition time to replay history to fire_perimeter_time=',fire_perimeter_time
+!$OMP CRITICAL(SFIRE_CORE_CRIT)
+  call message(msg,level=1)
+!$OMP END CRITICAL(SFIRE_CORE_CRIT)
   do j=jfts,jfte
      do i=ifts,ifte
         fuel_frac(i,j)=1.          ! fuel at start is 1 by definition
