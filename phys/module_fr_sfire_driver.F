@@ -162,6 +162,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
     call sfire_debug_hook(config_flags%fire_debug_hook_sec)
     call time_start
+    
 !   if(fire_ifun_start.le.1)call print_id  ! print id only once, during initialization
 
 
@@ -173,6 +174,9 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
 ! copy configuration flags to sfire internal structures
     call set_flags(config_flags)
+
+    write(msg,'(a,i3)')' domain', grid%id
+    call message(msg,level=1)
 
 ! prevent memory errors because of variables missing in registry packages
     call check_grid_alloc(grid,config_flags)
