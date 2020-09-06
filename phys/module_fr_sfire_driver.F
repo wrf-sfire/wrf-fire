@@ -181,8 +181,6 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 ! prevent memory errors because of variables missing in registry packages
     call check_grid_alloc(grid,config_flags)
          
-call print_2d_stats(ifps,ifpe,jfps,jfpe,ifms,ifme,jfms,jfme, grid%tign_g,'sfire_driver_em: grid%tign_g')
-
 #ifndef SFIRE_STANDALONE
 
 !   see what we got from wrf
@@ -269,6 +267,10 @@ call print_2d_stats(ifps,ifpe,jfps,jfpe,ifms,ifme,jfms,jfme, grid%tign_g,'sfire_
     if(ir.le.0.or.jr.le.0)then
         call crash('fire mesh refinement ratio must be positive')
     endif
+
+call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms,jfme, grid%tign_g,'sfire_driver_em: grid%tign_g')
+call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms,jfme, grid%nfuel_cat,'sfire_driver_em: grid%nfuel_cat')
+
     itimestep=grid%itimestep
     restart=config_flags%restart .or. config_flags%cycling .or. config_flags%fire_restart ! skip state initialization
     replay= time_step_start+dt .le.  config_flags%fire_perimeter_time
