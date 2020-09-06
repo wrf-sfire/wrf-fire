@@ -1859,7 +1859,7 @@ character(len=128)::msg
 logical::strict = .false.
 
 write(msg,'(a,a10,a,i12)')'array ',name,' has size ',sz
-call message(msg,level=2)
+call message(msg,level=3)
 if(present(req)) strict=req > 0
 if (sz < 2 .and. strict) then
     write(msg,'(a,a,a,i2,a)')'array ',name,' is size ',sz,': not allocated, add to registry package'
