@@ -180,7 +180,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
 ! prevent memory errors because of variables missing in registry packages
     call check_grid_alloc(grid,config_flags)
-        
+         
+call print_2d_stats(ifps,ifpe,jfps,jfpe,ifms,ifme,jfms,jfme, grid%tign_g,'sfire_driver_em: grid%tign_g')
 
 #ifndef SFIRE_STANDALONE
 
