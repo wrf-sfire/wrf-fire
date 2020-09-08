@@ -226,7 +226,7 @@ elseif(ifun.eq.2)then
             
         endif
 
-        call check_lfn_tign('time step start',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
+        call check_lfn_tign('after initialization:',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn,tign)
 
         if(replay) then
           call message('replay, recomputing fuel fraction')
@@ -244,7 +244,7 @@ elseif(ifun.eq.3)then   ! ignition if so specified
     
 elseif (ifun.eq.4) then  ! do the timestep
      
-    call check_lfn_tign('time step start',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn, tign)
+    ! #35 call check_lfn_tign('time step start',time_start,ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,lfn, tign)
     if(run_fuel_moisture)then
         ! uses nfuel_cat to set the other fuel data arrays
         ! needs zsf on halo width 1 to compute the terrain gradient
