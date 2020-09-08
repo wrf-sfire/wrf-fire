@@ -425,17 +425,22 @@ character(len=*),intent(in)::s              ! for print
 real, intent(in)::time_now                  ! end of timestep = time_now
 real, intent(in):: lfnij, tignij                ! level function, ignition time (state)
 !*** local
-character(len=128):: msg
+character(len=128):: msg,msg1
 !***    executable
 
 if(.not. lfnij<0. .and. tignij<time_now)then
 !$OMP CRITICAL(SFIRE_CORE_CRIT)
 1  format(a,i5,',',i5,a,g13.6,a,g15.8,a,g15.8)
-   msg = trim(s)//':check_lfn_tign_ij: inconsistent state'
-   call warning(msg,level=0)
-   write(msg,1)'i,j=',i,j,' lfn=',lfnij,'>=0 tign=',tignij,'< time_now=',time_now
-   call warning(msg,level=0)
-   call crash(msg) ! instead of just warning in check_lfn_tign_ij
+   msg1 = trim(s)//':check_lfn_tign_ij: inconsistent state'
+   if (lfnij > 0.)then
+       write(msg,1)'i,j=',i,j,' lfn=',lfnij,'>0 tign=',tignij,'< time_now=',time_now
+       call message(msg,level=0)
+       call crash(msg1) ! instead of just warning in check_lfn_tign_ij
+   else
+       write(msg,1)'i,j=',i,j,' lfn=',lfnij,'>=0 tign=',tignij,'< time_now=',time_now
+       call message(msg,level=0)
+       call warning(msg1,level=0)
+   endif
 !$OMP END CRITICAL(SFIRE_CORE_CRIT)
 endif
 
