@@ -109,6 +109,10 @@
     CHARACTER(10) :: check_which_switch 
     CHARACTER(10) :: my_string
 
+    !jm debug
+    real :: sumabs
+    integer :: i1,i2,i3
+
 
 !<DESCRIPTION>
 !
@@ -1544,6 +1548,10 @@
             ENDIF
           ELSE IF ( p%Ndim .EQ. 2 ) THEN
             IF ((p%Restart.AND.switch.EQ.restart_only).OR.on_stream( p%streams,newswitch)) THEN
+              print *,'VarName=',TRIM(p%VarName),' in_use_for_config=',in_use_for_config(grid%id,TRIM(p%VarName))
+              print *,'subgrid_x=',p%subgrid_x, ' sr_x=',grid%sr_x
+              print *,'subgrid_y=',p%subgrid_y, ' sr_y=',grid%sr_y
+              print *,'DataName=',trim(p%DataName),' Type=',p%Type,' Ntl=',p%Ntl
               IF ( in_use_for_config(grid%id,TRIM(p%VarName)) .AND.  &
                    ( .NOT. p%subgrid_x .OR. (p%subgrid_x .AND. grid%sr_x .GT. 0) ) .AND. &
                    ( .NOT. p%subgrid_y .OR. (p%subgrid_y .AND. grid%sr_y .GT. 0) )       &
@@ -1553,6 +1561,7 @@
                   IF (p%Ntl.GT.0.AND.switch.NE.restart_only)dname=dname(1:len(TRIM(dname))-2)
                   memord = p%MemoryOrder
                   IF      ( p%Type .EQ. 'r' ) THEN
+                    print *,'calling wrf_ext_read_field Type=r'
                     CALL wrf_ext_read_field (  &
                                     fid                     , & ! DataHandle
                                     current_date(1:19)      , & ! DateStr
@@ -1569,7 +1578,17 @@
                      p%sm1 , p%em1 , p%sm2 , p%em2 , p%sm3 , p%em3 ,  &
                      p%sp1 , p%ep1 , p%sp2 , p%ep2 , p%sp3 , p%ep3 ,  &
                      ierr )
+                     sumabs = 0.
+                     print *,'patch bounds=',p%sp1 , p%ep1 , p%sp2 , p%ep2 , p%sp3 , p%ep3 
+                     do i1=p%sp1,p%ep1
+                         do i2=p%sp2,p%ep2
+                             sumabs = sumabs + abs(p%rfield_2d(i1,i2))
+                         enddo
+                     enddo
+                     print *,trim(dname),' patch sum abs=',sumabs
+                     
                   ELSE IF ( p%Type .EQ. 'd' ) THEN
+                    print *,'calling wrf_ext_read_field Type=d'
                     CALL wrf_ext_read_field (  &
                                     fid                     , & ! DataHandle
                                     current_date(1:19)      , & ! DateStr
@@ -1587,6 +1606,7 @@
                      p%sp1 , p%ep1 , p%sp2 , p%ep2 , p%sp3 , p%ep3 ,  &
                      ierr )
                   ELSE IF ( p%Type .EQ. 'i' ) THEN
+                    print *,'calling wrf_ext_read_field Type=l'
                     CALL wrf_ext_read_field (  &
                                     fid                     , & ! DataHandle
                                     current_date(1:19)      , & ! DateStr
@@ -1604,6 +1624,7 @@
                      p%sp1 , p%ep1 , p%sp2 , p%ep2 , p%sp3 , p%ep3 ,  &
                      ierr )
                   ELSE IF ( p%Type .EQ. 'l' ) THEN
+                    print *,'calling wrf_ext_read_field Type=l'
                     CALL wrf_ext_read_field (  &
                                     fid                     , & ! DataHandle
                                     current_date(1:19)      , & ! DateStr
@@ -1620,6 +1641,8 @@
                      p%sm1 , p%em1 , p%sm2 , p%em2 , p%sm3 , p%em3 ,  &
                      p%sp1 , p%ep1 , p%sp2 , p%ep2 , p%sp3 , p%ep3 ,  &
                      ierr )
+                  else
+                    print *,'FALLING OFF THE CLIFF NOT CALLING wrf_ext_read_fields'
                   ENDIF
                 ENDIF
               ENDIF
