@@ -1562,6 +1562,10 @@
                   memord = p%MemoryOrder
                   IF      ( p%Type .EQ. 'r' ) THEN
                     print *,'calling wrf_ext_read_field Type=r'
+                    select case (trim(p%DataName))
+                        case ('TIGN_G')
+                            call sfire_debug_hook(10)
+                    end select 
                     CALL wrf_ext_read_field (  &
                                     fid                     , & ! DataHandle
                                     current_date(1:19)      , & ! DateStr

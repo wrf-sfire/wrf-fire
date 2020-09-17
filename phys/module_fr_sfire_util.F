@@ -1741,6 +1741,8 @@ fun_real=gsum
 
 end function fun_real
 
+end module module_fr_sfire_util
+
 subroutine sfire_debug_hook(fire_debug_hook_sec)
 integer, intent(in)::fire_debug_hook_sec
 #define DEBUG_HOOK
@@ -1758,7 +1760,6 @@ enddo
 #endif
 end subroutine sfire_debug_hook
 
-end module module_fr_sfire_util
 
 ! this subroutine is outside of any module and f77 style because some debuggers
 ! notably gdb are terrible with fortran90
