@@ -109,9 +109,11 @@ call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme, tign,'init_no_fire:
 do j=jfts,jfte
    do i=ifts,ifte
       if(.not.lfn(i,j) > 0.)then
+!$OMP CRITICAL(SFIRE_CORE_CRIT)
          write(msg,*)'i,j=',i,j,' tign=',tign(i,j),' <= time_now =',time_now
          call message(msg,level=0)
          call crash('init_no_fire: ignition time must be after the end of the first time step')
+!$OMP END CRITICAL(SFIRE_CORE_CRIT)
       endif
    enddo
 enddo
