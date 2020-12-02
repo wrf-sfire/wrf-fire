@@ -472,7 +472,8 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%nfuel_cat,                               & ! input, or internal for safekeeping
             grid%fuel_time,                      & 
             grid%wz0,                            &          !wrf roughness length on fire mesh
-            grid%fz0, grid%fwh,grid%can_top,grid%cuf,grid%cvf, &
+            grid%fz0, grid%fwh,grid%can_top,grid%can_cov,  &
+            grid%cuf,grid%cvf, &
             fp,                                    & ! structure with pointers passed to spread rate calculation
             config_flags%nfmc,         & ! moisture model variables start
             run_advance_moisture,run_fuel_moisture,dt_moisture,     &    ! moisture model control
@@ -584,7 +585,7 @@ subroutine sfire_driver_phys (ifun,    &
     nfuel_cat,                                    & ! in array, data, fire grid, or constant internal
     fuel_time,                                    & ! save constant internal data, fire grid
     wz0,                                          &
-    fz0,fwh,can_top,cuf,cvf,                  &
+    fz0,fwh,can_top,can_cov,cuf,cvf,              &
     fp,                                           & ! fire params
     nfmc,                                     & ! number of fuel moisture classes
     run_advance_moisture,run_fuel_moisture,dt_moisture,& ! moisture model control
@@ -653,7 +654,7 @@ real,intent(out),dimension(ims:ime,jms:jme)::&
 real, dimension(ims:ime, jms:jme), intent(inout)::xlong, xlat, ndwi ! inout because of extension at bdry
     
 real, intent(inout), dimension(ifms:ifme,jfms:jfme):: & ! fuel data; can be also set inside (cell based, fire grid)
-    fz0,fwh,can_top,cuf,cvf,wz0,                            &  
+    fz0,fwh,can_top,can_cov,cuf,cvf,wz0,                            &  
     nfuel_cat,fndwi                                      
 
 real, intent(inout), dimension(ifms:ifme, jfms:jfme)::     &
@@ -1071,7 +1072,7 @@ do ij=1,num_tiles
             ir,jr,                                        & ! atm/fire grid ratio
             cuf,cvf,                                      & ! canopy top winds (input)
             nfuel_cat,                                    & ! fire fuel category (input)
-            can_top,                                      & ! canopy top (input)
+            can_top,can_cov,                              & ! canopy top (input)
             fp%vx,fp%vy)
 
           endif

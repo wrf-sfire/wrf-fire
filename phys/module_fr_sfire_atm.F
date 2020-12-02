@@ -2457,7 +2457,7 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     ir,jr,                                        & ! atm/fire grid ratio
     cuf,cvf,                                      & ! canopy top winds (input)
     nfuel_cat,                                    & ! fire fuel category (input)
-    can_top,                                      & ! canopy top and FWH heights (input)
+    can_top,can_cov,                              & ! canopy top and canopy cover (input)
     uf,vf)                                          ! fwh winds (input and output)
 
     implicit none
@@ -2477,13 +2477,14 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     real,intent(in),dimension(ifms:ifme,jfms:jfme)::&
     cuf,cvf,                                       & ! canopy winds on fire mesh
     nfuel_cat,                                     & ! fuel categories on fire mesh
-    can_top                                          ! cantop top and fire wind heights on fire mesh       
+    can_top,                                       & ! canopy top on fire mesh [mAGL]
+    can_cov                                          ! canopy cover on fire mesh [%]      
     
     real,intent(inout),dimension(ifms:ifme,jfms:jfme)::uf,vf
 
     !*** local variables
 
-    real :: xi_og, k, c1, c3, c2, mid_fh
+    real :: xi_og, k, c1, c3, c2, mid_fh, sigma_beta, pie, CC, cc_pai, PAI_S
     real :: ha, z_og, drag_index, cantop_frac, C_surf, N, cd, zeta_sum, u_scale,z_top
     real, dimension(8) :: xi_max, sigma_u, sigma_l, PAI, big_cd, z_max, d1
     real, dimension(20) :: z_agl, xi, fa, zeta, Ub, Ut, u
@@ -2496,7 +2497,7 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     !   canopy displacement height to the fire flame height. However, this parameterization !
     !   could be applied for other applications involving canopy winds and forested areas.  !
     !                                                                                       !
-    !   Written by DVM on 5/3/2019                                                          !
+    !   Written by DVM on 5/3/2019, updated 11/18/2020 w/ canopy cover                      !
     !   W.J. Massman, J.M. Forthofer, and M.A. Finney, 2017 : An improved canopy wind       !
     !   model for predicting wind. Can. J. For. Res. 47: 594–603.                           !                     
     !---------------------------------------------------------------------------------------!
@@ -2512,6 +2513,8 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     c1 = 0.38               !used to compute ratio beteen u* and u at canopy top height [Wang 2012]
     c3 = 15                 !used to compute ratio beteen u* and u at canopy top height [Wang 2012]
     c2 = c1+k/log(xi_og)    !used to compute ratio beteen u* and u at canopy top height [Wang 2012]
+    sigma_beta = 10.69555   !derived and prescribed by AB79 for computing new PAI due to canopy cover
+    pie = 3.14159           !pi = 3.14159....
 
     znum = 20               !Number of vertical levels for our canopy model? (20 is the default)
 
@@ -2577,10 +2580,34 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
           end if   
         end do 
       
+
+        !In order to prevent any 'gotchas', limit the minimum canopy cover to 5% or .05 after
+        !we convert to it a fraction.
+ 
+        CC = can_cov(i,j)/100
+
+        if(CC < .05) then
+          CC = .05
+        end if 
+
+
+        !For cases where the canopy cover is less than 100%, we need to recompute PAI
+        !based on the canopy cover fraction. If PAI the newly computed PAI is less then
+        !the default PAI, use the new value instead. New PAI defined from Massman et al. 
+        ![2017] equation 19. PAI_S is our final PAI that we use in our computations.
+
+        cc_pai = ((z_top*sigma_beta*(CC/3))/(2*pie))*CC
+
+        if(cc_pai < PAI(iveg)) then
+          PAI_S = cc_pai
+        else 
+          PAI_S = PAI(iveg)
+        end if 
+
+
+        !Equation 1 of Massman et al. [2017] for 'nondimensional plant surface distribution. 
       
-        !Equation 1 of Massman et al. [2017] for 'nondimensional plant surface distribution
-      
-        ha = sum((fa/sum(fa))*PAI(iveg))
+        ha = sum((fa/sum(fa))*PAI_S)
       
       
         !"Ground" roughness length (in height coordinates) [mAGL], according to Massman et al. [2017]
@@ -2592,7 +2619,7 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
         !(PAI) Massman et al. [2017]. This is needed to compute the ratio between u* and u 
         !(cantop_frac, eqn. 10), N (variables from Massman, 1997). 
       
-        drag_index = big_cd(iveg)*PAI(iveg)
+        drag_index = big_cd(iveg)*PAI_S
       
         cantop_frac = c1 - c2*exp(-c3*drag_index)
       
@@ -2612,7 +2639,7 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
         zeta_sum = 0
       
         do z = 1, znum
-          zeta(z) = cd*(fa(z)/sum(fa))*PAI(iveg)+zeta_sum
+          zeta(z) = cd*(fa(z)/sum(fa))*PAI_S+zeta_sum
           zeta_sum = zeta(z)
         end do 
       
