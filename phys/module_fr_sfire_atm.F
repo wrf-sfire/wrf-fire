@@ -2382,7 +2382,8 @@ subroutine find_trees_fmesh(id,       & ! to identify debugging prints and files
   ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
   ifts,ifte,jfts,jfte,                          &
   ir,jr,                                        & ! atm/fire grid ratio
-  can_top,nfuel_cat)                              ! canopy top and fuel cat (input)
+  fire_can_top_read,                            & ! Flag for using can_top input
+  can_top,nfuel_cat,ntree_cat)                  ! canopy top and fuel cat (input)
 
 
   implicit none
@@ -2397,9 +2398,10 @@ subroutine find_trees_fmesh(id,       & ! to identify debugging prints and files
   ifms, ifme, jfms, jfme,                       & ! fire memory bounds
   ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
   ifts,ifte,jfts,jfte,                          & ! fire tile bounds
-  ir,jr                                         
+  ir,jr,                                        & ! atm/fire grid ratio
+  fire_can_top_read                               ! flag on how to use can_top                                        
 
-  real,intent(in),dimension(ifms:ifme,jfms:jfme)::nfuel_cat
+  real,intent(in),dimension(ifms:ifme,jfms:jfme)::nfuel_cat,ntree_cat
   real,intent(inout),dimension(ifms:ifme,jfms:jfme)::can_top
 
 
@@ -2408,9 +2410,13 @@ subroutine find_trees_fmesh(id,       & ! to identify debugging prints and files
   integer :: i, j, iveg, tree_type
   real, dimension(8) :: z_max
   
+  !This script takes nfuel categories and relates this to value specified by the 
+  !'itree variable' within the namelist.file. Indicies specified in itree, which 
+  !has the same length as nfuel_cat, tells the code how fuel categories correpond to
+  !tree types defined in Massman et al. 2017. DVM 1/22/2020.
 
-  !Canopy height lookup table
-
+  ! Canopy height lookup table from Massman et al. 2017
+  ! Aspen, Scots Pine, Jack Pine, Loblolly Pine, Hardwood, Spruce, Corn and Rice.
   z_max   = (/10.,20.,15.,24.,22.5,10.,2.2,0.73/)
 
 
@@ -2420,22 +2426,25 @@ subroutine find_trees_fmesh(id,       & ! to identify debugging prints and files
   do j = jfts,jfte
     do i = ifts,ifte
 
-      iveg = nfuel_cat(i,j)
-      tree_type = itree(iveg)
+      !If fire_can_top_read equals 0, determine tree type from nfuel_cat and itree values 
+      !specified in the fire namelist. Otherwise use the ntree_cat from the WRF input file 
+      !to determine z_max based on Massman et al. 2017. 
+      if(fire_can_top_read == 0) then
+        iveg = nfuel_cat(i,j)
+        tree_type = itree(iveg)
+      else  
+        tree_type = ntree_cat(i,j)
+      end if 
 
       !If the nfuel category is associated with a fuel type that is not associated with a
       !tree (designated as a '0' within the fire.namelist file), set the canopy top height 
       !as 0.
 
       if(tree_type /= 0) then
-        
         !write(*,*) z_max(tree_type)
         can_top(i,j) = z_max(tree_type)
-
       else 
-
         can_top(i,j) = 0 
-
       end if 
 
     enddo
@@ -2455,8 +2464,9 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
     ifts,ifte,jfts,jfte,                          &
     ir,jr,                                        & ! atm/fire grid ratio
+    fire_can_top_read,                            & ! Flag for using can_top input
     cuf,cvf,                                      & ! canopy top winds (input)
-    nfuel_cat,                                    & ! fire fuel category (input)
+    nfuel_cat,ntree_cat,                          & ! fire fuel and tree category (input)
     can_top,can_cov,                              & ! canopy top and canopy cover (input)
     uf,vf)                                          ! fwh winds (input and output)
 
@@ -2472,15 +2482,15 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     ifms, ifme, jfms, jfme,                       & ! fire memory bounds
     ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
     ifts,ifte,jfts,jfte,                          & ! fire tile bounds
-    ir,jr                                         
+    ir,jr,                                        & ! fire tile bounds
+    fire_can_top_read                               ! flag on how to use can_top                                     
 
     real,intent(in),dimension(ifms:ifme,jfms:jfme)::&
     cuf,cvf,                                       & ! canopy winds on fire mesh
-    nfuel_cat,                                     & ! fuel categories on fire mesh
-    can_top,                                       & ! canopy top on fire mesh [mAGL]
+    nfuel_cat,ntree_cat,                           & ! fuel and tree categories on fire mesh
     can_cov                                          ! canopy cover on fire mesh [%]      
     
-    real,intent(inout),dimension(ifms:ifme,jfms:jfme)::uf,vf
+    real,intent(inout),dimension(ifms:ifme,jfms:jfme)::uf,vf,can_top
 
     !*** local variables
 
@@ -2502,10 +2512,6 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     !   model for predicting wind. Can. J. For. Res. 47: 594–603.                           !                     
     !---------------------------------------------------------------------------------------!
 
-
-    !iveg = 5               !Hardcoded value for trouble shooting
-
-
     !Model constants used by the Massman canopy parameterization 
 
     xi_og = 0.0025          !"Ground" roughness length (in xi coordinates) [unitless]
@@ -2517,6 +2523,7 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     pie = 3.14159           !pi = 3.14159....
 
     znum = 20               !Number of vertical levels for our canopy model? (20 is the default)
+    !iveg = 5               !Hardcoded value for trouble shooting
 
 
     !Computations for an arbituary function for 0 < xi < 1 that describes the 'desired mathematical 
@@ -2537,23 +2544,42 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
     do j = jfts,jfte
       do i = ifts,ifte
 
-
-        !What is the height of the tree canopy for the gridcell we are working on?
-        !If z_top equals 0, we are not working with a gridcell with trees, thus 
-        !we don't want to modify our u and v winds on the fire mesh so cycle to 
-        !the next iteration.  
+        !Do we determine the tree type from an array provided by LANDFIRE or some other input file, 
+        !or do we relate it to nfuel categories and values assigned to our itree array in the namelist.fire?
         
-        z_top = can_top(i,j)
+        if(fire_can_top_read == 0)then
+          iveg = itree(nfuel_cat(i,j))
+        else
+          iveg = ntree_cat(i,j)
+        end if 
 
-        if(z_top == 0) then 
+        !DVM diagnostics for trouble shooting.
+        !if(i == 200) then
+        !  if(j == 200) then
+        !    write(*,*)'nfuelcat =',nfuel_cat(i,j)
+        !    write(*,*)'iveg =',iveg
+        !    write(*,*)'z_top =',can_top(i,j)
+        !    write(*,*)'ntreecat =',ntree_cat(i,j)
+        !  end if
+        !end if
+
+        !What is the tree type of our gridcell? If this is 0, there are no trees, thus
+        !we should cycle to the next iteration. If there is a non-zero value (1-8),
+        !use the can_top value assigned from the find_trees_fmesh subroutine and set this to
+        !define the canopy top height (z_top) 
+
+        if(iveg == 0) then 
           cycle
         end if 
-        
 
-        !Determine tree type based on whats prescribed in the namelist.fire file. 
+        z_top = can_top(i,j)
         
-        iveg = itree(nfuel_cat(i,j))
+        !Incase there is a gotcha with the canopy top data we read in, set a minimum value
+        !that our tree height can be (4 meters seems reasonable?)
 
+        if(z_top < 4)then
+          z_top = 4
+        end if 
 
         !Compute the heights for our vertical coordinate based on the vegetation 
         !height (z_max) that was assigned. Heights are in mAGL. In addition, 
@@ -2620,11 +2646,8 @@ subroutine massman_fwh(id,       & ! to identify debugging prints and files if n
         !(cantop_frac, eqn. 10), N (variables from Massman, 1997). 
       
         drag_index = big_cd(iveg)*PAI_S
-      
         cantop_frac = c1 - c2*exp(-c3*drag_index)
-      
         C_surf = (cantop_frac**2)*2
-      
         N = drag_index/C_surf
       
       
