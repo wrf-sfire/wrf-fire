@@ -165,6 +165,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
     call sfire_debug_hook(config_flags%fire_debug_hook_sec)
     call time_start
+    
 !   if(fire_ifun_start.le.1)call print_id  ! print id only once, during initialization
 
 
@@ -177,10 +178,12 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 ! copy configuration flags to sfire internal structures
     call set_flags(config_flags)
 
+    write(msg,'(a,i3)')' domain', grid%id
+    call message(msg,level=1)
+
 ! prevent memory errors because of variables missing in registry packages
     call check_grid_alloc(grid,config_flags)
-        
-
+         
 #ifndef SFIRE_STANDALONE
 
 !   see what we got from wrf
@@ -267,10 +270,19 @@ subroutine sfire_driver_em ( grid , config_flags                    &
     if(ir.le.0.or.jr.le.0)then
         call crash('fire mesh refinement ratio must be positive')
     endif
+
+call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms,jfme, grid%tign_g,'sfire_driver_em: grid%tign_g')
+call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms,jfme, grid%nfuel_cat,'sfire_driver_em: grid%nfuel_cat')
+
     itimestep=grid%itimestep
     restart=config_flags%restart .or. config_flags%cycling .or. config_flags%fire_restart ! skip state initialization
     replay= time_step_start+dt .le.  config_flags%fire_perimeter_time
-
+94  format('Time step',i11,' from',f11.3,' to',f11.3,' perimeter_time',f11.3,' setting replay ',l1)
+    write(msg,94)itimestep,time_step_start,time_step_start+dt,config_flags%fire_perimeter_time,replay
+    call message(msg)
+95  format('namelist.input restart ',l1,' cycling ',l1,' fire_restart ',l1,' setting restart ',l1)
+    write(msg,95)config_flags%restart,config_flags%cycling,config_flags%fire_restart,restart
+    call message(msg)
     
     
     ! **** moisture model
@@ -1711,7 +1723,7 @@ fire_update_fuel_frac   = config_flags%fire_update_fuel_frac
 boundary_guard          = config_flags%fire_boundary_guard
 fire_back_weight        = config_flags%fire_back_weight
 fire_grows_only         = config_flags%fire_grows_only
-fire_upwinding          = config_flags%fire_upwinding
+sfire_upwinding         = config_flags%sfire_upwinding
 fire_viscosity          = config_flags%fire_viscosity 
 fire_lfn_ext_up         = config_flags%fire_lfn_ext_up 
 fire_test_steps         = config_flags%fire_test_steps 
@@ -1864,7 +1876,7 @@ character(len=128)::msg
 logical::strict = .false.
 
 write(msg,'(a,a10,a,i12)')'array ',name,' has size ',sz
-call message(msg,level=2)
+call message(msg,level=3)
 if(present(req)) strict=req > 0
 if (sz < 2 .and. strict) then
     write(msg,'(a,a,a,i2,a)')'array ',name,' is size ',sz,': not allocated, add to registry package'

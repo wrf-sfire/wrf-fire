@@ -28,7 +28,7 @@ state    real  nfuel_cat *i*j     fire        1         z     i012hr        "NFU
 state    real     zsf       *i*j     fire        1         z   i012hr   "ZSF"      "height of surface above sea level" "m"
 state    real     dzdxf     *i*j     fire        1         z   i012hr   "DZDXF"    "surface gradient x" "1"
 state    real     dzdyf     *i*j     fire        1         z   i012hr   "DZDYF"    "surface gradient y" "1"
-state    real     tign_g    *i*j     fire        1         z     hr   "TIGN_G"   "ignition time on ground" "s"
+state    real     tign_g    *i*j     fire        1         z   i012hr   "TIGN_G"   "ignition time on ground" "s"
 state    real     fire_hfx  *i*j     fire        1         z   i012hr   "FIRE_HFX" "observed fire heat flux" "W/m^2"
 
 # fire input variables on atm grid
@@ -70,7 +70,7 @@ state    real     fire_area *i*j      fire        1         z    hr    "FIRE_ARE
 # sfire variables on fire grid
 # (also using inputs: zs,z_at_w,dz8w,nfuel_cat,zsf)
 #
-state    real     tign_in   *i*j      fire        1         z    hr   "TIGN_IN"    "minimal ignition time on ground" "s"
+state    real     tign_in   *i*j      fire        1         z  i102hr   "TIGN_IN"    "minimal ignition time on ground" "s"
 state    real     lfn_out   *i*j      fire        1         z    r "LFN_OUT"       "level function at time step end, for halo" "1"
 state    real     fuel_frac_burnt *i*j fire       1         z    hr    "FUEL_FRAC_BURNT" "fraction of fuel burnt in timestep" "1"
 state    real     uf        *i*j      fire        1         z    hr    "UF"        "fire wind" "m/s"
@@ -353,6 +353,12 @@ rconfig  real     fire_slope_factor         namelist,fire         max_domains   
 state    real            -          ikjftb  tracer        1         -     -    -
 state    real         fire_smoke    ikjftb  tracer        1         -     irhusdf=(bdy_interp:dt)    "fire_smoke"         "fire_smoke"     "g_smoke/kg_air"
 package  tracer_fire  tracer_opt==3       -             tracer:fire_smoke
+
+#
+# flags SFIRE only
+#
+
+rconfig   integer sfire_upwinding         namelist,fire         max_domains            3       -     "sfire_upwinding" "upwind normal spread: 1=standard, 2=godunov, 3=eno, 4=sethian" "1"
 #
 # Fire halo descriptions
 #

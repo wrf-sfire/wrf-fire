@@ -159,7 +159,7 @@ PUBLIC:: mfuelcats
    INTEGER, SAVE      :: nfuelcats = 13     ! number of fuel categories, can be reset from namelist.fire
    INTEGER, PARAMETER :: zf = mfuelcats-nf  ! number of zero fillers in data stmt 
    INTEGER, SAVE      :: no_fuel_cat = 14   ! special no fuel category outside of 1:nfuelcats
-   INTEGER, SAVE      :: no_fuel_cat2 = huge(no_fuel_cat)  ! all categories between no_fuel_cat and no_fuel_cat2 are no fuel
+   INTEGER, SAVE      :: no_fuel_cat2 = 99999999  ! all categories between no_fuel_cat and no_fuel_cat2 are no fuel
    INTEGER, SAVE      :: ibeh=1             ! type of spread formula
    CHARACTER (len=80), DIMENSION(mfuelcats ), save :: fuel_name
    INTEGER, DIMENSION( mfuelcats ), save :: ichap,itree 
@@ -845,7 +845,7 @@ if(init_fuel_moisture)then
 endif
 
 j=1
-7 format(a,5(1x,i8,4x))
+7 format(a,5(i9,4x))
 8 format(a,5(1x,g12.5e2))
 9 format(a,5(1x,a))
 10 format(a,i2.2,2x,5(1x,g12.5e2))
@@ -1162,11 +1162,15 @@ do j=jfts,jfte
         if(k.lt.1.or.k.gt.nfuelcats)then
 !$OMP CRITICAL(SFIRE_PHYS_CRIT)
             write(msg,'(3(a,i5))')'nfuel_cat(', i ,',',j,')=',k
-!$OMP END CRITICAL(SFIRE_PHYS_CRIT)
-            call message(msg)
+            call message(msg,level=0)
             if(k.eq.0)then
-                call message('Possibly nfuel_cat is uninitialized on input')
+                call message('Possibly nfuel_cat is uninitialized on input',level=0)
             endif
+            write(msg,'(a,i5)')'nfuel_cat must between 1 and nfuel_cat=',nfuelcats
+            call message(msg,level=0)
+            write(msg,'(a,i5,a,i10,a)')' or ',no_fuel_cat,' and',no_fuel_cat2,' for no fuel'
+            call message(msg,level=0)
+!$OMP END CRITICAL(SFIRE_PHYS_CRIT)
             call crash('set_fire_params: fuel category out of bounds')
         endif
 
