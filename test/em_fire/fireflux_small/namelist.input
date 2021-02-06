@@ -124,7 +124,7 @@
  fire_can_top_read = 1          !  reading canopy top height: 0 = use wrfinput, 1 = can_top from namelist.fire
  fire_wind_log_interp = 1,      ! 1 = from fuel categores, 2= roughness piecewise constant from atm, 3=bilinear from atm, 4=on atmosphere mesh 
  fire_use_windrf = 4,           ! if fire_wind_log_interp.ne.4: 0=ignore wind reduction factors, 1=multiply, 2=use to set fwh, 3=adjust fwh for z0, 4 use massman scheme
- ifire              = 2,    ! integer, = 0: no fire, 2=turn on fire model
+ ifire              = 1,    ! integer, = 0: no fire, 1=turn on sfire model
  fire_fuel_read     = 2,    ! integer, -1: from WPS, 0= use fire_fuel_cat, 1= by altitude, 2=from file input_fc
  fire_fuel_cat      = 3,    ! integer, fuel category if constant
 ! ignition 
