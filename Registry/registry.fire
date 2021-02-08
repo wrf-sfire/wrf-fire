@@ -15,6 +15,9 @@ package   fire_sfire1    ifire==1                    -             state:avg_fue
 package  fire_fmoist_run   fmoisti_run==1           -             state:fmc_gc,fmep,fmc_equi,fmc_lag,t2_old,q2_old,rain_old,psfc_old,rh_fire
 package  fire_fmoist_interp fmoisti_interp==1       -             state:fmc_gc
 
+package  fire_fmw_run   ifmw_run==1                 _             state:u_fmw,v_fmw,ht_fmw,lambda_fmw
+package  fire_fmw_qes   ifmw_qes==1                 _             state:u_fmw,v_fmw,ht_fmw
+
 # level function history support
 dimspec   ign   2           constant=1      z    i_lfn_history
 state     real  lfn_hist    *i*j        fire   1    Z   i012hr     "LFN_HIST"    "level function history" "1"
@@ -116,6 +119,18 @@ rconfig real      fmep_decay_tlag   namelist,fire  1              999999  hr   "
 halo      HALO_FIRE_MFG dyn_em 24:fmc_g
 halo      HALO_FIRE_MAG dyn_em 8:fmc_gc
 
+# mass consistent downscaling model section
+rconfig  integer  ifmw_qes              namelist,fire  max_domains   0              hr  "create fire wind field for QES-Winds" "1"
+rconfig  integer  ifmw_run              namelist,fire  max_domains   0              hr  "run fire wind model" "1"
+dimspec  num_fmw                -   namelist=nfmw              z      "number of fire wind vertical layers" "1"
+rconfig  integer  nfmw  namelist,fire           1               20     "nfmw" "number of fire wind vertical layers" "1"
+rconfig  real     ht2_fmw            namelist,fire  max_domains   2              hr  "bottom of 2nd layer = thickness of 1st layer" "m"
+rconfig  real     top_fmw            namelist,fire  max_domains   1000           hr  "top of last layer= thickness of fmw domain" "m"
+state    real     u_fmw  i*{num_fmw}j* fire      1        -   hr   "U_FMW"  "fire wind u" "m/s"
+state    real     v_fmw  i*{num_fmw}j* fire      1        -   hr   "V_FMW"  "fire wind u" "m/s"
+state    real     ht_fmw  {num_fmc} fire        z   hr   "HT_FMW"  "heights of the bottom of fire wind layers above the terrain" "m/s"
+state    real     lambda_fmw i*{num_fmw}j* fire  1        -   hr   "LAMBDA_FMW"  "langrange multiplier for zero divergence" "m^3/s"
+halo     HALO_LAMBDA_FMW            dyn_em 24:lambda_fmw
 
 # constant data arrays
 state    real     fxlong    *i*j      fire        1         z   i012hr    "FXLONG"    "longitude of midpoints of fire cells" "degrees"
