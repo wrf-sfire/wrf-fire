@@ -1847,6 +1847,18 @@ subroutine check_grid_alloc(grid,config_flags)
     if (config_flags%fmoisti_interp .eq. 1)then
         call check_size(size(grid%fmc_gc),'fmc_gc')
     endif
+    call message('check_grid_alloc: checking if grid arrays used in firewind are allocated',level=2)
+    if (config_flags%ifmw_qes==1)then
+        call check_size(size(grid%u_fmw),'u_fmw')
+        call check_size(size(grid%v_fmw),'v_fmw')
+        call check_size(size(grid%ht_fmw),'ht_fmw')
+    endif
+    if (config_flags%ifmw_run==1)then
+        call check_size(size(grid%u_fmw),'u_fmw')
+        call check_size(size(grid%v_fmw),'v_fmw')
+        call check_size(size(grid%ht_fmw),'ht_fmw')
+        call check_size(size(grid%lambda_fmw),'lambda_fmw')
+    endif
     call message('check_grid_alloc: checking if grid arrays used in emissions are allocated',level=2)
     call check_size(size(grid%chem),'chem',config_flags%chem_opt)
     call check_size(size(grid%tracer),'tracer',config_flags%tracer_opt)
