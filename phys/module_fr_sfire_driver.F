@@ -1856,6 +1856,8 @@ subroutine check_grid_alloc(grid,config_flags)
     if (config_flags%ifmw_run==1)then
         call check_size(size(grid%u_fmw),'u_fmw')
         call check_size(size(grid%v_fmw),'v_fmw')
+        call check_size(size(grid%u0_fmw),'u0_fmw')
+        call check_size(size(grid%v0_fmw),'v0_fmw')
         call check_size(size(grid%ht_fmw),'ht_fmw')
         call check_size(size(grid%lambda_fmw),'lambda_fmw')
     endif
