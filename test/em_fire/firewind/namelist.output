@@ -2009,7 +2009,7 @@
  FMEP_DECAY_TLAG =   999999.0    ,
  IFMW_QES        = 11*0,
  IFMW_RUN        =           1, 10*0,
- NFMW    =          20,
+ NFMW    =           5,
  HT2_FMW = 11*2.000000       ,
  TOP_FMW = 11*1000.000       ,
  KFMC_NDWI       =           0,
