@@ -1741,6 +1741,50 @@ fun_real=gsum
 
 end function fun_real
 
+subroutine check_3d_halo(fun,deep,
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    its,ite,kts,kte,jts,jte, &                ! tile dims
+    a)
+integer, intent(in)::  fun, deep,&
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    its,ite,kts,kte,jts,jte                   ! tile dims
+real, intent(inout):: a(ims:ime:kms,kme,jms:jme)
+character(len=256)::msg
+if(fun.eq.1)then
+    do i=its,ite
+       do k=kts,kte
+          do j=jts,jte
+             a(i,k,j)=hash(i,k,j) 
+          enddo
+       enddo
+    enddo
+elseif(fun.eq.2)then
+    do i=max(its-deep,ids),min(ite+deep,ide)
+       do k=kts,kte
+          do j=max(jts-deep,jds),min(jte+deep,jde)
+             if(a(i,k,j).ne.hash(i,k,j))then
+!$OMP CRITICAL(HALO)
+                 write(msg,*)'check_3d_halo',i,j,k,a(i,k,j),' not ',hash(i,k,j)
+!$OMP END CRITICAL(HALO)
+                 call crash(msg)
+             endif
+          enddo
+       enddo
+    enddo
+else
+    call crash('check_3d_halo: bad fun')
+endif
+contains
+    real pure function hash(i,k,j)
+        integer, intent(in)::i,k,j
+        hash = i +  3967*j + k*257 + 16769023*(i-j)
+    end function hash
+end subroutine check_3d_halo
+
+
+
 subroutine sfire_debug_hook(fire_debug_hook_sec)
 integer, intent(in)::fire_debug_hook_sec
 #define DEBUG_HOOK

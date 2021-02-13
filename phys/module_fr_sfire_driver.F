@@ -1889,4 +1889,10 @@ end subroutine check_size
 !call message(msg,level=1)
 !end subroutine print_id
 
+subroutine test_halo_3d
+            ims,ime,  jms,jme,                    &
+            ips,ipe,jps,jpe,                              &
+            its,ite,jts,jte,                              &
+stocleddv
+
 end module module_fr_sfire_driver
