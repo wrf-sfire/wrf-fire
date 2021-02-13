@@ -1741,6 +1741,67 @@ fun_real=gsum
 
 end function fun_real
 
+subroutine check_halo(fun,&                   ! fun=1 set tile to hash fun=2 test hash in halo regions
+    halo,                                     ! HALO number if neighbor nodes as in the registry 
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    its,ite,kts,kte,jts,jte, &                ! tile dims
+    a)
+!*** purpose
+!   Fill each tile with unique values and on the second call check if
+!   the halo regions were filled with values from neighbors correctly 
+!*** arguments
+integer, intent(in)::  fun, halo,&
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    its,ite,kts,kte,jts,jte                   ! tile dims
+real, intent(inout):: a(ims:ime:kms,kme,jms:jme)
+!*** local
+character(len=256)::msg
+integer::i,j,k,deep
+if(halo.eq.8)then
+    deep=1
+elseif(halo.eq.24)then
+    deep=2
+else
+!$OMP CRITICAL(HALO)
+    write(msg,*)'check_halo: halo=',halo,' not supported'
+!$OMP END CRITICAL(HALO)
+    call crash(msg)
+endif
+if(fun.eq.1)then
+    do i=its,ite
+       do k=kts,kte
+          do j=jts,jte
+             a(i,k,j)=hash(i,k,j) 
+          enddo
+       enddo
+    enddo
+elseif(fun.eq.2)then
+    do i=max(its-halo,ids),min(ite+halo,ide)
+       do k=kts,kte
+          do j=max(jts-deep,jds),min(jte+deep,jde)
+             if(a(i,k,j).ne.hash(i,k,j))then
+!$OMP CRITICAL(HALO)
+                 write(msg,*)'check_3d_halo: at',i,j,k,'halo',a(i,k,j),'should be',hash(i,k,j)
+!$OMP END CRITICAL(HALO)
+                 call crash(msg)
+             endif
+          enddo
+       enddo
+    enddo
+else
+    call crash('check_halo: bad fun')
+endif
+contains
+    real pure function hash(i,k,j)
+        integer, intent(in)::i,k,j
+        hash = i +  3967.0*j + k*257.0 + 16769023.1*(i-j)
+    end function hash
+end subroutine check_halo
+
+
+
 subroutine sfire_debug_hook(fire_debug_hook_sec)
 integer, intent(in)::fire_debug_hook_sec
 #define DEBUG_HOOK
