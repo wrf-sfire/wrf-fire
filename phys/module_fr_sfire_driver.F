@@ -443,6 +443,7 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%num_tiles,                             & ! atm grid tiling
             grid%i_start,min(grid%i_end,ide-1),                    &
             grid%j_start,min(grid%j_end,jde-1),                    &                 
+            config_flags%nfmw,                                     & ! number of fire wind layers
             itimestep,restart,replay,config_flags%fire_fuel_read,config_flags%fire_fuel_cat, &  ! in scalars
             time_step_start,dt,grid%dx,grid%dy,                    &
             grid%u_frame,grid%v_frame,                  &
@@ -488,7 +489,11 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%fmc_lag,                      & ! fuel moisture fields updated, by class, tendency diagnostic
             fp%fmc_g, &                             !  write-only alias. need to exit before using fp again
             grid%ndwi, &
-            grid%fndwi)
+            grid%fndwi, &
+            grid%u0_fmw,                     &  ! initial fire wind u
+            grid%v0_fmw,                     &  ! initial fire wind v
+            grid%ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
+         )
  
 
 #ifdef DM_PARALLEL
@@ -556,6 +561,7 @@ subroutine sfire_driver_phys (ifun,    &
     ifps, ifpe, jfps, jfpe,                       & ! fire patch in - will use smaller
     ir,jr,                                        & ! atm/fire grid ratio
     num_tiles,i_start,i_end,j_start,j_end,        & ! atm grid tiling
+    nfmw,                                         & ! number of fire wind layers
     itimestep,restart,replay,ifuelread,nfuel_cat0,       & ! in scalars
     time_step_start,dt,dx,dy,                     & ! in scalars
     u_frame,v_frame,                              &
@@ -600,7 +606,12 @@ subroutine sfire_driver_phys (ifun,    &
     fmc_lag,                    &  ! fuel moisture fields updated, by class tendency diagnostic
     fmc_g,                      &  ! fuel moisture, alias of fp%fmc_g
     ndwi,                       &
-    fndwi)                         ! ndwi on fire grid
+    fndwi,                      &   ! ndwi on fire grid
+    u0_fmw,                     &  ! initial fire wind u
+    v0_fmw,                     &  ! initial fire wind v
+    ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
+    )
+
 
 
 implicit none
@@ -696,7 +707,13 @@ real, intent(inout), dimension(ims:ime,2,jms:jme):: fmep
 real, intent(out), dimension(ims:ime,nfmc,jms:jme):: fmc_equi,fmc_lag
 real, intent(inout), dimension(ifms:ifme,jfms:jfme):: fmc_g
 
-
+! firewind arguments
+integer, intent(in)::  nfmw
+real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
+    u0_fmw,                     &  ! initial fire wind u
+    v0_fmw                         ! initial fire wind v
+real, intent(inout), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
+    ht_fmw                         ! heights of the bottom of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
 
@@ -712,6 +729,7 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
     ij,i,j,k,id,pid,ipe1,jpe1,ite1,jte1, &
     ii,jj,                                 &
     ifts,ifte,jfts,jfte                          ! fire tile
+real:: exp_fmw,htm_fmw                           ! firewind layers expansion ratio & mid height
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
@@ -788,7 +806,7 @@ ipe1=ifval(ipe.eq.ide,ipe+1,ipe)
 jpe1=ifval(jpe.eq.jde,jpe+1,jpe)
 
 ! set up fire tiles & interpolate to fire grid
-!$OMP PARALLEL DO PRIVATE(ij,its,ite,jts,jte,ite1,jte1,ifts,ifte,jfts,jfte,msg,id) &
+!$OMP PARALLEL DO PRIVATE(ij,its,ite,jts,jte,ite1,jte1,ifts,ifte,jfts,jfte,msg,id,exp_fmw,htm_fmw) &
 !$OMP SCHEDULE(STATIC)
 do ij=1,num_tiles
 
@@ -938,10 +956,45 @@ do ij=1,num_tiles
 
         ! not using zsf any more but anyway
         call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fp%zsf,'driver_phys:zsf')        
+
+      if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
+        exp_fmw = findq(config_flags%top_fmw/config_flags%ht2_fmw,nfmw) ! expansion factor for firewind mesg
+        do k=1,nfmw 
+          htm_fmw = config_flags%ht2_fmw*0.5*(1.0+exp_fmw)*exp_fmw**(k-1)
+          write(msg,*)'firewind layer ',k,' midpoint at ',htm_fmw
+          do j=jfts,jfte
+            do i=ifts,ifte
+              ht_fmw(i,k,j)=htm_fmw
+            enddo
+          enddo
+        enddo
+      endif
  
      endif !restart
 
     elseif(ifun.eq.3)then  ! interpolate winds to the fire grid
+
+      if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
+        ! interpolate to firewind layers, ht_fmw already set  
+        do k=1,nfmw
+          call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
+            ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+            ims,ime, kms,kme, jms,jme,                    &
+            ips,ipe,jps,jpe,                              &
+            its,ite,jts,jte,                              &
+            ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+            ifms, ifme, jfms, jfme,                       &
+            ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+            ifts,ifte,jfts,jfte,                          &
+            ir,jr,                                        & ! atm/fire grid ratio
+            u_frame, v_frame,                             & ! velocity frame correction
+            u,v,ph,phb,                                   & ! input atmospheric arrays
+            fz0,                                          &
+            ht_fmw(ifms,k,ifms),                      & !  above terrain height to interpolate to 
+            u0_fmw(ifms,k,ifms),                      & !  interpolated initial fire wind u
+            v0_fmw(ifms,k,ifms))                        !  interpolated initial fire wind v
+        enddo
+      endif
  
       if(use_atm_vars)then                                  
      
@@ -1000,8 +1053,7 @@ do ij=1,num_tiles
             ifts,ifte,jfts,jfte,                    &
             nfuel_cat,fp%vx,fp%vy)
           endif
-
-
+ 
           !If we are deploying the Massman parameterization, we need to interpolate our winds
           !down to the canopy height instead of the FWH. Here we will need to call the interpolate_wind2can
           !subroutine, for our specified canopy height assigned in the namelist (not yet implemented, 
@@ -1849,8 +1901,8 @@ subroutine check_grid_alloc(grid,config_flags)
     endif
     call message('check_grid_alloc: checking if grid arrays used in firewind are allocated',level=3)
     if (config_flags%ifmw_qes==1)then
-        call check_shape(shape(grid%u_fmw),'u_fmw')
-        call check_shape(shape(grid%v_fmw),'v_fmw')
+        call check_shape(shape(grid%u0_fmw),'u_fmw')
+        call check_shape(shape(grid%v0_fmw),'v_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
     endif
     if (config_flags%ifmw_run==1)then
@@ -1891,5 +1943,30 @@ end subroutine check_shape
 !msg=id
 !call message(msg,level=1)
 !end subroutine print_id
+
+real function findq(a,n)
+! find q such that 1+q+q^2 +...+q^(n-1)=a
+real, intent(in)::a
+integer, intent(in)::n
+!*** internal
+real:: q,err,tol,rn,rtol
+integer:: maxit,k
+!*** executable
+rn = n ! convert 
+rtol = 1e-5
+maxit=1000
+if (a>rn) then
+    q=a/rn  
+    do k=1,maxit
+        q = (1.+a*(q-1.))**(1./rn)
+        err = (q**n -1)/(q-1) - a
+        if (abs(err) < rtol*a) exit 
+    enddo
+else
+    call crash('findq: must give q>1')
+endif
+findq=q
+end function findq
+
 
 end module module_fr_sfire_driver
