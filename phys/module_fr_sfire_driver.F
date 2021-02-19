@@ -729,7 +729,6 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
     ij,i,j,k,id,pid,ipe1,jpe1,ite1,jte1, &
     ii,jj,                                 &
     ifts,ifte,jfts,jfte                          ! fire tile
-real:: exp_fmw,htm_fmw                           ! firewind layers expansion ratio & mid height
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
@@ -806,7 +805,7 @@ ipe1=ifval(ipe.eq.ide,ipe+1,ipe)
 jpe1=ifval(jpe.eq.jde,jpe+1,jpe)
 
 ! set up fire tiles & interpolate to fire grid
-!$OMP PARALLEL DO PRIVATE(ij,its,ite,jts,jte,ite1,jte1,ifts,ifte,jfts,jfte,msg,id,exp_fmw,htm_fmw) &
+!$OMP PARALLEL DO PRIVATE(ij,its,ite,jts,jte,ite1,jte1,ifts,ifte,jfts,jfte,msg,id) &
 !$OMP SCHEDULE(STATIC)
 do ij=1,num_tiles
 
@@ -957,18 +956,13 @@ do ij=1,num_tiles
         ! not using zsf any more but anyway
         call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fp%zsf,'driver_phys:zsf')        
 
-      if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
-        exp_fmw = findq(config_flags%top_fmw/config_flags%ht2_fmw,nfmw) ! expansion factor for firewind mesg
-        do k=1,nfmw 
-          htm_fmw = config_flags%ht2_fmw*0.5*(1.0+exp_fmw)*exp_fmw**(k-1)
-          write(msg,*)'firewind layer ',k,' midpoint at ',htm_fmw
-          do j=jfts,jfte
-            do i=ifts,ifte
-              ht_fmw(i,k,j)=htm_fmw
-            enddo
-          enddo
-        enddo
-      endif
+        if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
+          call set_fmw_layers(config_flags,               &
+            ifms, ifme, jfms, jfme,                       &
+            ifts,ifte,jfts,jfte,                          &
+            nfmw,                                         &
+            ht_fmw)
+        endif
  
      endif !restart
 
@@ -1944,6 +1938,43 @@ end subroutine check_shape
 !call message(msg,level=1)
 !end subroutine print_id
 
+subroutine set_fmw_layers(config_flags,                   &
+            ifms, ifme, jfms, jfme,                       &
+            ifts,ifte,jfts,jfte,                          &
+            nfmw,                                         &
+            ht_fmw)
+    implicit none
+!**** arguments
+    TYPE (grid_config_rec_type) , INTENT(IN)  :: config_flags ! namelist
+    integer, intent(in):: nfmw,             &
+            ifms, ifme, jfms, jfme,         &
+            ifts,ifte,jfts,jfte
+    real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
+            ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
+!**** local
+    real:: exp_fmw,htt_fmw(0:nfmw),htm_fmw
+    integer::i,j,k
+    character(len=256)::msg
+!*** executable
+    exp_fmw = findq(config_flags%top_fmw/config_flags%ht2_fmw,nfmw) ! expansion factor for firewind mesg
+    write(msg,*)'set_fmw_layers: lowest layer thickness ',config_flags%ht2_fmw, &
+         'm, top',config_flags%top_fmw,'m layers',nfmw,' expansion ratio ',exp_fmw
+    call message(msg)
+
+    htt_fmw(0)=0.    ! 1st layer starts on the ground
+    do k=1,nfmw 
+      htt_fmw(k)=config_flags%ht2_fmw * exp_fmw**k               ! top of layer k
+      htm_fmw = 0.5*(htt_fmw(k)+htt_fmw(k-1))
+      write(msg,*)'firewind layer ',k,' top at ',htt_fmw(k)
+      do j=jfts,jfte
+        do i=ifts,ifte
+          ht_fmw(i,k,j)=htm_fmw
+        enddo
+      enddo
+    enddo
+
+contains
+
 real function findq(a,n)
 ! find q such that 1+q+q^2 +...+q^(n-1)=a
 real, intent(in)::a
@@ -1960,13 +1991,17 @@ if (a>rn) then
     do k=1,maxit
         q = (1.+a*(q-1.))**(1./rn)
         err = (q**n -1)/(q-1) - a
-        if (abs(err) < rtol*a) exit 
+        print *,k,q,err
+        if (abs(err) < rtol*a) goto 1 
     enddo
+    call warning('findq: did not converge')
 else
-    call crash('findq: must give q>1')
+    call crash('findq: must have a>n')
 endif
-findq=q
+1 findq=q
 end function findq
+
+end subroutine set_fmw_layers
 
 
 end module module_fr_sfire_driver
