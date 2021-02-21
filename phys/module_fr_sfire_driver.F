@@ -712,7 +712,7 @@ integer, intent(in)::  nfmw
 real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw                         ! initial fire wind v
-real, intent(inout), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
+real, intent(inout), dimension(nfmw) :: &
     ht_fmw                         ! heights of the bottom of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
@@ -732,6 +732,7 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
+real, dimension(ifps:ifpe,jfps:jfpe)::u0_tmp, v0_tmp  ! tmp: do on tile
 
 !*** executable
 
@@ -984,9 +985,15 @@ do ij=1,num_tiles
             u_frame, v_frame,                             & ! velocity frame correction
             u,v,ph,phb,                                   & ! input atmospheric arrays
             fz0,                                          &
-            ht_fmw(ifms,k,ifms),                      & !  above terrain height to interpolate to 
-            u0_fmw(ifms,k,ifms),                      & !  interpolated initial fire wind u
-            v0_fmw(ifms,k,ifms))                        !  interpolated initial fire wind v
+            fwh,                                          & !  above terrain height to interpolate to 
+            u0_tmp,v0_tmp,                                & !  interpolated initial fire wind u,v
+            ht_fmw(k))                                      ! overrride fwh
+          do j=jfts,jfte
+            do i=ifts,ifte
+              u0_fmw(i,k,j)=u0_tmp(i,j)
+              v0_fmw(i,k,j)=u0_tmp(i,j)
+            enddo
+          enddo
         enddo
       endif
  
@@ -1949,11 +1956,11 @@ subroutine set_fmw_layers(config_flags,                   &
     integer, intent(in):: nfmw,             &
             ifms, ifme, jfms, jfme,         &
             ifts,ifte,jfts,jfte
-    real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
+    real, intent(out), dimension(nfmw) :: &
             ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
 !**** local
-    real:: exp_fmw,htt_fmw(0:nfmw),htm_fmw
-    integer::i,j,k
+    real:: exp_fmw,htt_fmw(0:nfmw)
+    integer::k
     character(len=256)::msg
 !*** executable
     exp_fmw = findq(config_flags%top_fmw/config_flags%ht2_fmw,nfmw) ! expansion factor for firewind mesg
@@ -1964,13 +1971,9 @@ subroutine set_fmw_layers(config_flags,                   &
     htt_fmw(0)=0.    ! 1st layer starts on the ground
     do k=1,nfmw 
       htt_fmw(k)=config_flags%ht2_fmw * exp_fmw**k               ! top of layer k
-      htm_fmw = 0.5*(htt_fmw(k)+htt_fmw(k-1))
-      write(msg,*)'firewind layer ',k,' top at ',htt_fmw(k)
-      do j=jfts,jfte
-        do i=ifts,ifte
-          ht_fmw(i,k,j)=htm_fmw
-        enddo
-      enddo
+      ht_fmw(k)= 0.5*(htt_fmw(k)+htt_fmw(k-1))
+      write(msg,*)'firewind layer ',k,' top at ',htt_fmw(k),' midpoint ',ht_fmw(k)
+      call message(msg)
     enddo
 
 contains
