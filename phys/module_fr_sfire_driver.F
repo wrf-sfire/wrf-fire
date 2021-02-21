@@ -712,8 +712,7 @@ integer, intent(in)::  nfmw
 real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw                         ! initial fire wind v
-real, intent(inout), dimension(nfmw) :: &
-    ht_fmw                         ! heights of the bottom of fire wind layers above the terrain 
+real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
 
@@ -1956,24 +1955,26 @@ subroutine set_fmw_layers(config_flags,                   &
     integer, intent(in):: nfmw,             &
             ifms, ifme, jfms, jfme,         &
             ifts,ifte,jfts,jfte
-    real, intent(out), dimension(nfmw) :: &
-            ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
+    real, intent(out), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
 !**** local
-    real:: exp_fmw,htt_fmw(0:nfmw)
+    real:: exp_fmw,htt_fmw(0:nfmw),thick
     integer::k
     character(len=256)::msg
 !*** executable
+1 format(a,i3,6(a,g13.7))
     exp_fmw = findq(config_flags%top_fmw/config_flags%ht2_fmw,nfmw) ! expansion factor for firewind mesg
-    write(msg,*)'set_fmw_layers: lowest layer thickness ',config_flags%ht2_fmw, &
-         'm, top',config_flags%top_fmw,'m layers',nfmw,' expansion ratio ',exp_fmw
+    write(msg,1)'set_fmw_layers: layers',nfmw,' first layer thickness ',config_flags%ht2_fmw, &
+         'm, top',config_flags%top_fmw,'m expansion ratio ',exp_fmw
     call message(msg)
 
     htt_fmw(0)=0.    ! 1st layer starts on the ground
+    thick=config_flags%ht2_fmw  ! thickness of the first layer
     do k=1,nfmw 
-      htt_fmw(k)=config_flags%ht2_fmw * exp_fmw**k               ! top of layer k
+      htt_fmw(k)=htt_fmw(k-1)+thick
       ht_fmw(k)= 0.5*(htt_fmw(k)+htt_fmw(k-1))
-      write(msg,*)'firewind layer ',k,' top at ',htt_fmw(k),' midpoint ',ht_fmw(k)
+      write(msg,*)'femwind layer',k,' thick=',thick,' top=',htt_fmw(k),' mid=',ht_fmw(k)
       call message(msg)
+      thick=thick*exp_fmw               ! thickness of the next layer
     enddo
 
 contains
@@ -1983,25 +1984,36 @@ real function findq(a,n)
 real, intent(in)::a
 integer, intent(in)::n
 !*** internal
-real:: q,err,tol,rn,rtol
-integer:: maxit,k
+real:: q,err,tol,rn,rtol,sum,s
+integer:: maxit,k,i
+character(len=256)msg
 !*** executable
+rtol = 1e-6
+tol = a*rtol
+1 format(a,i3,6(a,g13.7))
+write(msg,1)'findq:find q such that 1+q+q^2 +...+q^(n-1)=a n=',n,' a=',a,' rtol=',rtol,' tol=',tol
+call message(msg)
 rn = n ! convert 
-rtol = 1e-5
 maxit=1000
 if (a>rn) then
     q=a/rn  
     do k=1,maxit
         q = (1.+a*(q-1.))**(1./rn)
-        err = (q**n -1)/(q-1) - a
-        print *,k,q,err
-        if (abs(err) < rtol*a) goto 1 
+        s = (q**n -1)/(q-1)
+        sum = 1.
+        do i=1,n-1
+           sum = sum*q +1.
+        enddo
+        err = sum-a
+        write(msg,1)'findq:it=',k,' q=',q,' err=',err,' sum=',sum,' s=',s,' diff=',sum-s
+        call message(msg)
+        if (abs(err) < rtol*a) goto 9 
     enddo
     call warning('findq: did not converge')
 else
     call crash('findq: must have a>n')
 endif
-1 findq=q
+9 findq=q
 end function findq
 
 end subroutine set_fmw_layers
