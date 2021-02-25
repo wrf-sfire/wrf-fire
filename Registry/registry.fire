@@ -123,8 +123,7 @@ halo      HALO_FIRE_MAG dyn_em 8:fmc_gc
 rconfig  integer  ifmw_qes              namelist,fire  max_domains   0              hr  "create fire wind field for QES-Winds" "1"
 rconfig  integer  ifmw_run              namelist,fire  max_domains   0              hr  "run fire wind model" "1"
 #<Table>  <Dim> <Order> <How defined>                <Coord-axis>  <Dimname in Datasets>
-dimspec  num_fmw      -           namelist=nfmw              z       num_fmw 
-dimspec  nht_fmw      1           namelist=nfmw              z       nht_fmw 
+dimspec  num_fmw      2          namelist=nfmw              z       num_fmw 
 rconfig  integer  nfmw  namelist,fire           1          20    -  "NFMW" "number of fire wind vertical layers" "1"
 rconfig  real     ht2_fmw            namelist,fire  max_domains   2              hr  "bottom of 2nd layer = thickness of 1st layer" "m"
 rconfig  real     top_fmw            namelist,fire  max_domains   1000           hr  "top of last layer= thickness of fmw domain" "m"
@@ -134,7 +133,7 @@ state    real     w_fmw  *i{num_fmw}*j fire      1        -   h   "W_FMW"  "fire
 state    real     u0_fmw  *i{num_fmw}*j fire      1        -   h   "U0_FMW"  "initial fire wind u" "m/s"
 state    real     v0_fmw  *i{num_fmw}*j fire      1        -   h   "V0_FMW"  "initial fire wind v" "m/s"
 state    real     w0_fmw  *i{num_fmw}*j fire      1        -   h   "W0_FMW"  "initial fire wind w" "m/s"
-state    real     ht_fmw  {nht_fmw} fire          1        z   hr   "HT_FMW"  "heights of the midpoints of the fire wind layers above the terrain" "m"
+state    real     ht_fmw  *i{num_fmw}*j fire      1        -   hr   "HT_FMW"  "heights of the centers of the fire wind cells above the terrain" "m"
 state    real     htc_fmw  *i{num_fmw}*j fire     1        z   hr   "HTC_FMW"  "absolute heights of the corners of fire wind layers" "m"
 state    real     lambda_fmw *i{num_fmw}*j fire  1        -   hr   "LAMBDA_FMW"  "langrange multiplier at cell midpoints" "1/s"
 halo     HALO_LAMBDA_FMW            dyn_em 24:lambda_fmw

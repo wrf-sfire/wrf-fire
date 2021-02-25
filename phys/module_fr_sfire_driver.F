@@ -609,7 +609,7 @@ subroutine sfire_driver_phys (ifun,    &
     fndwi,                      &   ! ndwi on fire grid
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw,                     &  ! initial fire wind v
-    ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
+    ht_fmw                      &  ! heights of centers of wind cells above the terrain 
     )
 
 
@@ -712,7 +712,7 @@ integer, intent(in)::  nfmw
 real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw                         ! initial fire wind v
-real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
+real, intent(inout), dimension(ifms:ifme,nfmw,jfms:jfme) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
 
@@ -731,7 +731,8 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
-real, dimension(ifps:ifpe,jfps:jfpe)::u0_tmp, v0_tmp  ! tmp: do on tile
+real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp, ht_tmp  ! tmp: do on tile   
+!! too large, using ifts ifte jfts jfte requires mod of interpolate_wind2fire_height
 
 !*** executable
 
@@ -961,7 +962,7 @@ do ij=1,num_tiles
             ifms, ifme, jfms, jfme,                       &
             ifts,ifte,jfts,jfte,                          &
             nfmw,                                         &
-            ht_fmw)
+            ht_fmw)            ! set height above terrain
         endif
  
      endif !restart
@@ -971,6 +972,11 @@ do ij=1,num_tiles
       if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
         ! interpolate to firewind layers, ht_fmw already set  
         do k=1,nfmw
+          do j=jfts,jfte
+            do i=ifts,ifte
+              ht_tmp_(i,j)=ht_fmw(i,k,j)
+            enddo
+          enddo
           call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
             ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
             ims,ime, kms,kme, jms,jme,                    &
@@ -984,13 +990,13 @@ do ij=1,num_tiles
             u_frame, v_frame,                             & ! velocity frame correction
             u,v,ph,phb,                                   & ! input atmospheric arrays
             fz0,                                          &
-            fwh,                                          & !  above terrain height to interpolate to 
+            ht_tmp,                                          & !  above terrain height to interpolate to 
             u0_tmp,v0_tmp,                                & !  interpolated initial fire wind u,v
             ht_fmw(k))                                      ! overrride fwh
           do j=jfts,jfte
             do i=ifts,ifte
               u0_fmw(i,k,j)=u0_tmp(i,j)
-              v0_fmw(i,k,j)=u0_tmp(i,j)
+              v0_fmw(i,k,j)=v0_tmp(i,j)
             enddo
           enddo
         enddo
@@ -1955,10 +1961,10 @@ subroutine set_fmw_layers(config_flags,                   &
     integer, intent(in):: nfmw,             &
             ifms, ifme, jfms, jfme,         &
             ifts,ifte,jfts,jfte
-    real, intent(out), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
+    real, intent(out), dimension(ifms:ifme,nfmw,nfms_nfme) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
 !**** local
-    real:: exp_fmw,htt_fmw(0:nfmw),thick
-    integer::k
+    real:: exp_fmw,htt_fmw(0:nfmw),htm_fmw(1:nfmw),thick
+    integer::i,j,k
     character(len=256)::msg
 !*** executable
 1 format(a,i3,6(a,g13.7))
@@ -1971,10 +1977,17 @@ subroutine set_fmw_layers(config_flags,                   &
     thick=config_flags%ht2_fmw  ! thickness of the first layer
     do k=1,nfmw 
       htt_fmw(k)=htt_fmw(k-1)+thick
-      ht_fmw(k)= 0.5*(htt_fmw(k)+htt_fmw(k-1))
-      write(msg,*)'femwind layer',k,' thick=',thick,' top=',htt_fmw(k),' mid=',ht_fmw(k)
+      htm_fmw(k)= 0.5*(htt_fmw(k)+htt_fmw(k-1))
+      write(msg,*)'femwind layer',k,' thick=',thick,' top=',htt_fmw(k),' mid=',htm_fmw(k)
       call message(msg)
       thick=thick*exp_fmw               ! thickness of the next layer
+    enddo
+    do j=jfts,jfte
+      do k=1,nftw
+        do i=ifts,ifte
+          ht_fmw(i,k,j)=htm_fmw(k)
+        enddo
+      enddo
     enddo
 
 contains
