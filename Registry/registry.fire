@@ -123,7 +123,7 @@ halo      HALO_FIRE_MAG dyn_em 8:fmc_gc
 rconfig  integer  ifmw_qes              namelist,fire  max_domains   0              hr  "create fire wind field for QES-Winds" "1"
 rconfig  integer  ifmw_run              namelist,fire  max_domains   0              hr  "run fire wind model" "1"
 #<Table>  <Dim> <Order> <How defined>                <Coord-axis>  <Dimname in Datasets>
-dimspec  num_fmw      -           namelist=nfmw              z       num_fmw 
+dimspec  num_fmw      2           namelist=nfmw              z       num_fmw 
 dimspec  nht_fmw      1           namelist=nfmw              z       nht_fmw 
 rconfig  integer  nfmw  namelist,fire           1          20    -  "NFMW" "number of fire wind vertical layers" "1"
 rconfig  real     ht2_fmw            namelist,fire  max_domains   2              hr  "bottom of 2nd layer = thickness of 1st layer" "m"

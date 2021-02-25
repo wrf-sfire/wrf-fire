@@ -731,7 +731,7 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
-real, dimension(ifps:ifpe,jfps:jfpe)::u0_tmp, v0_tmp  ! tmp: do on tile
+real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp  ! tmp: do on tile
 
 !*** executable
 
@@ -987,6 +987,9 @@ do ij=1,num_tiles
             fwh,                                          & !  above terrain height to interpolate to 
             u0_tmp,v0_tmp,                                & !  interpolated initial fire wind u,v
             ht_fmw(k))                                      ! overrride fwh
+          !
+          ! *** Fix this by changing interpolate_wind2fire_height - the temporary wind arrays should not be needed
+          !
           do j=jfts,jfte
             do i=ifts,ifte
               u0_fmw(i,k,j)=u0_tmp(i,j)
