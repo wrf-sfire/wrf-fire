@@ -492,6 +492,7 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%fndwi, &
             grid%u0_fmw,                     &  ! initial fire wind u
             grid%v0_fmw,                     &  ! initial fire wind v
+            grid%w0_fmw,                     &  ! initial fire wind v
             grid%ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
          )
  
@@ -609,6 +610,7 @@ subroutine sfire_driver_phys (ifun,    &
     fndwi,                      &   ! ndwi on fire grid
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw,                     &  ! initial fire wind v
+    w0_fmw,                     &  ! initial fire wind v
     ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
     )
 
@@ -709,9 +711,7 @@ real, intent(inout), dimension(ifms:ifme,jfms:jfme):: fmc_g
 
 ! firewind arguments
 integer, intent(in)::  nfmw
-real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: &
-    u0_fmw,                     &  ! initial fire wind u
-    v0_fmw                         ! initial fire wind v
+real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: u0_fmw,v0_fmw,w0_fmw  ! initial femwind
 real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
@@ -731,7 +731,10 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
-real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp  ! tmp: do on tile
+
+! femwind variables - should move all this to subrouitine and declare temporaries on a tile?
+real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp  !
+real:: u0, v0, w0, sc, uv2
 
 !*** executable
 
@@ -988,14 +991,31 @@ do ij=1,num_tiles
             u0_tmp,v0_tmp,                                & !  interpolated initial fire wind u,v
             ht_fmw(k))                                      ! overrride fwh
           !
-          ! *** Fix this by changing interpolate_wind2fire_height - the temporary wind arrays should not be needed
+          ! lift horizontal wind with terrain gradient 
+          ! *** TO DO: interpolate also the w wind and add to w0_fmw
           !
-          do j=jfts,jfte
-            do i=ifts,ifte
-              u0_fmw(i,k,j)=u0_tmp(i,j)
-              v0_fmw(i,k,j)=u0_tmp(i,j)
+          if (config_flags%lift_fmw == 1)then 
+            do j=jfts,jfte
+              do i=ifts,ifte
+                u0 = u0_tmp(i,j)
+                v0 = v0_tmp(i,j)
+                w0 = u0 * fp%dzdxf(i,j) + v0 * fp%dzdyf(i,j)  ! add w component to lift horizontal wind and align with terrain gradient
+                uv2 = u0*u0 + v0*v0                           ! horizontal wind squared
+                sc = sqrt( uv2/max(uv2 + w0*w0,tiny(uv2)))    ! scaling factor to keep wind vector size, avoiding div by zero
+                u0_fmw(i,k,j)=u0*sc
+                v0_fmw(i,k,j)=v0*sc
+                w0_fmw(i,k,j)=w0*sc
+              enddo
             enddo
-          enddo
+          else
+            do j=jfts,jfte
+              do i=ifts,ifte
+                u0_fmw(i,k,j) = u0_tmp(i,j)
+                v0_fmw(i,k,j) = v0_tmp(i,j)
+                w0_fmw(i,k,j) = 0.
+              enddo
+            enddo
+          endif
         enddo
       endif
  
@@ -1906,6 +1926,7 @@ subroutine check_grid_alloc(grid,config_flags)
     if (config_flags%ifmw_qes==1)then
         call check_shape(shape(grid%u0_fmw),'u_fmw')
         call check_shape(shape(grid%v0_fmw),'v_fmw')
+        call check_shape(shape(grid%w0_fmw),'v_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
     endif
     if (config_flags%ifmw_run==1)then
@@ -1913,6 +1934,7 @@ subroutine check_grid_alloc(grid,config_flags)
         call check_shape(shape(grid%v_fmw),'v_fmw')
         call check_shape(shape(grid%u0_fmw),'u0_fmw')
         call check_shape(shape(grid%v0_fmw),'v0_fmw')
+        call check_shape(shape(grid%w0_fmw),'v_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
         call check_shape(shape(grid%lambda_fmw),'lambda_fmw')
     endif

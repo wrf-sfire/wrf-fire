@@ -2257,7 +2257,7 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
       loop_k: do k=kds,kdmax         ! search for layer k such that ht(k-1)<=wh<ht(k), ht(0)=z0
         ! interpolate height from atmospheric cell midpoints
         ht=interpolate_h(its-1,ite+1,kds,kde,jts-1,jte+1,icm,k,jcm,wicm,wjcm,z)
-        print *,'atm layer',k,' ht=',ht,' interpolating to wind height wh=',wh
+        ! print *,'atm layer',k,' ht=',ht,' interpolating to wind height wh=',wh
         if(.not. ht < wh) exit loop_k ! found layer k this point is in
         ht_last = ht
       enddo loop_k
