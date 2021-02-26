@@ -120,8 +120,9 @@ halo      HALO_FIRE_MFG dyn_em 24:fmc_g
 halo      HALO_FIRE_MAG dyn_em 8:fmc_gc
 
 # mass consistent downscaling model section
-rconfig  integer  ifmw_qes              namelist,fire  max_domains   0              hr  "create fire wind field for QES-Winds" "1"
-rconfig  integer  ifmw_run              namelist,fire  max_domains   0              hr  "run fire wind model" "1"
+rconfig  integer  ifmw_qes          namelist,fire  max_domains   0              hr  "create fire wind field for QES-Winds" "1"
+rconfig  integer  ifmw_run          namelist,fire  max_domains   0              hr  "run fire wind model" "1"
+rconfig  integer  lift_fmw          namelist,fire  max_domains   0              hr  "lift wind vector with terrain, 0=no, 1=yes" "1"
 #<Table>  <Dim> <Order> <How defined>                <Coord-axis>  <Dimname in Datasets>
 dimspec  num_fmw      2           namelist=nfmw              z       num_fmw 
 dimspec  nht_fmw      1           namelist=nfmw              z       nht_fmw 
