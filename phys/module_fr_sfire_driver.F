@@ -733,7 +733,7 @@ character(len=3)::kk
 real, parameter::zero=0.
 
 ! femwind variables - should move all this to subrouitine and declare temporaries on a tile?
-real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp  !
+real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp, w0_tmp  !
 real:: u0, v0, w0, sc, uv2
 
 !*** executable
@@ -959,7 +959,7 @@ do ij=1,num_tiles
         ! not using zsf any more but anyway
         call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fp%zsf,'driver_phys:zsf')        
 
-        if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
+        if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
           call set_fmw_layers(config_flags,               &
             ifms, ifme, jfms, jfme,                       &
             ifts,ifte,jfts,jfte,                          &
@@ -971,7 +971,7 @@ do ij=1,num_tiles
 
     elseif(ifun.eq.3)then  ! interpolate winds to the fire grid
 
-      if(config_flags%ifmw_qes >0 .or. config_flags%ifmw_run)then
+      if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
         ! interpolate to firewind layers, ht_fmw already set  
         do k=1,nfmw
           call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
@@ -990,6 +990,14 @@ do ij=1,num_tiles
             fwh,                                          & !  above terrain height to interpolate to 
             u0_tmp,v0_tmp,                                & !  interpolated initial fire wind u,v
             ht_fmw(k))                                      ! overrride fwh
+          if(fire_print_msg >= 2)then
+!$OMP CRITICAL(SFIRE_DRIVER_CRIT)
+            write(msg,'(a,i3,a,f8.2,a)')'driver_phys: Interpolating layer',k,' at',ht_fmw(k),'m'
+!!$OMP END CRITICAL(SFIRE_DRIVER_CRIT)
+            call message(msg)
+            call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,u0_tmp,'driver_phys:u0_tmp')        
+            call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,v0_tmp,'driver_phys:v0_tmp')        
+          endif
           !
           ! lift horizontal wind with terrain gradient 
           ! *** TO DO: interpolate also the w wind and add to w0_fmw
@@ -1002,9 +1010,25 @@ do ij=1,num_tiles
                 w0 = u0 * fp%dzdxf(i,j) + v0 * fp%dzdyf(i,j)  ! add w component to lift horizontal wind and align with terrain gradient
                 uv2 = u0*u0 + v0*v0                           ! horizontal wind squared
                 sc = sqrt( uv2/max(uv2 + w0*w0,tiny(uv2)))    ! scaling factor to keep wind vector size, avoiding div by zero
-                u0_fmw(i,k,j)=u0*sc
-                v0_fmw(i,k,j)=v0*sc
-                w0_fmw(i,k,j)=w0*sc
+                u0_tmp(i,j)=u0*sc
+                v0_tmp(i,j)=v0*sc
+                w0_tmp(i,j)=w0*sc
+              enddo
+            enddo
+            if(fire_print_msg >= 2)then
+!$OMP CRITICAL(SFIRE_DRIVER_CRIT)
+              write(msg,'(a,i3,a,f8.2,a)')'driver_phys: lifting horizontal wind with terrain gradient: layer',k,' at',ht_fmw(k),'m'
+!!$OMP END CRITICAL(SFIRE_DRIVER_CRIT)
+              call message(msg)
+              call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,u0_tmp,'driver_phys:u0_tmp')        
+              call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,v0_tmp,'driver_phys:v0_tmp')        
+              call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,w0_tmp,'driver_phys:w0_tmp')        
+            endif
+            do j=jfts,jfte
+              do i=ifts,ifte
+                u0_fmw(i,k,j) = u0_tmp(i,j)
+                v0_fmw(i,k,j) = v0_tmp(i,j)
+                w0_fmw(i,k,j) = w0_tmp(i,j)
               enddo
             enddo
           else
@@ -1012,7 +1036,6 @@ do ij=1,num_tiles
               do i=ifts,ifte
                 u0_fmw(i,k,j) = u0_tmp(i,j)
                 v0_fmw(i,k,j) = v0_tmp(i,j)
-                w0_fmw(i,k,j) = 0.
               enddo
             enddo
           endif
