@@ -493,7 +493,7 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%u0_fmw,                     &  ! initial fire wind u
             grid%v0_fmw,                     &  ! initial fire wind v
             grid%w0_fmw,                     &  ! initial fire wind v
-            grid%ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
+            grid%ht_fmw                      &  ! heights of the midpoint of fire wind layers above the terrain 
          )
  
 
@@ -611,7 +611,7 @@ subroutine sfire_driver_phys (ifun,    &
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw,                     &  ! initial fire wind v
     w0_fmw,                     &  ! initial fire wind v
-    ht_fmw                      &  ! heights of the bottom of fire wind layers above the terrain 
+    ht_fmw                      &  ! heights of the midpoint of fire wind layers above the terrain 
     )
 
 
@@ -712,7 +712,7 @@ real, intent(inout), dimension(ifms:ifme,jfms:jfme):: fmc_g
 ! firewind arguments
 integer, intent(in)::  nfmw
 real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: u0_fmw,v0_fmw,w0_fmw  ! initial femwind
-real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
+real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the midpoint of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
 
@@ -2003,7 +2003,7 @@ subroutine set_fmw_layers(config_flags,                   &
     integer, intent(in):: nfmw,             &
             ifms, ifme, jfms, jfme,         &
             ifts,ifte,jfts,jfte
-    real, intent(out), dimension(nfmw) :: ht_fmw   ! heights of the bottom of fire wind layers above the terrain 
+    real, intent(out), dimension(nfmw) :: ht_fmw   ! heights of the midpoint of fire wind layers above the terrain 
 !**** local
     real:: exp_fmw,htt_fmw(0:nfmw),thick
     integer::k
