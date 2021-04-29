@@ -1947,18 +1947,20 @@ subroutine check_grid_alloc(grid,config_flags)
     endif
     call message('check_grid_alloc: checking if grid arrays used in firewind are allocated',level=3)
     if (config_flags%ifmw_qes==1)then
-        call check_shape(shape(grid%u0_fmw),'u_fmw')
-        call check_shape(shape(grid%v0_fmw),'v_fmw')
-        call check_shape(shape(grid%w0_fmw),'v_fmw')
+        call check_shape(shape(grid%u0_fmw),'u0_fmw')
+        call check_shape(shape(grid%v0_fmw),'v0_fmw')
+        call check_shape(shape(grid%w0_fmw),'w0_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
     endif
     if (config_flags%ifmw_run==1)then
         call check_shape(shape(grid%u_fmw),'u_fmw')
         call check_shape(shape(grid%v_fmw),'v_fmw')
+        call check_shape(shape(grid%w_fmw),'w_fmw')
         call check_shape(shape(grid%u0_fmw),'u0_fmw')
         call check_shape(shape(grid%v0_fmw),'v0_fmw')
-        call check_shape(shape(grid%w0_fmw),'v_fmw')
+        call check_shape(shape(grid%w0_fmw),'w0_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
+        call check_shape(shape(grid%htc_fmw),'htc_fmw')
         call check_shape(shape(grid%lambda_fmw),'lambda_fmw')
     endif
     call message('check_grid_alloc: checking if grid arrays used in emissions are allocated',level=2)
