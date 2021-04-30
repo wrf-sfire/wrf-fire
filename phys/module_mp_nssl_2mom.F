@@ -142,14 +142,14 @@ MODULE module_mp_nssl_2mom
   public nssl_2mom_driver
   public nssl_2mom_init
   private gamma_sp,gamxinf,GAML02, GAML02d300, GAML02d500, fqvs, fqis
-  private gamma_dp, gamxinfdp
+  private gamma_dp, gamxinfdp, gamma_dpr
   private delbk, delabk
   private gammadp
   
   logical, private :: cleardiag = .false.
   PRIVATE
 
-#ifdef WRF_CHEM
+#if ( WRF_CHEM == 1 )
   integer, parameter :: wrfchem_flag = 1
 #else
   integer, parameter :: wrfchem_flag = 0
@@ -675,7 +675,7 @@ MODULE module_mp_nssl_2mom
       real :: ciacrratio(0:nqiacrratio,0:nqiacralpha)
       real :: qiacrratio(0:nqiacrratio,0:nqiacralpha)
       real :: ziacrratio(0:nqiacrratio,0:nqiacralpha)
-      double precision :: gamxinflu(0:nqiacrratio,0:nqiacralpha,10,2) ! last index for graupel (1) or hail (2)
+      double precision :: gamxinflu(0:nqiacrratio,0:nqiacralpha,12,2) ! last index for graupel (1) or hail (2)
 
     integer, parameter :: ngdnmm = 9
     real :: mmgraupvt(ngdnmm,3)  ! Milbrandt and Morrison (2013) fall speed coefficients for graupel/hail
@@ -885,7 +885,8 @@ MODULE module_mp_nssl_2mom
      integer :: isub
      real    :: bxh,bxhl
 
-      real    :: alp,ratio,x,y,y7
+      real    :: alp,ratio !,x,y,y7
+      double precision  :: x,y,y2,y7
       logical :: turn_on_ccna
      
 
@@ -1012,45 +1013,48 @@ MODULE module_mp_nssl_2mom
       
       DO j = 0,nqiacralpha
       alp = float(j)*dqiacralpha
-      y = gamma_sp(1.+alp)
+      y = gamma_dpr(1.+alp)
+      y2 = gamma_dpr(real(2.+alp))
       DO i = 0,nqiacrratio
         ratio = float(i)*dqiacrratio
-        x = gamxinf( 1.+alp, ratio )
+        x = gamxinfdp( 1.+alp, ratio )
 !        write(0,*) 'i, x/y = ',i, x/y
         ciacrratio(i,j) = x/y
 
         ! graupel (.,.,.,1)
         gamxinflu(i,j,1,1) = x/y
-        gamxinflu(i,j,2,1) = gamxinf( 2.0+alp, ratio )/y
-        gamxinflu(i,j,3,1) = gamxinf( 2.5+alp+0.5*bxh, ratio )/y
-        gamxinflu(i,j,5,1) = (gamma_sp(5.0+alp) - gamxinf( 5.0+alp, ratio ))/y
-        gamxinflu(i,j,6,1) = (gamma_sp(5.5+alp+0.5*bxh) - gamxinf( 5.5+alp+0.5*bxh, ratio ))/y
-        gamxinflu(i,j,9,1) = gamxinf( 1.0+alp, ratio )/y
-        gamxinflu(i,j,10,1)= gamxinf( 4.0+alp, ratio )/y
+        gamxinflu(i,j,2,1) = gamxinfdp( 2.0+alp, ratio )/y
+        gamxinflu(i,j,3,1) = gamxinfdp( 2.5+alp+0.5*bxh, ratio )/y
+        gamxinflu(i,j,5,1) = (gamma_dpr(5.0+alp) - gamxinfdp( 5.0+alp, ratio ))/y
+        gamxinflu(i,j,6,1) = (gamma_dpr(5.5+alp+0.5*bxh) - gamxinfdp( 5.5+alp+0.5*bxh, ratio ))/y
+        gamxinflu(i,j,9,1) = gamxinfdp( 1.0+alp, ratio )/y
+        gamxinflu(i,j,10,1)= gamxinfdp( 4.0+alp, ratio )/y
+
+        gamxinflu(i,j,12,1) = gamxinfdp( 2.0+alp, ratio )/y2
        
         ! hail (.,.,.,2)
         gamxinflu(i,j,1,2) = gamxinflu(i,j,1,1)
         gamxinflu(i,j,2,2) = gamxinflu(i,j,2,1)
-        gamxinflu(i,j,3,2) = gamxinf( 2.5+alp+0.5*bxhl, ratio )/y
+        gamxinflu(i,j,3,2) = gamxinfdp( 2.5+alp+0.5*bxhl, ratio )/y
         gamxinflu(i,j,5,2) = gamxinflu(i,j,5,1)
-        gamxinflu(i,j,6,2) = (gamma_sp(5.5+alp+0.5*bxhl) - gamxinf( 5.5+alp+0.5*bxhl, ratio ))/y
+        gamxinflu(i,j,6,2) = (gamma_dpr(5.5+alp+0.5*bxhl) - gamxinfdp( 5.5+alp+0.5*bxhl, ratio ))/y
         gamxinflu(i,j,9,2) = gamxinflu(i,j,9,1)
         gamxinflu(i,j,10,2)= gamxinflu(i,j,10,1)
 
       IF ( alp > 1.1 ) THEN
-!       gamxinflu(i,j,7,1) = gamxinf( alp - 1., ratio )/y
-       gamxinflu(i,j,7,1) = (gamma_sp(alp - 1.) - gamxinf( alp - 1., ratio ))/y
-!       gamxinflu(i,j,8,1) = gamxinf( alp - 0.5 + 0.5*bxh, ratio )/y
-       gamxinflu(i,j,8,1) = (gamma_sp(alp - 0.5 + 0.5*bxh) - gamxinf( alp - 0.5 + 0.5*bxh, ratio ))/y
-!       gamxinflu(i,j,8,2) = gamxinf( alp - 0.5 + 0.5*bxhl, ratio )/y
-       gamxinflu(i,j,8,2) = (gamma_sp(alp - 0.5 + 0.5*bxhl) - gamxinf( alp - 0.5 + 0.5*bxhl, ratio ))/y
+!       gamxinflu(i,j,7,1) = gamxinfdp( alp - 1., ratio )/y
+       gamxinflu(i,j,7,1) = (gamma_dpr(alp - 1.) - gamxinfdp( alp - 1., ratio ))/y
+!       gamxinflu(i,j,8,1) = gamxinfdp( alp - 0.5 + 0.5*bxh, ratio )/y
+       gamxinflu(i,j,8,1) = (gamma_dpr(alp - 0.5 + 0.5*bxh) - gamxinfdp( alp - 0.5 + 0.5*bxh, ratio ))/y
+!       gamxinflu(i,j,8,2) = gamxinfdp( alp - 0.5 + 0.5*bxhl, ratio )/y
+       gamxinflu(i,j,8,2) = (gamma_dpr(alp - 0.5 + 0.5*bxhl) - gamxinfdp( alp - 0.5 + 0.5*bxhl, ratio ))/y
       ELSE
-!       gamxinflu(i,j,7,1) = gamxinf( .1, ratio )/y
-       gamxinflu(i,j,7,1) = (gamma_sp(0.1) - gamxinf( 0.1, ratio ) )/y
-!       gamxinflu(i,j,8,1) = gamxinf( 1.1 - 0.5 + 0.5*bxh, ratio )/y
-!       gamxinflu(i,j,8,2) = gamxinf( 1.1 - 0.5 + 0.5*bxhl, ratio )/y
-       gamxinflu(i,j,8,1) = (gamma_sp(1.1 - 0.5 + 0.5*bxh) - gamxinf( 1.1 - 0.5 + 0.5*bxh, ratio ) )/y
-       gamxinflu(i,j,8,2) = (gamma_sp(1.1 - 0.5 + 0.5*bxhl) - gamxinf( 1.1 - 0.5 + 0.5*bxhl, ratio ) )/y
+!       gamxinflu(i,j,7,1) = gamxinfdp( .1, ratio )/y
+       gamxinflu(i,j,7,1) = (gamma_dpr(0.1) - gamxinfdp( 0.1, ratio ) )/y
+!       gamxinflu(i,j,8,1) = gamxinfdp( 1.1 - 0.5 + 0.5*bxh, ratio )/y
+!       gamxinflu(i,j,8,2) = gamxinfdp( 1.1 - 0.5 + 0.5*bxhl, ratio )/y
+       gamxinflu(i,j,8,1) = (gamma_dpr(1.1 - 0.5 + 0.5*bxh) - gamxinfdp( 1.1 - 0.5 + 0.5*bxh, ratio ) )/y
+       gamxinflu(i,j,8,2) = (gamma_dpr(1.1 - 0.5 + 0.5*bxhl) - gamxinfdp( 1.1 - 0.5 + 0.5*bxhl, ratio ) )/y
       ENDIF
         
         gamxinflu(i,j,7,2) = gamxinflu(i,j,7,1)
@@ -1065,14 +1069,19 @@ MODULE module_mp_nssl_2mom
       y7 = gamma_sp(7.+alp)
       DO i = 0,nqiacrratio
         ratio = float(i)*dqiacrratio
-        x = gamxinf( 4.+alp, ratio )
+        
+        ! mass fraction
+        x = gamxinfdp( 4.+alp, ratio )
 !        write(0,*) 'i, x/y = ',i, x/y
         qiacrratio(i,j) = x/y
         gamxinflu(i,j,4,1) = x/y
         gamxinflu(i,j,4,2) = x/y
 
-        x = gamxinf( 7.+alp, ratio )
+        ! reflectivity fraction
+        x = gamxinfdp( 7.+alp, ratio )
         ziacrratio(i,j) = x/y7
+        gamxinflu(i,j,11,1) = x/y7
+        gamxinflu(i,j,11,2) = x/y7
 
       ENDDO
       ENDDO
@@ -1628,7 +1637,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
                               diagflag,ke_diag,                                         &
                               nssl_progn,                                              & ! wrf-chem 
 ! 20130903 acd_mb_washout start
-                              rainprod, evapprod,                                       & ! wrf-chem 
+                              wetscav_on, rainprod, evapprod,                           & ! wrf-chem 
 ! 20130903 acd_mb_washout end
                               cu_used, qrcuten, qscuten, qicuten, qccuten,              & ! hm added
                               ids,ide, jds,jde, kds,kde,                                &  ! domain dims
@@ -1715,7 +1724,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 ! mu : air mass in column
    REAL, DIMENSION(ims:ime, kms:kme, jms:jme), optional, INTENT(IN):: qrcuten, qscuten, qicuten, qccuten
    INTEGER, optional, intent(in) :: cu_used
-
+   LOGICAL, optional, intent(in) :: wetscav_on
 !
 ! local variables
 !
@@ -1753,7 +1762,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
       double precision :: timevtcalc,timesetvt
       
       logical :: f_cnatmp
-      
+      logical :: has_wetscav
       integer :: kediagloc
 
 
@@ -2066,10 +2075,16 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
         ENDDO ! ix
        ENDDO ! kz
-
+    
+         has_wetscav = .false.
          IF ( wrfchem_flag > 0 ) THEN
-           IF ( PRESENT( rainprod ) ) rainprod2d(its:ite,kts:kte) = 0
-           IF ( PRESENT( evapprod ) ) evapprod2d(its:ite,kts:kte) = 0
+           IF ( PRESENT( wetscav_on ) ) THEN
+             has_wetscav = wetscav_on
+             IF ( has_wetscav ) THEN
+               IF ( PRESENT( rainprod ) ) rainprod2d(its:ite,kts:kte) = 0
+               IF ( PRESENT( evapprod ) ) evapprod2d(its:ite,kts:kte) = 0
+             ENDIF
+           ENDIF
          ENDIF
          
 
@@ -2200,7 +2215,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
      &   cdx,                              &
      &   xdn0,dbz2d,tke2d,                 &
      &   timevtcalc,axtra2d, makediag        &
-     &   ,rainprod2d, evapprod2d           &
+     &   ,has_wetscav, rainprod2d, evapprod2d  &
      & ,elec2,its,ids,ide,jds,jde          &
      & )
 
@@ -2362,8 +2377,8 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
          IF ( lvh > 0 )  vhw(ix,kz,jy) = an(ix,1,kz,lvh)
          IF ( lvhl > 0 .and. present( vhl ) ) vhl(ix,kz,jy) = an(ix,1,kz,lvhl)
 
-#ifdef WRF_CHEM
-         IF ( wrfchem_flag > 0 ) THEN
+#if ( WRF_CHEM == 1 )
+         IF ( has_wetscav ) THEN
            IF ( PRESENT( rainprod ) ) rainprod(ix,kz,jy) = rainprod2d(ix,kz)
            IF ( PRESENT( evapprod ) ) evapprod(ix,kz,jy) = evapprod2d(ix,kz)
          ENDIF
@@ -2432,6 +2447,24 @@ END SUBROUTINE nssl_2mom_driver
 
 ! #####################################################################
 
+      DOUBLE PRECISION FUNCTION GAMMA_DPR(x)
+      ! dp gamma with real input
+        implicit none
+        real :: x
+        double precision :: xx
+        
+        xx = x
+        
+        gamma_dpr = gamma_dp(xx)
+        
+        return
+        end FUNCTION GAMMA_DPR
+        
+
+
+
+! #####################################################################
+
         real function GAMXINF(A1,X1)
 
 !       ===================================================
@@ -2452,6 +2485,10 @@ END SUBROUTINE nssl_2mom_driver
         
         a = a1
         x = x1
+        IF ( x1 <= 0.0 ) THEN
+           gamxinf = GAMMA_SP(A1)
+           return
+        ENDIF
         XAM=-X+A*DLOG(X)
         IF (XAM.GT.700.0.OR.A.GT.170.0) THEN
            WRITE(*,*)'a and/or x too large'
@@ -2509,6 +2546,10 @@ END SUBROUTINE nssl_2mom_driver
         
         a = a1
         x = x1
+        IF ( x1 <= 0.0 ) THEN
+           gamxinfdp = GAMMA_DP(A)
+           return
+        ENDIF
         XAM=-X+A*DLOG(X)
         IF (XAM.GT.700.0.OR.A.GT.170.0) THEN
            WRITE(*,*)'a and/or x too large'
@@ -9169,7 +9210,7 @@ END SUBROUTINE nssl_2mom_driver
      &   cdx,                              &
      &   xdn0,tmp3d,tkediss  &
      & ,timevtcalc,axtra,io_flag  &
-     & ,rainprod2d, evapprod2d &
+     & ,has_wetscav, rainprod2d, evapprod2d &
      & ,elec,its,ids,ide,jds,jde &
      & )
 
@@ -9242,6 +9283,7 @@ END SUBROUTINE nssl_2mom_driver
       real dtp,dx,dy,dz
 
       logical, intent(in) :: io_flag
+      logical, intent(in) :: has_wetscav
 
       integer itile,jtile,ktile
       integer ixbeg,jybeg
@@ -17763,7 +17805,7 @@ END SUBROUTINE nssl_2mom_driver
       end if
 
 
-      IF ( wrfchem_flag > 0 ) THEN
+      IF ( has_wetscav ) THEN
         DO mgs = 1,ngscnt
          evapprod2d(igs(mgs),kgs(mgs)) = -(qrcev(mgs) + qssbv(mgs)  + qhsbv(mgs) + qhlsbv(mgs)) 
          rainprod2d(igs(mgs),kgs(mgs)) = qrcnw(mgs) + qracw(mgs) + qsacw(mgs) + qhacw(mgs) + qhlacw(mgs) + &
