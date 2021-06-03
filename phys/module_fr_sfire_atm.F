@@ -2146,7 +2146,8 @@ subroutine interpolate_wind2fire_height(id,       & ! to identify debugging prin
     u_frame, v_frame,                             & ! velocity frame correction
     u,v,ph,phb,                                   & ! input atmospheric arrays
     fz0,fwh,                                      & ! input fire arrays
-    uf,vf)                                          ! output fire arrays
+    uf,vf,                                        & ! output fire arrays
+    fwh1)                                           ! optional: scalar to use instead of fwh
 
   implicit none
 !*** arguments
@@ -2170,6 +2171,7 @@ real,intent(in),dimension(ifms:ifme,jfms:jfme)::&
 real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
     uf,                                           & ! atm wind at fire_wind_height, diagnostics
     vf                                              ! 
+real, intent(in), optional:: fwh1                   ! if present, use fwh1 do not reference fwh
 
 !*** local
   integer:: i,j,k,jcb,jcm,icb,icm,kdmax,kmin,kmax
@@ -2243,7 +2245,11 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
       call coarse(i,ir,-2,icb,wicb)    ! get interpolation coefficients from the boundary 
       call coarse(i,ir,ir,icm,wicm)    ! get interpolation coefficients from the midpoint 
       z0 = fz0(i,j)                    ! roughness length 
-      wh = fwh(i,j)                    ! wind height
+      if (present(fwh1))then
+         wh = fwh1                     ! given height same everywhere
+      else
+         wh = fwh(i,j)                    ! wind height
+      endif
 
       if( wh > z0 .and. z0 > 0)then
 
@@ -2251,6 +2257,7 @@ real,intent(out),dimension(ifms:ifme,jfms:jfme)::&
       loop_k: do k=kds,kdmax         ! search for layer k such that ht(k-1)<=wh<ht(k), ht(0)=z0
         ! interpolate height from atmospheric cell midpoints
         ht=interpolate_h(its-1,ite+1,kds,kde,jts-1,jte+1,icm,k,jcm,wicm,wjcm,z)
+        ! print *,'atm layer',k,' ht=',ht,' interpolating to wind height wh=',wh
         if(.not. ht < wh) exit loop_k ! found layer k this point is in
         ht_last = ht
       enddo loop_k

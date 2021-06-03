@@ -446,6 +446,7 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%num_tiles,                             & ! atm grid tiling
             grid%i_start,min(grid%i_end,ide-1),                    &
             grid%j_start,min(grid%j_end,jde-1),                    &                 
+            config_flags%nfmw,                                     & ! number of fire wind layers
             itimestep,restart,replay,config_flags%fire_fuel_read,config_flags%fire_fuel_cat, &  ! in scalars
             time_step_start,dt,grid%dx,grid%dy,                    &
             grid%u_frame,grid%v_frame,                  &
@@ -491,7 +492,12 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%fmc_lag,                      & ! fuel moisture fields updated, by class, tendency diagnostic
             fp%fmc_g, &                             !  write-only alias. need to exit before using fp again
             grid%ndwi, &
-            grid%fndwi)
+            grid%fndwi, &
+            grid%u0_fmw,                     &  ! initial fire wind u
+            grid%v0_fmw,                     &  ! initial fire wind v
+            grid%w0_fmw,                     &  ! initial fire wind v
+            grid%ht_fmw                      &  ! heights of the midpoint of fire wind layers above the terrain 
+         )
  
 
 #ifdef DM_PARALLEL
@@ -559,6 +565,7 @@ subroutine sfire_driver_phys (ifun,    &
     ifps, ifpe, jfps, jfpe,                       & ! fire patch in - will use smaller
     ir,jr,                                        & ! atm/fire grid ratio
     num_tiles,i_start,i_end,j_start,j_end,        & ! atm grid tiling
+    nfmw,                                         & ! number of fire wind layers
     itimestep,restart,replay,ifuelread,nfuel_cat0,       & ! in scalars
     time_step_start,dt,dx,dy,                     & ! in scalars
     u_frame,v_frame,                              &
@@ -603,7 +610,13 @@ subroutine sfire_driver_phys (ifun,    &
     fmc_lag,                    &  ! fuel moisture fields updated, by class tendency diagnostic
     fmc_g,                      &  ! fuel moisture, alias of fp%fmc_g
     ndwi,                       &
-    fndwi)                         ! ndwi on fire grid
+    fndwi,                      &   ! ndwi on fire grid
+    u0_fmw,                     &  ! initial fire wind u
+    v0_fmw,                     &  ! initial fire wind v
+    w0_fmw,                     &  ! initial fire wind v
+    ht_fmw                      &  ! heights of the midpoint of fire wind layers above the terrain 
+    )
+
 
 
 implicit none
@@ -699,7 +712,10 @@ real, intent(inout), dimension(ims:ime,2,jms:jme):: fmep
 real, intent(out), dimension(ims:ime,nfmc,jms:jme):: fmc_equi,fmc_lag
 real, intent(inout), dimension(ifms:ifme,jfms:jfme):: fmc_g
 
-
+! firewind arguments
+integer, intent(in)::  nfmw
+real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: u0_fmw,v0_fmw,w0_fmw  ! initial femwind
+real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the midpoint of fire wind layers above the terrain 
 
 !  ***** data (constant in time) *****
 
@@ -718,6 +734,10 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
+
+! femwind variables - should move all this to subrouitine and declare temporaries on a tile?
+real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp, w0_tmp  !
+real:: u0, v0, w0, sc, uv2
 
 !*** executable
 
@@ -941,10 +961,89 @@ do ij=1,num_tiles
 
         ! not using zsf any more but anyway
         call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fp%zsf,'driver_phys:zsf')        
+
+        if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
+          call set_fmw_layers(config_flags,               &
+            ifms, ifme, jfms, jfme,                       &
+            ifts,ifte,jfts,jfte,                          &
+            nfmw,                                         &
+            ht_fmw)
+        endif
  
      endif !restart
 
     elseif(ifun.eq.3)then  ! interpolate winds to the fire grid
+
+      if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
+        ! interpolate to firewind layers, ht_fmw already set  
+        do k=1,nfmw
+          call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
+            ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+            ims,ime, kms,kme, jms,jme,                    &
+            ips,ipe,jps,jpe,                              &
+            its,ite,jts,jte,                              &
+            ifds, ifde, jfds, jfde,                       & ! fire grid dimensions
+            ifms, ifme, jfms, jfme,                       &
+            ifps, ifpe, jfps, jfpe,                       & ! fire patch bounds
+            ifts,ifte,jfts,jfte,                          &
+            ir,jr,                                        & ! atm/fire grid ratio
+            u_frame, v_frame,                             & ! velocity frame correction
+            u,v,ph,phb,                                   & ! input atmospheric arrays
+            fz0,                                          &
+            fwh,                                          & !  above terrain height to interpolate to 
+            u0_tmp,v0_tmp,                                & !  interpolated initial fire wind u,v
+            ht_fmw(k))                                      ! overrride fwh
+          if(fire_print_msg >= 2)then
+!$OMP CRITICAL(SFIRE_DRIVER_CRIT)
+            write(msg,'(a,i3,a,f8.2,a)')'driver_phys: Interpolating layer',k,' at',ht_fmw(k),'m'
+!!$OMP END CRITICAL(SFIRE_DRIVER_CRIT)
+            call message(msg)
+            call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,u0_tmp,'driver_phys:u0_tmp')        
+            call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,v0_tmp,'driver_phys:v0_tmp')        
+          endif
+          !
+          ! lift horizontal wind with terrain gradient 
+          ! *** TO DO: interpolate also the w wind and add to w0_fmw
+          !
+          if (config_flags%lift_fmw == 1)then 
+            do j=jfts,jfte
+              do i=ifts,ifte
+                u0 = u0_tmp(i,j)
+                v0 = v0_tmp(i,j)
+                w0 = u0 * fp%dzdxf(i,j) + v0 * fp%dzdyf(i,j)  ! add w component to lift horizontal wind and align with terrain gradient
+                uv2 = u0*u0 + v0*v0                           ! horizontal wind squared
+                sc = sqrt( uv2/max(uv2 + w0*w0,tiny(uv2)))    ! scaling factor to keep wind vector size, avoiding div by zero
+                u0_tmp(i,j)=u0*sc
+                v0_tmp(i,j)=v0*sc
+                w0_tmp(i,j)=w0*sc
+              enddo
+            enddo
+            if(fire_print_msg >= 2)then
+!$OMP CRITICAL(SFIRE_DRIVER_CRIT)
+              write(msg,'(a,i3,a,f8.2,a)')'driver_phys: lifting horizontal wind with terrain gradient: layer',k,' at',ht_fmw(k),'m'
+!!$OMP END CRITICAL(SFIRE_DRIVER_CRIT)
+              call message(msg)
+              call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,u0_tmp,'driver_phys:u0_tmp')        
+              call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,v0_tmp,'driver_phys:v0_tmp')        
+              call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,w0_tmp,'driver_phys:w0_tmp')        
+            endif
+            do j=jfts,jfte
+              do i=ifts,ifte
+                u0_fmw(i,k,j) = u0_tmp(i,j)
+                v0_fmw(i,k,j) = v0_tmp(i,j)
+                w0_fmw(i,k,j) = w0_tmp(i,j)
+              enddo
+            enddo
+          else
+            do j=jfts,jfte
+              do i=ifts,ifte
+                u0_fmw(i,k,j) = u0_tmp(i,j)
+                v0_fmw(i,k,j) = v0_tmp(i,j)
+              enddo
+            enddo
+          endif
+        enddo
+      endif
  
       if(use_atm_vars)then                                  
      
@@ -1012,8 +1111,7 @@ do ij=1,num_tiles
             ifts,ifte,jfts,jfte,                    &
             nfuel_cat,fp%vx,fp%vy)
           endif
-
-
+ 
           !If we are deploying the Massman parameterization, we need to interpolate our winds
           !down to the canopy height instead of the FWH. Here we will need to call the interpolate_wind2can
           !subroutine, for our specified canopy height assigned in the namelist (not yet implemented, 
@@ -1776,122 +1874,140 @@ subroutine check_grid_alloc(grid,config_flags)
     TYPE(domain) , TARGET, INTENT(IN) :: grid                             ! state 
     TYPE (grid_config_rec_type) , INTENT(IN)  :: config_flags ! namelist
 
-    call message('check_grid_alloc: checking if grid arrays used sfire_driver_phys are allocated',level=2)
-    call check_size(size(grid%u_2),'u_2')
-    call check_size(size(grid%v_2),'v_2')
-    call check_size(size(grid%ph_2),'ph_2')
-    call check_size(size(grid%phb),'phb')
-    call check_size(size(grid%z0),'z0')
-    call check_size(size(grid%xlong),'xlong')
-    call check_size(size(grid%xlat),'xlat')
-    call check_size(size(grid%tign_in),'tign_in')
-    call check_size(size(grid%lfn),'lfn')
-    call check_size(size(grid%tign_g),'tign_g')
-    call check_size(size(grid%fire_area),'fire_area')
-    call check_size(size(grid%fuel_frac),'fuel_frac')
-    call check_size(size(grid%fuel_frac_burnt),'fuel_frac_burnt')
-    call check_size(size(grid%lfn_out),'lfn_out')
-    call check_size(size(grid%avg_fuel_frac),'avg_fuel_frac')
-    call check_size(size(grid%grnhfx),'grnhfx')
-    call check_size(size(grid%grnqfx),'grnqfx')
-    call check_size(size(grid%canhfx),'canhfx')
-    call check_size(size(grid%canqfx),'canqfx')
-    call check_size(size(grid%fgrnhfx),'fgrnhfx')
-    call check_size(size(grid%fgrnqfx),'fgrnqfx')
-    call check_size(size(grid%fcanhfx),'fcanhfx')
-    call check_size(size(grid%ros),'ros')
-    call check_size(size(grid%flineint),'flineint')
-    call check_size(size(grid%flineint2),'flineint2')
-    call check_size(size(grid%f_ros0),'f_ros0')
-    call check_size(size(grid%f_rosx),'f_rosx')
-    call check_size(size(grid%f_rosy),'f_rosy')
-    call check_size(size(grid%f_ros),'f_ros')
-    call check_size(size(grid%f_int),'f_int')
-    call check_size(size(grid%f_lineint),'f_lineint')
-    call check_size(size(grid%f_lineint2),'f_lineint2')
-    call check_size(size(grid%f_ros11),'f_ros11')
-    call check_size(size(grid%f_ros12),'f_ros12')
-    call check_size(size(grid%f_ros13),'f_ros13')
-    call check_size(size(grid%f_ros21),'f_ros21')
-    call check_size(size(grid%f_ros23),'f_ros23')
-    call check_size(size(grid%f_ros31),'f_ros31')
-    call check_size(size(grid%f_ros32),'f_ros32')
-    call check_size(size(grid%f_ros33),'f_ros33')
-    call check_size(size(grid%fxlong),'fxlong')
-    call check_size(size(grid%fxlat),'fxlat')
-    call check_size(size(grid%fire_hfx),'fire_hfx')
-    call check_size(size(grid%nfuel_cat),'nfuel_cat')
-    call check_size(size(grid%fuel_time),'fuel_time')
-    call check_size(size(grid%fz0),'fz0')
-    call check_size(size(grid%fwh),'fwh')
-    call check_size(size(grid%uah),'uah')
-    call check_size(size(grid%vah),'vah')
-    call check_size(size(grid%rainc),'rainc')
-    call check_size(size(grid%rainnc),'rainnc')
-    call check_size(size(grid%t2),'t2')
-    call check_size(size(grid%q2),'q2')
-    call check_size(size(grid%psfc),'psfc')
-    call check_size(size(grid%ndwi),'ndwi')
-    call check_size(size(grid%fndwi),'fndwi')
-    call message('check_grid_alloc: checking if grid arrays used in fire params are allocated',level=2)
-    call check_size(size(grid%uf),'uf')
-    call check_size(size(grid%vf),'vf')
-    call check_size(size(grid%zsf),'zsf')
-    call check_size(size(grid%dzdxf),'dzdxf')
-    call check_size(size(grid%dzdyf),'dzdyf')
-    call check_size(size(grid%bbb),'bbb')
-    call check_size(size(grid%phiwc),'phiwc')
-    call check_size(size(grid%r_0),'r_0')
-    call check_size(size(grid%fgip),'fgip')
-    call check_size(size(grid%ischap),'ischap')
-    call check_size(size(grid%fmc_g),'fmc_g')
-    call message('check_grid_alloc: checking if grid arrays used in fuel moisture are allocated',level=2)
+    call message('check_grid_alloc: checking if grid arrays used sfire_driver_phys are allocated',level=3)
+    call check_shape(shape(grid%u_2),'u_2')
+    call check_shape(shape(grid%v_2),'v_2')
+    call check_shape(shape(grid%ph_2),'ph_2')
+    call check_shape(shape(grid%phb),'phb')
+    call check_shape(shape(grid%z0),'z0')
+    call check_shape(shape(grid%xlong),'xlong')
+    call check_shape(shape(grid%xlat),'xlat')
+    call check_shape(shape(grid%tign_in),'tign_in')
+    call check_shape(shape(grid%lfn),'lfn')
+    call check_shape(shape(grid%tign_g),'tign_g')
+    call check_shape(shape(grid%fire_area),'fire_area')
+    call check_shape(shape(grid%fuel_frac),'fuel_frac')
+    call check_shape(shape(grid%fuel_frac_burnt),'fuel_frac_burnt')
+    call check_shape(shape(grid%lfn_out),'lfn_out')
+    call check_shape(shape(grid%avg_fuel_frac),'avg_fuel_frac')
+    call check_shape(shape(grid%grnhfx),'grnhfx')
+    call check_shape(shape(grid%grnqfx),'grnqfx')
+    call check_shape(shape(grid%canhfx),'canhfx')
+    call check_shape(shape(grid%canqfx),'canqfx')
+    call check_shape(shape(grid%fgrnhfx),'fgrnhfx')
+    call check_shape(shape(grid%fgrnqfx),'fgrnqfx')
+    call check_shape(shape(grid%fcanhfx),'fcanhfx')
+    call check_shape(shape(grid%ros),'ros')
+    call check_shape(shape(grid%flineint),'flineint')
+    call check_shape(shape(grid%flineint2),'flineint2')
+    call check_shape(shape(grid%f_ros0),'f_ros0')
+    call check_shape(shape(grid%f_rosx),'f_rosx')
+    call check_shape(shape(grid%f_rosy),'f_rosy')
+    call check_shape(shape(grid%f_ros),'f_ros')
+    call check_shape(shape(grid%f_int),'f_int')
+    call check_shape(shape(grid%f_lineint),'f_lineint')
+    call check_shape(shape(grid%f_lineint2),'f_lineint2')
+    call check_shape(shape(grid%f_ros11),'f_ros11')
+    call check_shape(shape(grid%f_ros12),'f_ros12')
+    call check_shape(shape(grid%f_ros13),'f_ros13')
+    call check_shape(shape(grid%f_ros21),'f_ros21')
+    call check_shape(shape(grid%f_ros23),'f_ros23')
+    call check_shape(shape(grid%f_ros31),'f_ros31')
+    call check_shape(shape(grid%f_ros32),'f_ros32')
+    call check_shape(shape(grid%f_ros33),'f_ros33')
+    call check_shape(shape(grid%fxlong),'fxlong')
+    call check_shape(shape(grid%fxlat),'fxlat')
+    call check_shape(shape(grid%fire_hfx),'fire_hfx')
+    call check_shape(shape(grid%nfuel_cat),'nfuel_cat')
+    call check_shape(shape(grid%fuel_time),'fuel_time')
+    call check_shape(shape(grid%fz0),'fz0')
+    call check_shape(shape(grid%fwh),'fwh')
+    call check_shape(shape(grid%uah),'uah')
+    call check_shape(shape(grid%vah),'vah')
+    call check_shape(shape(grid%rainc),'rainc')
+    call check_shape(shape(grid%rainnc),'rainnc')
+    call check_shape(shape(grid%t2),'t2')
+    call check_shape(shape(grid%q2),'q2')
+    call check_shape(shape(grid%psfc),'psfc')
+    call check_shape(shape(grid%ndwi),'ndwi')
+    call check_shape(shape(grid%fndwi),'fndwi')
+    call message('check_grid_alloc: checking if grid arrays used in fire params are allocated',level=3)
+    call check_shape(shape(grid%uf),'uf')
+    call check_shape(shape(grid%vf),'vf')
+    call check_shape(shape(grid%zsf),'zsf')
+    call check_shape(shape(grid%dzdxf),'dzdxf')
+    call check_shape(shape(grid%dzdyf),'dzdyf')
+    call check_shape(shape(grid%bbb),'bbb')
+    call check_shape(shape(grid%phiwc),'phiwc')
+    call check_shape(shape(grid%r_0),'r_0')
+    call check_shape(shape(grid%fgip),'fgip')
+    call check_shape(shape(grid%ischap),'ischap')
+    call check_shape(shape(grid%fmc_g),'fmc_g')
+    call message('check_grid_alloc: checking if grid arrays used in fuel moisture are allocated',level=3)
     if (config_flags%fmoisti_run==1)then
-        call check_size(size(grid%fmc_gc),'fmc_gc')
-        call check_size(size(grid%fmep),'fmep')
-        call check_size(size(grid%fmc_equi),'fmc_equi')
-        call check_size(size(grid%fmc_lag),'fmc_lag')
-        call check_size(size(grid%rain_old),'rain_old')
-        call check_size(size(grid%t2_old),'t2_old')
-        call check_size(size(grid%q2_old),'q2_old')
-        call check_size(size(grid%rain_old),'rain_old')
-        call check_size(size(grid%psfc_old),'psfc_old')
-        call check_size(size(grid%rh_fire),'rh_fire')
-        call check_size(size(grid%fmc_g),'fmc_g')
+        call check_shape(shape(grid%fmc_gc),'fmc_gc')
+        call check_shape(shape(grid%fmep),'fmep')
+        call check_shape(shape(grid%fmc_equi),'fmc_equi')
+        call check_shape(shape(grid%fmc_lag),'fmc_lag')
+        call check_shape(shape(grid%rain_old),'rain_old')
+        call check_shape(shape(grid%t2_old),'t2_old')
+        call check_shape(shape(grid%q2_old),'q2_old')
+        call check_shape(shape(grid%rain_old),'rain_old')
+        call check_shape(shape(grid%psfc_old),'psfc_old')
+        call check_shape(shape(grid%rh_fire),'rh_fire')
+        call check_shape(shape(grid%fmc_g),'fmc_g')
     endif
     if (config_flags%fmoisti_interp .eq. 1)then
-        call check_size(size(grid%fmc_gc),'fmc_gc')
+        call check_shape(shape(grid%fmc_gc),'fmc_gc')
+    endif
+    call message('check_grid_alloc: checking if grid arrays used in firewind are allocated',level=3)
+    if (config_flags%ifmw_qes==1)then
+        call check_shape(shape(grid%u0_fmw),'u0_fmw')
+        call check_shape(shape(grid%v0_fmw),'v0_fmw')
+        call check_shape(shape(grid%w0_fmw),'w0_fmw')
+        call check_shape(shape(grid%ht_fmw),'ht_fmw')
+    endif
+    if (config_flags%ifmw_run==1)then
+        call check_shape(shape(grid%u_fmw),'u_fmw')
+        call check_shape(shape(grid%v_fmw),'v_fmw')
+        call check_shape(shape(grid%w_fmw),'w_fmw')
+        call check_shape(shape(grid%u0_fmw),'u0_fmw')
+        call check_shape(shape(grid%v0_fmw),'v0_fmw')
+        call check_shape(shape(grid%w0_fmw),'w0_fmw')
+        call check_shape(shape(grid%ht_fmw),'ht_fmw')
+        call check_shape(shape(grid%htc_fmw),'htc_fmw')
+        call check_shape(shape(grid%lambda_fmw),'lambda_fmw')
     endif
     call message('check_grid_alloc: checking if grid arrays used in emissions are allocated',level=2)
-    call check_size(size(grid%chem),'chem',config_flags%chem_opt)
-    call check_size(size(grid%tracer),'tracer',config_flags%tracer_opt)
+    call check_shape(shape(grid%chem),'chem',config_flags%chem_opt)
+    call check_shape(shape(grid%tracer),'tracer',config_flags%tracer_opt)
 
 end subroutine check_grid_alloc
 
-subroutine check_size(sz,name,req)
-integer, intent(in)::sz
+subroutine check_shape(sh,name,req)
+integer, intent(in), dimension(:)::sh
 integer, optional::req
 character(len=*), intent(in)::name
-character(len=128)::msg
+character(len=256)::msg
 logical::strict = .false.
+integer::sz
 
-write(msg,'(a,a10,a,i12)')'array ',name,' has size ',sz
-call message(msg,level=3)
+sz = product(sh)
+write(msg,*)name,' shape ',sh,' size ',sz
+call message(trim(msg),level=3)
 if(present(req)) strict=req > 0
 if (sz < 2 .and. strict) then
     write(msg,'(a,a,a,i2,a)')'array ',name,' is size ',sz,': not allocated, add to registry package'
     call crash(trim(msg))
 endif
-end subroutine check_size
+end subroutine check_shape
 
-            
 !subroutine print_id
 !character(len=128)::id,msg
 !include "sfire_id.inc"
 !msg=id
 !call message(msg,level=1)
 !end subroutine print_id
-
 
 subroutine pnetcdf_write_wind(                    &
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
@@ -2065,5 +2181,79 @@ subroutine check(ierr,errmsg)
         call crash(trim(msg))
     endif
 end subroutine check
+
+subroutine set_fmw_layers(config_flags,                   &
+            ifms, ifme, jfms, jfme,                       &
+            ifts,ifte,jfts,jfte,                          &
+            nfmw,                                         &
+            ht_fmw)
+    implicit none
+!**** arguments
+    TYPE (grid_config_rec_type) , INTENT(IN)  :: config_flags ! namelist
+    integer, intent(in):: nfmw,             &
+            ifms, ifme, jfms, jfme,         &
+            ifts,ifte,jfts,jfte
+    real, intent(out), dimension(nfmw) :: ht_fmw   ! heights of the midpoint of fire wind layers above the terrain 
+!**** local
+    real:: exp_fmw,htt_fmw(0:nfmw),thick
+    integer::k
+    character(len=256)::msg
+!*** executable
+1 format(a,i3,6(a,g13.7))
+    exp_fmw = findq(config_flags%top_fmw/config_flags%ht2_fmw,nfmw) ! expansion factor for firewind mesg
+    write(msg,1)'set_fmw_layers: layers',nfmw,' first layer thickness ',config_flags%ht2_fmw, &
+         'm, top',config_flags%top_fmw,'m expansion ratio ',exp_fmw
+    call message(msg)
+
+    htt_fmw(0)=0.    ! 1st layer starts on the ground
+    thick=config_flags%ht2_fmw  ! thickness of the first layer
+    do k=1,nfmw 
+      htt_fmw(k)=htt_fmw(k-1)+thick
+      ht_fmw(k)= 0.5*(htt_fmw(k)+htt_fmw(k-1))
+      write(msg,*)'femwind layer',k,' thick=',thick,' top=',htt_fmw(k),' mid=',ht_fmw(k)
+      call message(msg)
+      thick=thick*exp_fmw               ! thickness of the next layer
+    enddo
+
+contains
+
+real function findq(a,n)
+! find q such that 1+q+q^2 +...+q^(n-1)=a
+real, intent(in)::a
+integer, intent(in)::n
+!*** internal
+real:: q,err,tol,rn,rtol,sum,s
+integer:: maxit,k,i
+character(len=256)msg
+!*** executable
+rtol = 1e-6
+tol = a*rtol
+1 format(a,i3,6(a,g13.7))
+write(msg,1)'findq:find q such that 1+q+q^2 +...+q^(n-1)=a n=',n,' a=',a,' rtol=',rtol,' tol=',tol
+call message(msg)
+rn = n ! convert 
+maxit=1000
+if (a>rn) then
+    q=a/rn  
+    do k=1,maxit
+        q = (1.+a*(q-1.))**(1./rn)
+        s = (q**n -1)/(q-1)
+        sum = 1.
+        do i=1,n-1
+           sum = sum*q +1.
+        enddo
+        err = sum-a
+        write(msg,1)'findq:it=',k,' q=',q,' err=',err,' sum=',sum,' s=',s,' diff=',sum-s
+        call message(msg)
+        if (abs(err) < rtol*a) goto 9 
+    enddo
+    call warning('findq: did not converge')
+else
+    call crash('findq: must have a>n')
+endif
+9 findq=q
+end function findq
+
+end subroutine set_fmw_layers
 
 end module module_fr_sfire_driver
