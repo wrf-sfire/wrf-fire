@@ -2046,7 +2046,7 @@ subroutine pnetcdf_write_wind(                    &
         ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
         ims,ime, kms,kme, jms,jme,                    &
         ips,ipe, kps,kpe, jps,jpe,                    &
-        u,"U")
+        v,"V")
     call  pnetcdf_write_arr(ncid,                &
         ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
         ims,ime, kms,kme, jms,jme,                    &
