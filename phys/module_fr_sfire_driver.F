@@ -67,7 +67,10 @@
 module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
 
+#ifdef PNETCDF
 use pnetcdf
+#endif
+
 use mpi
 
 use module_fr_sfire_model, only: sfire_model
@@ -1043,6 +1046,14 @@ do ij=1,num_tiles
             enddo
           endif
         enddo
+
+#ifdef PNETCDF
+        call  pnetcdf_write_fmw(                    &
+          ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+          ifms,ifme, 1,nfmw, jfms,jfme,                    &
+          ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
+          u0_fmw,v0_fmw,w0_fmw)
+#endif
       endif
  
       if(use_atm_vars)then                                  
@@ -1081,12 +1092,14 @@ do ij=1,num_tiles
 
         else
 
+#ifdef PNETCDF
           ! read/write pnetcdf wind file
           call pnetcdf_write_wind(                          &
               ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
               ims,ime, kms,kme, jms,jme,                    &
               ips,ipe, kps,kpe, jps,jpe,                    &
               u,v,ph,phb)
+#endif
 
           ! wind vertical interpolation`
           call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fz0,'driver_phys:fz0')        
@@ -2009,6 +2022,53 @@ end subroutine check_shape
 !call message(msg,level=1)
 !end subroutine print_id
 
+#ifdef PNETCDF
+subroutine pnetcdf_write_fmw(                    &
+    ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+    ifms,ifme, kfms,kfme, jfms,jfme,                    &
+    ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
+    u0_fmw,v0_fmw,w0_fmw)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+    ifms,ifme, kfms,kfme, jfms,jfme,                    &
+    ifps,ifpe, kfps,kfpe, jfps,jfpe                    
+    real,intent(in),dimension(ifms:ifme,kfms:kfme,jfms:jfme)::u0_fmw,v0_fmw,w0_fmw  ! wind velocity (m/s) 
+!*** local
+    integer::comm,ncid,varid,dims(4)
+    character(len=nf90_max_name):: name
+    character(LEN=256):: filename, msg
+
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    filename = "wrf.nc"
+    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
+                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    !call pnetcdf_var_info(ncid,"U",dims,varid)
+    !call pnetcdf_var_info(ncid,"V",dims,varid)
+    !call pnetcdf_var_info(ncid,"PH",dims,varid)
+    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    call  pnetcdf_write_arr(ncid,                &
+        ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, kfms,kfme, jfms,jfme,                    &
+        ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
+        u0_fmw,"U0_FMW")
+    call  pnetcdf_write_arr(ncid,                &
+        ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, kfms,kfme, jfms,jfme,                    &
+        ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
+        v0_fmw,"V0_FMW")
+    call  pnetcdf_write_arr(ncid,                &
+        ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, kfms,kfme, jfms,jfme,                    &
+        ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
+        w0_fmw,"W0_FMW")
+    call check (nf90mpi_close(ncid),"nf90mpi_close")
+
+end subroutine pnetcdf_write_fmw
+
 subroutine pnetcdf_write_wind(                    &
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
     ims,ime, kms,kme, jms,jme,                    &
@@ -2181,6 +2241,7 @@ subroutine check(ierr,errmsg)
         call crash(trim(msg))
     endif
 end subroutine check
+#endif
 
 subroutine set_fmw_layers(config_flags,                   &
             ifms, ifme, jfms, jfme,                       &
