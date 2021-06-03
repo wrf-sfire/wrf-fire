@@ -1921,7 +1921,7 @@ real::r
           do i=ifts,ifte
             k = int(nfuel_cat(i,j))
             if(k.ge.no_fuel_cat.and.k.le.no_fuel_cat2)then ! no fuel
-                fz0(i,j)=-1.
+                fz0(i,j)=0.5
                 fwh(i,j)=-1.
             elseif(k < 1 .or. k  > nfuelcats) then
 !$OMP CRITICAL(SFIRE_ATM_CRIT)
@@ -1963,7 +1963,7 @@ real::r
             if(k.lt.no_fuel_cat)then ! no fuel, interpolation does not matter
                 fwh(i,j)=fcwh(k)
             else
-                fz0(i,j)=-1.
+                fz0(i,j)=0.5
                 fwh(i,j)=-1.
             endif
           enddo
@@ -1989,7 +1989,7 @@ real::r
             if(k.ne.no_fuel_cat)then ! no fuel, interpolation does not matter
                 fwh(i,j)=fcwh(k)
             else
-                fz0(i,j)=-1.
+                fz0(i,j)=0.5
                 fwh(i,j)=-1.
             endif
             wz0(i,j) = 0      ! Not using WRF roughness length here so set to 0.
@@ -2177,6 +2177,7 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
   integer:: i,j,k,jcb,jcm,icb,icm,kdmax,kmin,kmax
   integer::itst,itet,jtst,jtet
   integer::iftst,iftet,jftst,jftet
+  integer::iftsto,ifteto,jftsto,jfteto
   real:: wjcb,wjcm,wicb,wicm,ht,i_g,loght,zr,ht_last,logwh,wh,loght_last,uk,vk,uk1,vk1,z0,logz0
   real, dimension (its-1:ite+1,kds:kde,jts-1:jte+1)::z,zw
   character(len=128)::msg
@@ -2300,6 +2301,23 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
 
     enddo loop_i
   enddo loop_j
+
+! continue at boundary atmospheric variables
+  call continue_at_boundary(1,1,0., & ! x direction 
+       ifms,ifme,jfms,jfme,         & ! memory dims
+       ifds,ifde,jfds,jfde,         & ! domain dims - where uf defined
+       ifps,ifpe,jfps,jfpe,         & ! patch dims 
+       iftst,iftet,jftst,jftet,     & ! tile dims
+       iftsto,ifteto,jftsto,jfteto, & ! out, where set
+       uf)                            ! array
+
+  call continue_at_boundary(1,1,0., & ! y direction 
+       ifms,ifme,jfms,jfme,         & ! memory dims 
+       ifds,ifde,jfds,jfde,         & ! domain dims - where vf defined
+       ifps,ifpe,jfps,jfpe,         & ! patch dims 
+       iftst,iftet,jftst,jftet,     & ! tile dims
+       iftsto,ifteto,jftsto,jfteto, & ! where set
+       vf)                            ! array
 
   ! print *,'interpolate_wind2fire_height complete, id=',id
 
