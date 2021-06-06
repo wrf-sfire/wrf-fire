@@ -1534,9 +1534,7 @@ subroutine print_chsum( id, &
     istag,kstag,jstag,       &
     a,name)                      
 
-#ifdef DM_PARALLEL
-    USE module_dm , only : wrf_dm_bxor_integer
-#endif
+!*** arguments
 
 integer, intent(in):: id, &
     ims,ime,kms,kme,jms,jme, &                ! memory dims
@@ -1545,6 +1543,54 @@ integer, intent(in):: id, &
     istag,kstag,jstag
 real, intent(in),dimension(ims:ime,kms:kme,jms:jme)::a
 character(len=*)::name
+
+!*** local
+
+integer::gsum,thread,is,ks,js
+
+!*** excutable
+
+if(fire_print_msg.le.0)return
+
+gsum = get_chsum(  & 
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    ips,ipe,kps,kpe,jps,jpe, &                ! patch or tile dims
+    istag,kstag,jstag,       &
+    a)                      
+
+is=ifval(istag.ne.0,1,0)
+ks=ifval(kstag.ne.0,1,0)
+js=ifval(jstag.ne.0,1,0)
+
+thread=0
+!$ thread=omp_get_thread_num()
+if(thread.eq.0)then
+    write(msg,1)id,name,ids,ide+is,kds,kde+ks,jds,jde+js,gsum
+1   format(i6,1x,a10,' dims',6i5,' chsum ',z8.8)
+    call message(msg)
+endif
+
+end subroutine print_chsum 
+
+
+integer function get_chsum( & 
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    ips,ipe,kps,kpe,jps,jpe, &                ! patch or tile dims
+    istag,kstag,jstag,       &
+    a)                      
+
+#ifdef DM_PARALLEL
+    USE module_dm , only : wrf_dm_bxor_integer
+#endif
+
+integer, intent(in)::  &
+    ims,ime,kms,kme,jms,jme, &                ! memory dims
+    ids,ide,kds,kde,jds,jde, &                ! domain dims
+    ips,ipe,kps,kpe,jps,jpe, &                ! patch dims
+    istag,kstag,jstag
+real, intent(in),dimension(ims:ime,kms:kme,jms:jme)::a
 
 !$ external, logical:: omp_in_parallel
 !$ external, integer:: omp_get_thread_num
@@ -1557,7 +1603,6 @@ real::rel
 equivalence(rel,iel)
 character(len=256)msg
 
-if(fire_print_msg.le.0)return
 
 ipe1=ifval(ipe.eq.ide.and.istag.ne.0,ipe+1,ipe)
 kpe1=ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe)
@@ -1593,12 +1638,11 @@ if(thread.eq.0)then
 #else
     gsum = psum
 #endif
-    write(msg,1)id,name,ids,ide+is,kds,kde+ks,jds,jde+js,gsum
-1   format(i6,1x,a10,' dims',6i5,' chsum ',z8.8)
-    call message(msg)
 endif
 
-end subroutine print_chsum 
+get_chsum = gsum
+
+end function get_chsum 
 
 
 real function fun_real(fun,  & 
