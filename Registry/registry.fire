@@ -138,6 +138,8 @@ state    real     w0_fmw  *i{num_fmw}*j fire      1        -   h   "W0_FMW"  "in
 state    real     ht_fmw  {nht_fmw} fire          1        z   hr   "HT_FMW"  "heights of the midpoints of the fire wind layers above the terrain" "m"
 state    real     htc_fmw  *i{num_fmw}*j fire     1        z   hr   "HTC_FMW"  "absolute heights of the corners of fire wind layers" "m"
 state    real     lambda_fmw *i{num_fmw}*j fire  1        -   hr   "LAMBDA_FMW"  "langrange multiplier at cell midpoints" "1/s"
+state    integer chsum_fmw   -        -           -         -   hr "CHSUM_FMW" "check sum of u,v,w_fmw" 
+state    integer chsum0_fmw  -        -           -         -   hr "CHSUM0_FMW" "check sum of u0,v0,w0_fmw" 
 halo     HALO_LAMBDA_FMW            dyn_em 24:lambda_fmw
 
 # constant data arrays
