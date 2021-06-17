@@ -2177,7 +2177,6 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
   integer:: i,j,k,jcb,jcm,icb,icm,kdmax,kmin,kmax
   integer::itst,itet,jtst,jtet
   integer::iftst,iftet,jftst,jftet
-  integer::iftsto,ifteto,jftsto,jfteto
   real:: wjcb,wjcm,wicb,wicm,ht,i_g,loght,zr,ht_last,logwh,wh,loght_last,uk,vk,uk1,vk1,z0,logz0
   real, dimension (its-1:ite+1,kds:kde,jts-1:jte+1)::z,zw
   character(len=128)::msg
@@ -2301,23 +2300,6 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
 
     enddo loop_i
   enddo loop_j
-
-! continue at boundary atmospheric variables
-  call continue_at_boundary(1,1,0., & ! x direction 
-       ifms,ifme,jfms,jfme,         & ! memory dims
-       ifds,ifde,jfds,jfde,         & ! domain dims - where uf defined
-       ifps,ifpe,jfps,jfpe,         & ! patch dims 
-       iftst,iftet,jftst,jftet,     & ! tile dims
-       iftsto,ifteto,jftsto,jfteto, & ! out, where set
-       uf)                            ! array
-
-  call continue_at_boundary(1,1,0., & ! y direction 
-       ifms,ifme,jfms,jfme,         & ! memory dims 
-       ifds,ifde,jfds,jfde,         & ! domain dims - where vf defined
-       ifps,ifpe,jfps,jfpe,         & ! patch dims 
-       iftst,iftet,jftst,jftet,     & ! tile dims
-       iftsto,ifteto,jftsto,jfteto, & ! where set
-       vf)                            ! array
 
   ! print *,'interpolate_wind2fire_height complete, id=',id
 
