@@ -2065,6 +2065,7 @@ subroutine pnetcdf_write_fmw(                    &
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
         ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
         w0_fmw,"W0_FMW")
+    call pnetcdf_write_int(ncid,999,"CHSUM0_FMW")
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_fmw
@@ -2116,6 +2117,31 @@ subroutine pnetcdf_write_wind(                    &
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_wind
+
+subroutine pnetcdf_write_int(ncid,ia,varname)
+implicit none
+!*** arguments
+    integer, intent(in)::                         &
+    ncid,                                         & ! open pnetcdf file
+    ia                                              ! variable to write
+    character(LEN=*),intent(in):: varname
+!*** local
+    integer::comm,myproc,ierr,varid,ival
+    character(len=256)::msg
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    call mpi_comm_rank(comm,myproc,ierr)
+    call check(ierr,'mpi_comm_rank')
+    write(msg,*)'pnetcdf_write_int: myproc=',myproc,' varname=',varname,' value=',ia
+    call message(msg,level=0)
+    if(myproc.eq.0)then
+        call check(nf90mpi_inq_varid(ncid,trim(varname),varid),"nf90mpi_inq_varid"//trim(varname))
+        ival = ia
+        call check(nf90mpi_put_var(ncid, varid, ival), &
+            "pnetcdf_write_int/nf90mpi_put_var_all:"//trim(varname))
+    endif
+end subroutine pnetcdf_write_int
+
 
 subroutine pnetcdf_write_arr(ncid,                &
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions

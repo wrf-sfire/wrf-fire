@@ -163,6 +163,7 @@
 !
 ! experiments
 !
+ ifmw_qes = 1,
  
  fire_const_time = -1.,         ! (s) if >0, time from start to stop fire evolution and keep heat output constant
  fire_const_grnhfx = -1,        ! (W/s) if both >=0, use this flux (meant to be used when fire_const_time=ignition time) 
