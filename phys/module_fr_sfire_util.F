@@ -388,7 +388,7 @@ subroutine continue_at_boundary(ix,iy,bias, & ! do x direction or y direction
     ips,ipe,jps,jpe, &                ! patch dims
     its,ite,jts,jte, &                ! tile dims
     itso,iteo,jtso,jteo, &            ! tile dims where set
-    lfn)                              ! array
+    aaa)                              ! array
 implicit none
 !*** description
 ! extend array by one beyond the domain by linear continuation
@@ -400,7 +400,7 @@ integer, intent(in)::ims,ime,jms,jme, &                ! memory dims
     ips,ipe,jps,jpe, &                ! patch dims
     its,ite,jts,jte                   ! tile dims
 integer, intent(out)::itso,jtso,iteo,jteo ! where set
-real,intent(inout),dimension(ims:ime,jms:jme)::lfn
+real,intent(inout),dimension(ims:ime,jms:jme)::aaa
 !*** local
 integer i,j
 character(len=128)::msg
@@ -434,13 +434,13 @@ call message(msg,level=3)
 if(ix.ne.0)then
     if(its.eq.ids)then
         do j=jts1,jte1
-            lfn(ids-1,j)=EX(lfn(ids,j),lfn(ids+1,j))
+            aaa(ids-1,j)=EX(aaa(ids,j),aaa(ids+1,j))
         enddo
         itso=ids-1
     endif
     if(ite.eq.ide)then
         do j=jts1,jte1
-            lfn(ide+1,j)=EX(lfn(ide,j),lfn(ide-1,j))
+            aaa(ide+1,j)=EX(aaa(ide,j),aaa(ide-1,j))
         enddo
         iteo=ide+1
     endif
@@ -452,13 +452,13 @@ endif
 if(iy.ne.0)then
     if(jts.eq.jds)then
         do i=its1,ite1
-            lfn(i,jds-1)=EX(lfn(i,jds),lfn(i,jds+1))
+            aaa(i,jds-1)=EX(aaa(i,jds),aaa(i,jds+1))
         enddo
         jtso=jds-1
     endif
     if(jte.eq.jde)then
         do i=its1,ite1
-            lfn(i,jde+1)=EX(lfn(i,jde),lfn(i,jde-1))
+            aaa(i,jde+1)=EX(aaa(i,jde),aaa(i,jde-1))
         enddo
         jteo=jde+1
     endif
@@ -469,10 +469,10 @@ if(iy.ne.0)then
 endif
 ! corners of the domain
 if(ix.ne.0.and.iy.ne.0)then
-    if(its.eq.ids.and.jts.eq.jds)lfn(ids-1,jds-1)=EX(lfn(ids,jds),lfn(ids+1,jds+1))
-    if(its.eq.ids.and.jte.eq.jde)lfn(ids-1,jde+1)=EX(lfn(ids,jde),lfn(ids+1,jde-1))
-    if(ite.eq.ide.and.jts.eq.jds)lfn(ide+1,jds-1)=EX(lfn(ide,jds),lfn(ide-1,jds+1))
-    if(ite.eq.ide.and.jte.eq.jde)lfn(ide+1,jde+1)=EX(lfn(ide,jde),lfn(ide-1,jde-1))
+    if(its.eq.ids.and.jts.eq.jds)aaa(ids-1,jds-1)=EX(aaa(ids,jds),aaa(ids+1,jds+1))
+    if(its.eq.ids.and.jte.eq.jde)aaa(ids-1,jde+1)=EX(aaa(ids,jde),aaa(ids+1,jde-1))
+    if(ite.eq.ide.and.jts.eq.jds)aaa(ide+1,jds-1)=EX(aaa(ide,jds),aaa(ide-1,jds+1))
+    if(ite.eq.ide.and.jte.eq.jde)aaa(ide+1,jde+1)=EX(aaa(ide,jde),aaa(ide-1,jde-1))
 endif
 return
 contains
