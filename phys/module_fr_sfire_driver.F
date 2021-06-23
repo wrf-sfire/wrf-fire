@@ -106,6 +106,7 @@ public sfire_driver_em,use_atm_vars,set_flags, &
        set_fp_from_grid, fire_ignition_convert
 public ifun_beg, ifun_step, ifun_end
 
+logical:: use_pnetcdf=.false.   ! write in every time step
 logical:: use_atm_vars=.true.   !  interpolate wind from atm mesh and average output fluxes back
 logical:: interpolate_long_lat=.true. ! get fxlong fxlat by interpolation
 
@@ -183,6 +184,10 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
     write(msg,'(a,i3)')' domain', grid%id
     call message(msg,level=1)
+
+#ifdef PNETCDF
+    use_pnetcdf = config_flags%ifmw_qes > 0
+#endif
 
 ! prevent memory errors because of variables missing in registry packages
     call check_grid_alloc(grid,config_flags)
@@ -1048,7 +1053,7 @@ do ij=1,num_tiles
         enddo
 
 #ifdef PNETCDF
-        call  pnetcdf_write_fmw(                    &
+        if(use_pnetcdf)call  pnetcdf_write_fmw(                    &
           ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
           ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
@@ -1094,7 +1099,7 @@ do ij=1,num_tiles
 
 #ifdef PNETCDF
           ! read/write pnetcdf wind file
-          call pnetcdf_write_wind(                          &
+          if(use_pnetcdf)call pnetcdf_write_wind(           &
               ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
               ims,ime, kms,kme, jms,jme,                    &
               ips,ipe, kps,kpe, jps,jpe,                    &
