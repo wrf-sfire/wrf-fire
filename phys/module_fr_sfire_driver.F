@@ -403,6 +403,23 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             endif
 
         elseif(fire_ifun.eq.3)then
+!           continue wind on the boundary in x and y direction for interpolation to fire mesh
+!           otherwise the interpolation will have a strip of incorrect values, many of them nzeros
+            call continue_at_boundary(0,1,0, & ! u wind has all values in x direction but not y 
+                ims,ime,jms,jme, &                ! memory dims
+                ids,ide,jds,jde, &                ! domain dims
+                ips,ipe,jps,jpe, &                ! patch dims
+                ips,ipe,jps,jpe, &                ! tile = patch 
+                ips,ipe,jps,jpe, &                ! output tile = patch 
+                u)                                ! array
+            call continue_at_boundary(1,0,0, & ! v wind has all values in y direction but not x 
+                ims,ime,jms,jme, &                ! memory dims
+                ids,ide,jds,jde, &                ! domain dims
+                ips,ipe,jps,jpe, &                ! patch dims
+                ips,ipe,jps,jpe, &                ! tile = patch 
+                ips,ipe,jps,jpe, &                ! output tile = patch 
+                v)                                ! array
+            
 !           halo exchange on atm winds and geopotential for interpolation
 #include "HALO_SFIRE_WIND_A.inc"
 #include "HALO_FIRE_PH.inc"
