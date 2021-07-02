@@ -410,20 +410,20 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             jpe1 = ifval(jpe.eq.jde,jde1,jpe)
 !           continue wind on the boundary in x and y direction for interpolation to fire mesh
 !           otherwise the interpolation will have a strip of incorrect values, many of them nzeros
-            call continue_at_boundary(0,1,0, & ! u wind has all values in x direction but not y 
+            call continue_at_boundary(0,1,0., & ! u wind has all values in x direction but not y 
                 ims,ime,jms,jme, &                ! memory dims
                 ids,ide1,jds,jde, &                ! domain dims
                 ips,ipe1,jps,jpe, &                ! patch dims
                 ips,ipe1,jps,jpe, &                ! tile = patch 
                 ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
-                u)                                ! array
-            call continue_at_boundary(1,0,0, & ! v wind has all values in y direction but not x 
+                grid%u_2)                             ! array
+            call continue_at_boundary(1,0,0., & ! v wind has all values in y direction but not x 
                 ims,ime,jms,jme, &                ! memory dims
                 ids,ide,jds,jde1, &                ! domain dims
                 ips,ipe,jps,jpe1, &                ! patch dims
                 ips,ipe,jps,jpe1, &                ! tile = patch 
                 ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
-                v)                                ! array
+                grid%v_2)                             ! array
             
 !           halo exchange on atm winds and geopotential for interpolation
 #include "HALO_SFIRE_WIND_A.inc"
@@ -526,7 +526,8 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%u0_fmw,                     &  ! initial fire wind u
             grid%v0_fmw,                     &  ! initial fire wind v
             grid%w0_fmw,                     &  ! initial fire wind v
-            grid%ht_fmw                      &  ! heights of the midpoint of fire wind layers above the terrain 
+            grid%ht_fmw,                     &  ! heights of the midpoint of fire wind layers above the terrain 
+            grid%chsum0_fmw                  &  ! check sum of initial wind fields
          )
  
 
@@ -644,7 +645,8 @@ subroutine sfire_driver_phys (ifun,    &
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw,                     &  ! initial fire wind v
     w0_fmw,                     &  ! initial fire wind v
-    ht_fmw                      &  ! heights of the midpoint of fire wind layers above the terrain 
+    ht_fmw,                     &  ! heights of the midpoint of fire wind layers above the terrain 
+    chsum0_fmw                  &  ! check sum of fmw initial wind fields
     )
 
 
@@ -746,6 +748,7 @@ real, intent(inout), dimension(ifms:ifme,jfms:jfme):: fmc_g
 integer, intent(in)::  nfmw
 real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: u0_fmw,v0_fmw,w0_fmw  ! initial femwind
 real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the midpoint of fire wind layers above the terrain 
+integer, intent(out):: chsum0_fmw
 
 !  ***** data (constant in time) *****
 
@@ -1073,6 +1076,27 @@ do ij=1,num_tiles
             enddo
           endif
         enddo
+
+        if(config_flags%ifmw_qes==1)then 
+            chsum0_fmw = get_chsum(  &
+                ifms,ifme, 1,nfmw, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                0,0,0,       &
+                u0_fmw)
+            chsum0_fmw = ieor(chsum0_fmw,get_chsum(  &
+                ifms,ifme, 1,nfmw, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                0,0,0,       &
+                v0_fmw))
+            chsum0_fmw = ieor(chsum0_fmw,get_chsum(  &
+                ifms,ifme, 1,nfmw, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                0,0,0,       &
+                w0_fmw))
+         endif
 
 #ifdef PNETCDF
         if(use_pnetcdf)call  pnetcdf_write_fmw(                    &
@@ -2092,7 +2116,7 @@ subroutine pnetcdf_write_fmw(                    &
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
         ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
         w0_fmw,"W0_FMW")
-    call pnetcdf_write_int(ncid,999,"CHSUM0_FMW")
+    ! call pnetcdf_write_int(ncid,999,"CHSUM0_FMW")  does not work - need something else
     call check (nf90mpi_close(ncid),"nf90mpi_close")
 
 end subroutine pnetcdf_write_fmw

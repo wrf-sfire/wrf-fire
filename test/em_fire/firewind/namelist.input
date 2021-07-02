@@ -164,6 +164,7 @@
 ! experiments
 !
  ifmw_run = 1,                   ! turn on fmw
+ ifmw_qes = 1,                   ! turn on fmw
  nfmw = 20,                      ! number of fmw layers
  lift_fmw = 1,                   ! lift interpolated wind vector with terrain
  
