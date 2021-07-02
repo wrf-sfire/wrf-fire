@@ -162,6 +162,7 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 
     logical:: run_advance_moisture,run_fuel_moisture, moisture_initializing
     real::    dt_moisture
+    integer:: ipso,ipeo,jpso,jpeo,ide1,jde1 ! for continue_at_boundary winds
 
 
 
@@ -403,21 +404,25 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             endif
 
         elseif(fire_ifun.eq.3)then
+            ide1 = ide + 1 
+            jde1 = jde + 1 
+            ipe1 = ifval(ipe.eq.ide,ide1,ipe)
+            jpe1 = ifval(jpe.eq.jde,jde1,jpe)
 !           continue wind on the boundary in x and y direction for interpolation to fire mesh
 !           otherwise the interpolation will have a strip of incorrect values, many of them nzeros
             call continue_at_boundary(0,1,0, & ! u wind has all values in x direction but not y 
                 ims,ime,jms,jme, &                ! memory dims
-                ids,ide,jds,jde, &                ! domain dims
-                ips,ipe,jps,jpe, &                ! patch dims
-                ips,ipe,jps,jpe, &                ! tile = patch 
-                ips,ipe,jps,jpe, &                ! output tile = patch 
+                ids,ide1,jds,jde, &                ! domain dims
+                ips,ipe1,jps,jpe, &                ! patch dims
+                ips,ipe1,jps,jpe, &                ! tile = patch 
+                ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
                 u)                                ! array
             call continue_at_boundary(1,0,0, & ! v wind has all values in y direction but not x 
                 ims,ime,jms,jme, &                ! memory dims
-                ids,ide,jds,jde, &                ! domain dims
-                ips,ipe,jps,jpe, &                ! patch dims
-                ips,ipe,jps,jpe, &                ! tile = patch 
-                ips,ipe,jps,jpe, &                ! output tile = patch 
+                ids,ide,jds,jde1, &                ! domain dims
+                ips,ipe,jps,jpe1, &                ! patch dims
+                ips,ipe,jps,jpe1, &                ! tile = patch 
+                ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
                 v)                                ! array
             
 !           halo exchange on atm winds and geopotential for interpolation
