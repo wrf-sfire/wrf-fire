@@ -68,10 +68,7 @@ module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
 
 #ifdef PNETCDF
-use pnetcdf, nf90mpi_write => nf90_write
-use netcdf, only: nf90_open, nf90_inq_varid, &
-                  nf90_put_var, nf90_close, &
-                  nf90_write
+use pnetcdf
 #endif
 
 use mpi
@@ -1106,7 +1103,7 @@ do ij=1,num_tiles
           ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
           ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
-          u0_fmw,v0_fmw,w0_fmw)
+          u0_fmw,v0_fmw,w0_fmw,chsum0_fmw)
 #endif
       endif
  
@@ -2081,14 +2078,15 @@ subroutine pnetcdf_write_fmw(                    &
     ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, kfms,kfme, jfms,jfme,                    &
     ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
-    u0_fmw,v0_fmw,w0_fmw)
+    u0_fmw,v0_fmw,w0_fmw, chsum0_fmw)
     implicit none
 
 !*** arguments
     integer, intent(in)::                         &
     ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, kfms,kfme, jfms,jfme,                    &
-    ifps,ifpe, kfps,kfpe, jfps,jfpe                    
+    ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
+    chsum0_fmw                                            ! chsum0_fmw                    
     real,intent(in),dimension(ifms:ifme,kfms:kfme,jfms:jfme)::u0_fmw,v0_fmw,w0_fmw  ! wind velocity (m/s) 
 !*** local
     integer::comm,ncid,varid,dims(4)
@@ -2098,7 +2096,7 @@ subroutine pnetcdf_write_fmw(                    &
 !*** executable
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), nf90mpi_write, &
+    call check(nf90mpi_open(comm, trim(filename), nf90_write, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
     !call pnetcdf_var_info(ncid,"U",dims,varid)
     !call pnetcdf_var_info(ncid,"V",dims,varid)
@@ -2119,9 +2117,9 @@ subroutine pnetcdf_write_fmw(                    &
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
         ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
         w0_fmw,"W0_FMW")
-    !call pnetcdf_write_int(ncid,999,"CHSUM0_FMW")
+    call pnetcdf_write_int(ncid,chsum0_fmw,"CHSUM0_FMW")
+    call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
     call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
-    call netcdf_write_int(trim(filename),999,"CHSUM0_FMW")
 
 end subroutine pnetcdf_write_fmw
 
@@ -2147,7 +2145,7 @@ subroutine pnetcdf_write_wind(                    &
 !*** executable
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), nf90mpi_write, &
+    call check(nf90mpi_open(comm, trim(filename), nf90_write, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
     !call pnetcdf_var_info(ncid,"U",dims,varid)
     !call pnetcdf_var_info(ncid,"V",dims,varid)
@@ -2172,32 +2170,6 @@ subroutine pnetcdf_write_wind(                    &
     call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
 
 end subroutine pnetcdf_write_wind
-
-subroutine netcdf_write_int(filename,ia,varname)
-implicit none
-!*** arguments
-    integer, intent(in)::                         &
-    ia                                              ! variable to write
-    character(LEN=*),intent(in):: varname, filename
-!*** local
-    integer::comm,myproc,ierr,varid,ival,ncid
-    character(len=256)::msg
-!*** executable
-    call wrf_get_dm_communicator(comm)
-    call mpi_comm_rank(comm,myproc,ierr)
-    call check(ierr,'mpi_comm_rank')
-    write(msg,*)'netcdf_write_int: myproc=',myproc,' varname=',varname,' value=',ia
-    call message(msg,level=0)
-    if(myproc.eq.0)then
-        call check(nf90_open(filename, nf90_write, ncid),"nf90_open:"//trim(filename))
-        call check(nf90_inq_varid(ncid, trim(varname), varid), &
-            "nf90_inq_varid:"//trim(varname))
-        ival = ia
-        call check(nf90_put_var(ncid, varid, ival), &
-            "netcdf_write_int/nf90_put_var:"//trim(varname))
-        call check(nf90_close(ncid),"nf90_close:"//trim(filename))
-    endif
-end subroutine netcdf_write_int
 
 subroutine pnetcdf_write_int(ncid,ia,varname)
 implicit none
