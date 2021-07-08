@@ -424,6 +424,21 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
                 ips,ipe,jps,jpe1, &                ! tile = patch 
                 ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
                 grid%v_2)                             ! array
+            ! continue also the geopotentional heights ph and phb needed for vertical interpolation
+            call continue_at_boundary(1,1,0., & ! v wind has all values in y direction but not x 
+                ims,ime,jms,jme, &                ! memory dims
+                ids,ide,jds,jde1, &                ! domain dims
+                ips,ipe,jps,jpe1, &                ! patch dims
+                ips,ipe,jps,jpe1, &                ! tile = patch 
+                ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
+                grid%ph_2)                             ! array
+            call continue_at_boundary(1,0,0., & ! v wind has all values in y direction but not x 
+                ims,ime,jms,jme, &                ! memory dims
+                ids,ide,jds,jde1, &                ! domain dims
+                ips,ipe,jps,jpe1, &                ! patch dims
+                ips,ipe,jps,jpe1, &                ! tile = patch 
+                ipso,ipeo,jpso,jpeo, &                ! output tile = patch , for information only
+                grid%phb)                             ! array
             
 !           halo exchange on atm winds and geopotential for interpolation
 #include "HALO_SFIRE_WIND_A.inc"
@@ -1010,7 +1025,7 @@ do ij=1,num_tiles
       if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
         ! interpolate to firewind layers, ht_fmw already set  
         do k=1,nfmw
-          call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
+          call interpolate_wind2fire_height(id,1,      & ! to identify debugging prints and files if needed, go up to the boundary
             ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
             ims,ime, kms,kme, jms,jme,                    &
             ips,ipe,jps,jpe,                              &
@@ -1035,8 +1050,8 @@ do ij=1,num_tiles
             call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,v0_tmp,'driver_phys:v0_tmp')        
           endif
           !
+          call message('TO DO: interpolate also the w wind and add to w0_fmw')
           ! lift horizontal wind with terrain gradient 
-          ! *** TO DO: interpolate also the w wind and add to w0_fmw
           !
           if (config_flags%lift_fmw == 1)then 
             do j=jfts,jfte
@@ -1154,7 +1169,7 @@ do ij=1,num_tiles
 
           ! wind vertical interpolation`
           call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fz0,'driver_phys:fz0')        
-          call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
+          call interpolate_wind2fire_height(id,0,       & ! to identify debugging prints and files if needed 
             ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
             ims,ime, kms,kme, jms,jme,                    &
             ips,ipe,jps,jpe,                              &
@@ -1213,7 +1228,7 @@ do ij=1,num_tiles
             !Compute canopy top winds. Save this variable to cuf and cvf, which is like
             !vf and uf in terms of dimensionality, except that its canopy top winds.
 
-            call interpolate_wind2fire_height(id,         & ! to identify debugging prints and files if needed
+            call interpolate_wind2fire_height(id,0,       & ! to identify debugging prints and files if needed
             ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
             ims,ime, kms,kme, jms,jme,                    &
             ips,ipe,jps,jpe,                              &

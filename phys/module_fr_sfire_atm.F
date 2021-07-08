@@ -2133,7 +2133,7 @@ end subroutine setup_wind_log_interpolation
 !***
 !
 
-subroutine interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
+subroutine interpolate_wind2fire_height(id,izb,   & ! to identify debugging prints and files if needed
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
     ims,ime, kms,kme, jms,jme,                    &
     ips,ipe,jps,jpe,                              &
@@ -2152,6 +2152,7 @@ subroutine interpolate_wind2fire_height(id,       & ! to identify debugging prin
   implicit none
 !*** arguments
 integer, intent(in):: id,                         & ! debug identification
+    izb,                                          & ! not 0 = assume wind extended across boundary, 0 = return zero strip
     ids,ide, kds,kde, jds,jde,                    & ! atm domain bounds
     ims,ime, kms,kme, jms,jme,                    & ! atm memory bounds 
     ips,ipe,jps,jpe,                              &
@@ -2191,11 +2192,19 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
 
 ! find the altitude of atm cell centers            
 
-! index bounds for cell centers - need to go one beyond if at end of tile but not domain  
-  itst=ifval(ids.eq.its,its,its-1)
-  itet=ifval(ide.eq.ite,ite,ite+1)
-  jtst=ifval(jds.ge.jts,jts,jts-1)
-  jtet=ifval(jde.eq.jte,jte,jte+1)
+  if(izb.eq.0)then
+      ! index bounds for cell centers - need to go one beyond if at end of tile but not domain  
+      itst=ifval(ids.eq.its,its,its-1)
+      itet=ifval(ide.eq.ite,ite,ite+1)
+      jtst=ifval(jds.ge.jts,jts,jts-1)
+      jtet=ifval(jde.eq.jte,jte,jte+1)
+   else
+      ! assume ph and phb extended, go one beyond always
+      itst=its-1
+      itet=ite+1
+      jtst=jts-1
+      jtet=jte+1
+   endif
   
   ! print *,'its, ite, jts, jte    =',its, ite, jts, jte
   ! print *,'itst, itet, jtst, jtet=',itst, itet, jtst, jtet
@@ -2216,11 +2225,19 @@ real, intent(in), optional:: fwh1                   ! if present, use fwh1 do no
   enddo
 
 ! index bounds for fire mesh cell centers
-! to prevent setting values from uninitialized memory
-  iftst=ifval(ifds.eq.ifts,ifts+ir/2,ifts)
-  iftet=ifval(ifde.eq.ifte,ifte-ir/2,ifte)
-  jftst=ifval(jfds.ge.jfts,jfts+jr/2,jfts)
-  jftet=ifval(jfde.eq.jfte,jfte-jr/2,jfte)
+  if(izb.eq.0)then
+      ! prevent setting values from uninitialized memory
+      iftst=ifval(ifds.eq.ifts,ifts+ir/2,ifts)
+      iftet=ifval(ifde.eq.ifte,ifte-ir/2,ifte)
+      jftst=ifval(jfds.ge.jfts,jfts+jr/2,jfts)
+      jftet=ifval(jfde.eq.jfte,jfte-jr/2,jfte)
+  else
+      ! assume continued at bundary 
+      iftst=ifts
+      iftet=ifte
+      jftst=jfts
+      jftet=jfte
+  endif
 
   ! print *,'iftst, iftet, jftst, jftet=',iftst, iftet, jftst, jftet
 
