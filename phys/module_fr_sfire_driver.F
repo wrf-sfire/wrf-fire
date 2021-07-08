@@ -68,7 +68,10 @@ module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
 
 #ifdef PNETCDF
-use pnetcdf
+use pnetcdf, nf90mpi_write => nf90_write
+use netcdf, only: nf90_open, nf90_inq_varid, &
+                  nf90_put_var, nf90_close, &
+                  nf90_write
 #endif
 
 use mpi
@@ -995,7 +998,7 @@ do ij=1,num_tiles
         ! not using zsf any more but anyway
         call print_2d_stats(ifts,ifte,jfts,jfte,ifms,ifme,jfms,jfme,fp%zsf,'driver_phys:zsf')        
 
-        if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
+        if(config_flags%ifmw_qes > 0 .or. config_flags%ifmw_run > 0)then
           call set_fmw_layers(config_flags,               &
             ifms, ifme, jfms, jfme,                       &
             ifts,ifte,jfts,jfte,                          &
@@ -1007,7 +1010,7 @@ do ij=1,num_tiles
 
     elseif(ifun.eq.3)then  ! interpolate winds to the fire grid
 
-      if(config_flags%ifmw_qes==1 .or. config_flags%ifmw_run==1)then
+      if(config_flags%ifmw_qes > 0 .or. config_flags%ifmw_run > 0)then
         ! interpolate to firewind layers, ht_fmw already set  
         do k=1,nfmw
           call interpolate_wind2fire_height(id,       & ! to identify debugging prints and files if needed
@@ -1077,7 +1080,7 @@ do ij=1,num_tiles
           endif
         enddo
 
-        if(config_flags%ifmw_qes==1)then 
+        if(config_flags%ifmw_qes > 0)then 
             chsum0_fmw = get_chsum(  &
                 ifms,ifme, 1,nfmw, jfms,jfme,                    &
                 ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
@@ -2025,13 +2028,13 @@ subroutine check_grid_alloc(grid,config_flags)
         call check_shape(shape(grid%fmc_gc),'fmc_gc')
     endif
     call message('check_grid_alloc: checking if grid arrays used in firewind are allocated',level=3)
-    if (config_flags%ifmw_qes==1)then
+    if (config_flags%ifmw_qes > 0)then
         call check_shape(shape(grid%u0_fmw),'u0_fmw')
         call check_shape(shape(grid%v0_fmw),'v0_fmw')
         call check_shape(shape(grid%w0_fmw),'w0_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
     endif
-    if (config_flags%ifmw_run==1)then
+    if (config_flags%ifmw_run > 0)then
         call check_shape(shape(grid%u_fmw),'u_fmw')
         call check_shape(shape(grid%v_fmw),'v_fmw')
         call check_shape(shape(grid%w_fmw),'w_fmw')
@@ -2095,7 +2098,7 @@ subroutine pnetcdf_write_fmw(                    &
 !*** executable
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
+    call check(nf90mpi_open(comm, trim(filename), nf90mpi_write, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
     !call pnetcdf_var_info(ncid,"U",dims,varid)
     !call pnetcdf_var_info(ncid,"V",dims,varid)
@@ -2116,8 +2119,9 @@ subroutine pnetcdf_write_fmw(                    &
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
         ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
         w0_fmw,"W0_FMW")
-    ! call pnetcdf_write_int(ncid,999,"CHSUM0_FMW")  does not work - need something else
-    call check (nf90mpi_close(ncid),"nf90mpi_close")
+    !call pnetcdf_write_int(ncid,999,"CHSUM0_FMW")
+    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call netcdf_write_int(trim(filename),999,"CHSUM0_FMW")
 
 end subroutine pnetcdf_write_fmw
 
@@ -2143,7 +2147,7 @@ subroutine pnetcdf_write_wind(                    &
 !*** executable
     call wrf_get_dm_communicator(comm)
     filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), NF90_WRITE, &
+    call check(nf90mpi_open(comm, trim(filename), nf90mpi_write, &
                            MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
     !call pnetcdf_var_info(ncid,"U",dims,varid)
     !call pnetcdf_var_info(ncid,"V",dims,varid)
@@ -2165,9 +2169,35 @@ subroutine pnetcdf_write_wind(                    &
         ips,ipe, kps,kpe, jps,jpe,                    &
         ph,"PH")
     ! PHB is constant
-    call check (nf90mpi_close(ncid),"nf90mpi_close")
+    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
 
 end subroutine pnetcdf_write_wind
+
+subroutine netcdf_write_int(filename,ia,varname)
+implicit none
+!*** arguments
+    integer, intent(in)::                         &
+    ia                                              ! variable to write
+    character(LEN=*),intent(in):: varname, filename
+!*** local
+    integer::comm,myproc,ierr,varid,ival,ncid
+    character(len=256)::msg
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    call mpi_comm_rank(comm,myproc,ierr)
+    call check(ierr,'mpi_comm_rank')
+    write(msg,*)'netcdf_write_int: myproc=',myproc,' varname=',varname,' value=',ia
+    call message(msg,level=0)
+    if(myproc.eq.0)then
+        call check(nf90_open(filename, nf90_write, ncid),"nf90_open:"//trim(filename))
+        call check(nf90_inq_varid(ncid, trim(varname), varid), &
+            "nf90_inq_varid:"//trim(varname))
+        ival = ia
+        call check(nf90_put_var(ncid, varid, ival), &
+            "netcdf_write_int/nf90_put_var:"//trim(varname))
+        call check(nf90_close(ncid),"nf90_close:"//trim(filename))
+    endif
+end subroutine netcdf_write_int
 
 subroutine pnetcdf_write_int(ncid,ia,varname)
 implicit none
@@ -2185,11 +2215,14 @@ implicit none
     call check(ierr,'mpi_comm_rank')
     write(msg,*)'pnetcdf_write_int: myproc=',myproc,' varname=',varname,' value=',ia
     call message(msg,level=0)
+    call check(nf90mpi_begin_indep_data(ncid),"pnetcdf_write_int/nf90mpi_begin_indep_data")
     if(myproc.eq.0)then
-        call check(nf90mpi_inq_varid(ncid,trim(varname),varid),"nf90mpi_inq_varid"//trim(varname))
+        call check(nf90mpi_inq_varid(ncid, trim(varname), varid), &
+            "nf90mpi_inq_varid:"//trim(varname))
         ival = ia
         call check(nf90mpi_put_var(ncid, varid, ival), &
-            "pnetcdf_write_int/nf90mpi_put_var_all:"//trim(varname))
+            "pnetcdf_write_int/nf90mpi_put_var:"//trim(varname))
+    call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
     endif
 end subroutine pnetcdf_write_int
 
