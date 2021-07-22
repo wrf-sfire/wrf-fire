@@ -2186,6 +2186,31 @@ subroutine pnetcdf_write_wind(                    &
 
 end subroutine pnetcdf_write_wind
 
+subroutine pnetcdf_read_int(ncid,ia,varname)
+implicit none
+!*** arguments
+    integer, intent(in)::ncid                      ! open pnetcdf file
+    integer, intent(inout)::ia                     ! variable to store
+    character(LEN=*),intent(in)::varname           ! variable name
+!*** local
+    integer::comm,myproc,ierr,varid
+    character(len=256)::msg
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    call mpi_comm_rank(comm,myproc,ierr)
+    call check(ierr,'mpi_comm_rank')
+    call message(msg,level=0)
+    call check(nf90mpi_begin_indep_data(ncid),"pnetcdf_write_int/nf90mpi_begin_indep_data")
+    if(myproc.eq.0)then
+        call check(nf90mpi_inq_varid(ncid, trim(varname), varid), &
+            "nf90mpi_inq_varid:"//trim(varname))
+        call check(nf90mpi_get_var(ncid, varid, ia), &
+            "pnetcdf_read_int/nf90mpi_get_var:"//trim(varname))
+        write(msg,*)'pnetcdf_read_int: myproc=',myproc,' varname=',varname,' value=',ia
+    endif
+    call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
+end subroutine pnetcdf_write_int
+
 subroutine pnetcdf_write_int(ncid,ia,varname)
 implicit none
 !*** arguments
@@ -2209,10 +2234,9 @@ implicit none
         ival = ia
         call check(nf90mpi_put_var(ncid, varid, ival), &
             "pnetcdf_write_int/nf90mpi_put_var:"//trim(varname))
-    call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
     endif
+    call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
 end subroutine pnetcdf_write_int
-
 
 subroutine pnetcdf_write_arr(ncid,                &
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
