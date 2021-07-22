@@ -2209,7 +2209,7 @@ implicit none
         write(msg,*)'pnetcdf_read_int: myproc=',myproc,' varname=',varname,' value=',ia
     endif
     call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
-end subroutine pnetcdf_write_int
+end subroutine pnetcdf_read_int
 
 subroutine pnetcdf_write_int(ncid,ia,varname)
 implicit none
@@ -2289,6 +2289,58 @@ subroutine pnetcdf_write_arr(ncid,                &
     deallocate(at)
     
 end subroutine pnetcdf_write_arr
+
+subroutine pnetcdf_read_arr(ncid,                &
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe,                    &
+    a,name)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ncid,                                         & ! open pnetcdf file
+    ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
+    ims,ime, kms,kme, jms,jme,                    &
+    ips,ipe, kps,kpe, jps,jpe                     
+    real,intent(out),dimension(ims:ime,kms:kme,jms:jme)::a  
+    character(LEN=*),intent(in):: name
+
+!*** local
+    integer(kind=MPI_OFFSET_KIND),dimension(4)::star,cnts
+    integer::i,j,k,varid,ends(4),dims(4)
+    real,dimension(:,:,:,:),allocatable::at
+    character(len=256) msg
+
+    ! get idx
+    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    star   = (/ips,jps,kps,1/)
+    ends   = (/ipe,jpe,kpe,1/)
+    ends   = min(ends,dims)
+    ! at end of domain, extend patch by one
+    if (ends(1).eq.dims(1)-1)ends(1)=dims(1) 
+    if (ends(2).eq.dims(2)-1)ends(2)=dims(2)
+    cnts = ends - star + 1
+
+    write(msg,*)"reading ",trim(name),star(1),ends(1),star(2),ends(2),star(3),ends(3)
+    call message(msg)
+ 
+    ! read from file
+    call check(nf90mpi_get_var_all(ncid, varid, at, start = star, count = cnts),"nf90mpi_get_var:"//trim(name))
+    
+    ! transpose a -> at
+    allocate(at(star(1):ends(1),star(2):ends(2),star(3):ends(3),1))
+    do k=star(3),ends(3)
+        do j=star(2),ends(2)
+            do i=star(1),ends(1)
+                a(i,k,j) = at(i,j,k,1)
+            enddo
+        enddo
+    enddo
+
+    deallocate(at)
+    
+end subroutine pnetcdf_read_arr
 
 subroutine pnetcdf_var_info(ncid,varname,dims,varid,prints)
     implicit none
