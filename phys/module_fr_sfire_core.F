@@ -1750,7 +1750,7 @@ integer::ihs,ihe,jhs,jhe
 integer::ihs2,ihe2,jhs2,jhe2
 integer::itso,iteo,jtso,jteo
 integer::i,j,its1,ite1,jts1,jte1,k,kk,id1
-character(len=128)::msg
+character(len=256)::msg
 integer::nfirenodes,nfireline,ierrx
 real::sum_err,min_err,max_err,sum_aerr,min_aerr,max_aerr   
 
