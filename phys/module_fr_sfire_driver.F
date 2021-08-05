@@ -541,6 +541,9 @@ call print_2d_stats(ifps,min(ifpe,ifde-ir),jfps,min(jfpe,jfde-jr),ifms,ifme,jfms
             grid%u0_fmw,                     &  ! initial fire wind u
             grid%v0_fmw,                     &  ! initial fire wind v
             grid%w0_fmw,                     &  ! initial fire wind v
+            grid%u_fmw,                     &  ! downscaled fire wind u
+            grid%v_fmw,                     &  ! downscaled fire wind v
+            grid%w_fmw,                     &  ! downscaled fire wind v
             grid%ht_fmw,                     &  ! heights of the midpoint of fire wind layers above the terrain 
             grid%chsum0_fmw                  &  ! check sum of initial wind fields
          )
@@ -660,8 +663,11 @@ subroutine sfire_driver_phys (ifun,    &
     u0_fmw,                     &  ! initial fire wind u
     v0_fmw,                     &  ! initial fire wind v
     w0_fmw,                     &  ! initial fire wind v
+    u_fmw,                      &  ! downscaled fire wind u
+    v_fmw,                      &  ! downscaled fire wind v
+    w_fmw,                      &  ! downscaled fire wind v
     ht_fmw,                     &  ! heights of the midpoint of fire wind layers above the terrain 
-    chsum0_fmw                  &  ! check sum of fmw initial wind fields
+    chsum0_fmw                  &  ! check sum of fmw initial wind fields  TESTING ONLY SO THAT IT IS SET IN WRFOUT
     )
 
 
@@ -761,9 +767,9 @@ real, intent(inout), dimension(ifms:ifme,jfms:jfme):: fmc_g
 
 ! firewind arguments
 integer, intent(in)::  nfmw
-real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: u0_fmw,v0_fmw,w0_fmw  ! initial femwind
+real, intent(out), dimension(ifms:ifme,nfmw,jfms:jfme) :: u0_fmw,v0_fmw,w0_fmw,u_fmw,v_fmw,w_fmw  !  femwind
 real, intent(inout), dimension(nfmw) :: ht_fmw   ! heights of the midpoint of fire wind layers above the terrain 
-integer, intent(out):: chsum0_fmw
+integer, intent(out)::chsum0_fmw
 
 !  ***** data (constant in time) *****
 
@@ -782,6 +788,7 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
+integer::chsum1_fmw,chsum_fmw
 
 ! femwind variables - should move all this to subrouitine and declare temporaries on a tile?
 real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp, w0_tmp  !
@@ -1092,7 +1099,8 @@ do ij=1,num_tiles
           endif
         enddo
 
-        if(config_flags%ifmw_qes > 0)then 
+! TESTING: get chsum0_fmw in wrfout in any case
+        if(config_flags%ifmw_qes > 0 .or. use_pnetcdf)then 
             chsum0_fmw = get_chsum(  &
                 ifms,ifme, 1,nfmw, jfms,jfme,                    &
                 ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
@@ -1114,11 +1122,44 @@ do ij=1,num_tiles
          endif
 
 #ifdef PNETCDF
-        if(use_pnetcdf)call  pnetcdf_write_fmw(                    &
+        if(use_pnetcdf)then
+          call pnetcdf_write_fmw(                    &
           ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
           ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
           u0_fmw,v0_fmw,w0_fmw,chsum0_fmw)
+          write(msg,*)'writing *0_fmw, check sum ',chsum0_fmw
+          call message(msg)
+
+          ! try read
+          call  pnetcdf_read_fmw(                    &
+          ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+          ifms,ifme, 1,nfmw, jfms,jfme,                    &
+          ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
+          u_fmw,v_fmw,w_fmw,chsum1_fmw)
+
+          ! get chsum from what we read
+            chsum_fmw = get_chsum(  &
+                ifms,ifme, 1,nfmw, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                0,0,0,       &
+                u_fmw)
+            chsum_fmw = ieor(chsum_fmw,get_chsum(  &
+                ifms,ifme, 1,nfmw, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                0,0,0,       &
+                v_fmw))
+            chsum_fmw = ieor(chsum_fmw,get_chsum(  &
+                ifms,ifme, 1,nfmw, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                0,0,0,       &
+                w_fmw))
+          write(msg,*)'reading *_fmw, check sum ',chsum1_fmw,' computed ',chsum_fmw
+          call message(msg)
+        endif
 #endif
       endif
  
@@ -2137,6 +2178,55 @@ subroutine pnetcdf_write_fmw(                    &
     call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
 
 end subroutine pnetcdf_write_fmw
+
+subroutine pnetcdf_read_fmw(                    &
+    ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+    ifms,ifme, kfms,kfme, jfms,jfme,                    &
+    ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
+    u_fmw,v_fmw,w_fmw, chsum_fmw)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+    ifms,ifme, kfms,kfme, jfms,jfme,                    &
+    ifps,ifpe, kfps,kfpe, jfps,jfpe                    
+    integer, intent(out)::chsum_fmw                                            ! xor chsum                    
+    real,intent(out),dimension(ifms:ifme,kfms:kfme,jfms:jfme)::u_fmw,v_fmw,w_fmw  ! wind velocity (m/s) 
+!*** local
+    integer::comm,ncid,varid,dims(4)
+    character(len=nf90_max_name):: name
+    character(LEN=256):: filename, msg
+
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    filename = "wrf.nc"
+    call check(nf90mpi_open(comm, trim(filename), nf90_nowrite, &
+                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    !call pnetcdf_var_info(ncid,"U",dims,varid)
+    !call pnetcdf_var_info(ncid,"V",dims,varid)
+    !call pnetcdf_var_info(ncid,"PH",dims,varid)
+    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    call  pnetcdf_read_arr(ncid,                &
+        ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, kfms,kfme, jfms,jfme,                    &
+        ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
+        u_fmw,"U_FMW")
+    call  pnetcdf_read_arr(ncid,                &
+        ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, kfms,kfme, jfms,jfme,                    &
+        ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
+        v_fmw,"V_FMW")
+    call  pnetcdf_read_arr(ncid,                &
+        ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, kfms,kfme, jfms,jfme,                    &
+        ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
+        w_fmw,"W_FMW")
+    call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
+    ! call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
+    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+
+end subroutine pnetcdf_read_fmw
 
 subroutine pnetcdf_write_wind(                    &
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
