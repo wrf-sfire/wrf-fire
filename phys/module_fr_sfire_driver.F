@@ -1137,6 +1137,8 @@ do ij=1,num_tiles
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
           ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
           u_fmw,v_fmw,w_fmw,chsum1_fmw)
+          write(msg,*)'read *_fmw and check sum ',chsum1_fmw
+          call message(msg)
 
           ! get chsum from what we read
             chsum_fmw = get_chsum(  &
@@ -1157,7 +1159,7 @@ do ij=1,num_tiles
                 ifts,ifte, 1,nfmw, jfts,jfte,                    &
                 0,0,0,       &
                 w_fmw))
-          write(msg,*)'reading *_fmw, check sum ',chsum1_fmw,' computed ',chsum_fmw
+          write(msg,*)' computed check sum',chsum_fmw
           call message(msg)
         endif
 #endif
@@ -2222,9 +2224,12 @@ subroutine pnetcdf_read_fmw(                    &
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
         ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
         w_fmw,"W_FMW")
+    ! call message('calling pnetcdf_read_int')
     call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
     ! call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
+    call message('calling nf90mpi_close')
     call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call message('exiting pnetcdf_read_fmw')
 
 end subroutine pnetcdf_read_fmw
 
@@ -2289,7 +2294,6 @@ implicit none
     call wrf_get_dm_communicator(comm)
     call mpi_comm_rank(comm,myproc,ierr)
     call check(ierr,'mpi_comm_rank')
-    call message(msg,level=0)
     call check(nf90mpi_begin_indep_data(ncid),"pnetcdf_write_int/nf90mpi_begin_indep_data")
     if(myproc.eq.0)then
         call check(nf90mpi_inq_varid(ncid, trim(varname), varid), &
@@ -2416,10 +2420,10 @@ subroutine pnetcdf_read_arr(ncid,                &
     call message(msg)
  
     ! read from file
+    allocate(at(star(1):ends(1),star(2):ends(2),star(3):ends(3),1))
     call check(nf90mpi_get_var_all(ncid, varid, at, start = star, count = cnts),"nf90mpi_get_var:"//trim(name))
     
-    ! transpose a -> at
-    allocate(at(star(1):ends(1),star(2):ends(2),star(3):ends(3),1))
+    ! transpose at -> a
     do k=star(3),ends(3)
         do j=star(2),ends(2)
             do i=star(1),ends(1)
@@ -2500,7 +2504,7 @@ subroutine check(ierr,errmsg)
     character(len=*), intent(in)::errmsg
     character(len=256)msg
     if(ierr.ne.0)then
-        write(msg,"(a,a,i6,1x,a)")trim(errmsg)," error",ierr,nf90mpi_strerror(ierr)
+        write(msg,"(a,a,i6,1x,a)")trim(errmsg)," error",ierr,trim(nf90mpi_strerror(ierr))
         call crash(trim(msg))
     endif
 end subroutine check
