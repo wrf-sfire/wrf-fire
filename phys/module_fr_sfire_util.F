@@ -1602,6 +1602,7 @@ integer::i,j,k,n,ipe1,jpe1,kpe1,iel,thread,is,js,ks
 integer, save::psum,gsum
 real::rel
 equivalence(rel,iel)
+logical::debug
 
 
 ipe1=ifval(ipe.eq.ide.and.istag.ne.0,ipe+1,ipe)
@@ -1612,11 +1613,16 @@ ks=ifval(kstag.ne.0,1,0)
 js=ifval(jstag.ne.0,1,0)
 
 lsum=0
+debug = a(ips,kps,jps).eq.20.0
+print *,"get_chsum: corner=",a(ips,kps,jps)," debug=",debug
+if(debug)print *,"get_chsum: given bounds ",ips,kps,jps,ipe,kpe,jpe
+if(debug)print *,"get_chsum: loop bounds  ",ips,kps,jps,ipe1,kpe1-1,jpe1
 do j=jps,jpe1
   do k=kps,kpe1-1
     do i=ips,ipe1
       rel=a(i,k,j)
       lsum=ieor(lsum,iel)
+      if(debug)print *,i,k,j,rel,iel,lsum
     enddo
   enddo
 enddo

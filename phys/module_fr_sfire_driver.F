@@ -1098,27 +1098,35 @@ do ij=1,num_tiles
             enddo
           endif
         enddo
-
 ! TESTING: get chsum0_fmw in wrfout in any case
         if(config_flags%ifmw_qes > 0 .or. use_pnetcdf)then 
+        print *,"*** debug only ***"
+        u0_fmw(ifts,1,jfts)=itimestep
+        v0_fmw(ifts,1,jfts)=itimestep
+        w0_fmw(ifts,1,jfts)=itimestep
             chsum0_fmw = get_chsum(  &
-                ifms,ifme, 1,nfmw, jfms,jfme,                    &
-                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
-                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                ifms,ifme, 1,nfmw+1, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw+1, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw+1, jfts,jfte,                    &
                 0,0,0,       &
                 u0_fmw)
+            print *,"time step ",itimestep," chsum0_fmw ", chsum0_fmw
             chsum0_fmw = ieor(chsum0_fmw,get_chsum(  &
-                ifms,ifme, 1,nfmw, jfms,jfme,                    &
-                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
-                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                ifms,ifme, 1,nfmw+1, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw+1, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw+1, jfts,jfte,                    &
                 0,0,0,       &
                 v0_fmw))
+            print *,"time step ",itimestep," chsum0_fmw ", chsum0_fmw
             chsum0_fmw = ieor(chsum0_fmw,get_chsum(  &
-                ifms,ifme, 1,nfmw, jfms,jfme,                    &
-                ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
-                ifts,ifte, 1,nfmw, jfts,jfte,                    &
+                ifms,ifme, 1,nfmw+1, jfms,jfme,                    &
+                ifds,ifde, 1,nfmw+1, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,nfmw+1, jfts,jfte,                    &
                 0,0,0,       &
                 w0_fmw))
+            print *,"time step ",itimestep," chsum0_fmw ", chsum0_fmw
+            print *, "size ",ifts,ifte, 1,nfmw, jfts,jfte
+            print *,"corner values",u0_fmw(1,1,1),v0_fmw(1,1,1),w0_fmw(1,1,1)
          endif
 
 #ifdef PNETCDF
