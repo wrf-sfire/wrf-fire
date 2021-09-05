@@ -1598,7 +1598,7 @@ real, intent(in),dimension(ims:ime,kms:kme,jms:jme)::a
 
 !*** local
 integer::lsum
-integer::i,j,k,n,ipe1,jpe1,kpe1,iel,thread,is,js,ks
+integer::i,j,k,n,ipe1,jpe1,kpe1,iel,thread !,is,js,ks
 integer, save::psum,gsum
 real::rel
 equivalence(rel,iel)
@@ -1608,9 +1608,9 @@ logical::debug
 ipe1=ifval(ipe.eq.ide.and.istag.ne.0,ipe+1,ipe)
 kpe1=ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe)
 jpe1=ifval(jpe.eq.jde.and.jstag.ne.0,jpe+1,jpe)
-is=ifval(istag.ne.0,1,0)
-ks=ifval(kstag.ne.0,1,0)
-js=ifval(jstag.ne.0,1,0)
+!is=ifval(istag.ne.0,1,0)
+!ks=ifval(kstag.ne.0,1,0)
+!js=ifval(jstag.ne.0,1,0)
 
 lsum=0
 debug = a(ips,kps,jps).eq.20.0
