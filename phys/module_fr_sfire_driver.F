@@ -1135,8 +1135,8 @@ do ij=1,num_tiles
           ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
           ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
-          u0_fmw,v0_fmw,w0_fmw,chsum0_fmw)
-          write(msg,*)'writing *0_fmw, check sum ',chsum0_fmw
+          u0_fmw,v0_fmw,w0_fmw,chsum0_fmw, itimestep)
+          write(msg,*)'writing *0_fmw, check sum ',chsum0_fmw,' frame ',itimestep
           call message(msg)
 
           ! try read
@@ -2146,7 +2146,7 @@ subroutine pnetcdf_write_fmw(                    &
     ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, kfms,kfme, jfms,jfme,                    &
     ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
-    u0_fmw,v0_fmw,w0_fmw, chsum0_fmw)
+    u0_fmw,v0_fmw,w0_fmw, chsum0_fmw, frame0_fmw)
     implicit none
 
 !*** arguments
@@ -2154,7 +2154,7 @@ subroutine pnetcdf_write_fmw(                    &
     ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, kfms,kfme, jfms,jfme,                    &
     ifps,ifpe, kfps,kfpe, jfps,jfpe,                    &
-    chsum0_fmw                                            ! chsum0_fmw                    
+    chsum0_fmw, frame0_fmw                               ! chsum0_fmw                    
     real,intent(in),dimension(ifms:ifme,kfms:kfme,jfms:jfme)::u0_fmw,v0_fmw,w0_fmw  ! wind velocity (m/s) 
 !*** local
     integer::comm,ncid,varid,dims(4)
@@ -2185,7 +2185,14 @@ subroutine pnetcdf_write_fmw(                    &
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
         ifps,ifpe, kfps,kfpe, jfps,jfpe,                    & 
         w0_fmw,"W0_FMW")
+    ! write output checksum and frame number
     call pnetcdf_write_int(ncid,chsum0_fmw,"CHSUM0_FMW")
+    call pnetcdf_write_int(ncid,frame0_fmw,"FRAME0_FMW")
+    ! clear input checksum and invalidate input frame number
+    call pnetcdf_write_int(ncid,0,"CHSUM_FMW")
+    call pnetcdf_write_int(ncid,-1,"FRAME_FMW")
+    ! paranoid close file
+    call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
     call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
     call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
 
