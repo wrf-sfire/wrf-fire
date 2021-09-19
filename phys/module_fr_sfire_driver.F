@@ -2096,6 +2096,8 @@ subroutine check_grid_alloc(grid,config_flags)
         call check_shape(shape(grid%v0_fmw),'v0_fmw')
         call check_shape(shape(grid%w0_fmw),'w0_fmw')
         call check_shape(shape(grid%ht_fmw),'ht_fmw')
+        call check_shape(shape(grid%frame_fmw),'frame_fmw')
+        call check_shape(shape(grid%frame0_fmw),'frame0_fmw')
     endif
     if (config_flags%ifmw_run > 0)then
         call check_shape(shape(grid%u_fmw),'u_fmw')

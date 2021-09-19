@@ -16,7 +16,7 @@ package  fire_fmoist_run   fmoisti_run==1           -             state:fmc_gc,f
 package  fire_fmoist_interp fmoisti_interp==1       -             state:fmc_gc
 
 package  fire_fmw_run   ifmw_run==1                 _             state:u_fmw,v_fmw,w_fmw,u0_fmw,v0_fmw,w0_fmw,ht_fmw,lambda_fmw
-package  fire_fmw_qes   ifmw_qes==1                 _             state:u0_fmw,v0_fmw,w0_fmw,ht_fmw
+package  fire_fmw_qes   ifmw_qes==1                 _             state:u0_fmw,v0_fmw,w0_fmw,ht_fmw,frame_fmw,frame0_fmw
 
 # level function history support
 dimspec   ign   2           constant=1      z    i_lfn_history
@@ -140,6 +140,8 @@ state    real     htc_fmw  *i{num_fmw}*j fire     1        z   hr   "HTC_FMW"  "
 state    real     lambda_fmw *i{num_fmw}*j fire  1        -   hr   "LAMBDA_FMW"  "langrange multiplier at cell midpoints" "1/s"
 state    integer chsum_fmw   -        -           -         -   hr "CHSUM_FMW" "check sum of u,v,w_fmw" 
 state    integer chsum0_fmw  -        -           -         -   hr "CHSUM0_FMW" "check sum of u0,v0,w0_fmw" 
+state    integer frame0_fmw  -        -           -         -   hr "FRAME0_FMW" "frame number out" 
+state    integer frame_fmw  -        -           -         -   hr "FRAME_FMW" "frame number in" 
 halo     HALO_LAMBDA_FMW            dyn_em 24:lambda_fmw
 
 # constant data arrays
