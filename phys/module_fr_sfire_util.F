@@ -1970,6 +1970,47 @@ subroutine pnetcdf_read_arr(ncid,                &
     
 end subroutine pnetcdf_read_arr
 
+subroutine pnetcdf_read_2d(ncid,                &
+    ids,ide, jds,jde,                    & ! atm grid dimensions
+    ims,ime, jms,jme,                    &
+    ips,ipe, jps,jpe,                    &
+    a,name)
+    implicit none
+!*** purpose
+!   read 2d array from frame 1
+
+!*** arguments
+    integer, intent(in)::                         &
+    ncid,                                         & ! open pnetcdf file
+    ids,ide, jds,jde,                    & ! atm grid dimensions
+    ims,ime, jms,jme,                    &
+    ips,ipe, jps,jpe                     
+    real,intent(out),dimension(ims:ime,jms:jme)::a  
+    character(LEN=*),intent(in):: name
+
+!*** local
+    integer(kind=MPI_OFFSET_KIND),dimension(3)::star,cnts
+    integer::i,j,k,varid,ends(3),dims(3)
+    character(len=256) msg
+
+    ! get idx
+    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    star   = (/ips,jps,1/)
+    ends   = (/ipe,jpe,1/)
+    ends   = min(ends,dims)
+    ! at end of domain, extend patch by one
+    if (ends(1).eq.dims(1)-1)ends(1)=dims(1) 
+    if (ends(2).eq.dims(2)-1)ends(2)=dims(2)
+    cnts = ends - star + 1
+
+    write(msg,*)"reading ",trim(name),star,ends
+    call message(msg)
+ 
+    ! read from file
+    call check(nf90mpi_get_var_all(ncid, varid, a, start = star, count = cnts),"nf90mpi_get_var:"//trim(name))
+    
+end subroutine pnetcdf_read_2d
+
 subroutine pnetcdf_var_info(ncid,varname,dims,varid,prints)
     implicit none
 !*** arguments

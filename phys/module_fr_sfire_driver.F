@@ -1,4 +1,3 @@
-! SFIRE - Spread fire model in WRF-Fire
 !
 !*** Jan Mandel August 2007 - March 2011 
 !*** email: Jan.Mandel@gmail.com
@@ -1140,6 +1139,11 @@ do ij=1,num_tiles
           call message(msg)
 
           ! try read
+          call pnetcdf_read_fire_wind(                    &
+              ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+              ifms,ifme, jfms,jfme,                    &
+              ifps,ifpe, jfps,jfpe,                    &
+              fp%vx, fp%vy, chsum_fmw)
           call  pnetcdf_read_fmw(                    &
           ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
@@ -1171,7 +1175,7 @@ do ij=1,num_tiles
           call message(msg)
         endif
 #endif
-      endif
+      endif ! ifmw_qes
  
       if(use_atm_vars)then                                  
      
@@ -1210,12 +1214,15 @@ do ij=1,num_tiles
         else
 
 #ifdef PNETCDF
+#ifdef WRITE_UV
           ! read/write pnetcdf wind file
           if(use_pnetcdf)call pnetcdf_write_wind(           &
               ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
               ims,ime, kms,kme, jms,jme,                    &
               ips,ipe, kps,kpe, jps,jpe,                    &
               u,v,ph,phb)
+          call message('pnetcdf writing u, v')
+#endif
 #endif
 
           ! wind vertical interpolation`
@@ -2198,6 +2205,50 @@ subroutine pnetcdf_write_fmw(                    &
 
 end subroutine pnetcdf_write_fmw
 
+subroutine pnetcdf_read_fire_wind(                    &
+    ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+    ifms,ifme, jfms,jfme,                    &
+    ifps,ifpe, jfps,jfpe,                    &
+    uf, vf, chsum_fmw)
+    implicit none
+
+!*** arguments
+    integer, intent(in)::                         &
+    ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+    ifms,ifme, jfms,jfme,                    &
+    ifps,ifpe, jfps,jfpe                    
+    integer, intent(out)::chsum_fmw                                            ! xor chsum                    
+    real,intent(out),dimension(ifms:ifme,jfms:jfme)::uf, vf ! wind velocity (m/s) 
+!*** local
+    integer::comm,ncid,varid,dims(4)
+    character(len=nf90_max_name):: name
+    character(LEN=256):: filename, msg
+
+!*** executable
+    call wrf_get_dm_communicator(comm)
+    filename = "wrf.nc"
+    call check(nf90mpi_open(comm, trim(filename), nf90_nowrite, &
+                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    call message('pnetcdf_read_fire_wind calling pnetcdf_read_2d')
+    call  pnetcdf_read_2d(ncid,                &
+        ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, jfms,jfme,                    &
+        ifps,ifpe, jfps,jfpe,                    &
+        uf,"UF")      ! uf
+    call  pnetcdf_read_2d(ncid,                &
+        ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+        ifms,ifme, jfms,jfme,                    &
+        ifps,ifpe, jfps,jfpe,                    &
+        vf,"VF")      ! vf
+    ! call message('calling pnetcdf_read_int')
+    call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
+    ! call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
+    call message('calling nf90mpi_close')
+    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call message('exiting pnetcdf_read_fire_wind')
+
+end subroutine pnetcdf_read_fire_wind
+
 subroutine pnetcdf_read_fmw(                    &
     ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, kfms,kfme, jfms,jfme,                    &
@@ -2249,7 +2300,7 @@ subroutine pnetcdf_read_fmw(                    &
     call message('exiting pnetcdf_read_fmw')
 
 end subroutine pnetcdf_read_fmw
-
+    
 subroutine pnetcdf_write_wind(                    &
     ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
     ims,ime, kms,kme, jms,jme,                    &
