@@ -1835,6 +1835,7 @@ implicit none
         call check(nf90mpi_get_var(ncid, varid, ia), &
             "pnetcdf_read_int/nf90mpi_get_var:"//trim(varname))
         write(msg,*)'pnetcdf_read_int: myproc=',myproc,' varname=',varname,' value=',ia
+        call message(msg)
     endif
     call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
 end subroutine pnetcdf_read_int

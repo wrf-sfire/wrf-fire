@@ -2,9 +2,8 @@
 !*** Jan Mandel August 2007 - March 2011 
 !*** email: Jan.Mandel@gmail.com
 
-! For support please subscribe to the wrf-fire mailing list at NCAR at
-! http://mailman.ucar.edu/mailman/listinfo/wrf-fire
-! or go to http://www.openwfm.org/wiki/WRF-Fire_user_support 
+! For support 
+! go to http://www.openwfm.org/wiki/WRF-Fire_user_support 
 
 ! Current drafts of the technical documentation and
 ! user's guide can be found at
@@ -69,6 +68,7 @@ module module_fr_sfire_driver
 #ifdef PNETCDF
 use pnetcdf
 use mpi
+use IFPORT   ! intel Fortran only
 #endif
 
 
@@ -787,7 +787,8 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
-integer::chsum1_fmw,chsum_fmw
+integer::chsum1_fmw,chsum_fmw,frame_fmw,itry
+integer(4)::isleep=1
 
 ! femwind variables - should move all this to subrouitine and declare temporaries on a tile?
 real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp, w0_tmp  !
@@ -1138,19 +1139,56 @@ do ij=1,num_tiles
           write(msg,*)'writing *0_fmw, check sum ',chsum0_fmw,' frame ',itimestep
           call message(msg)
 
-          ! try read
-          call pnetcdf_read_fire_wind(                    &
+          try_read: do itry=1,100
+            write(msg,*)'read fire wind try ',itry,' start'
+            call message(msg)
+            call pnetcdf_read_fire_wind(               &
               ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
               ifms,ifme, jfms,jfme,                    &
               ifps,ifpe, jfps,jfpe,                    &
-              fp%vx, fp%vy, chsum_fmw)
-          call  pnetcdf_read_fmw(                    &
-          ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
-          ifms,ifme, 1,nfmw, jfms,jfme,                    &
-          ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
-          u_fmw,v_fmw,w_fmw,chsum1_fmw)
-          write(msg,*)'read *_fmw and check sum ',chsum1_fmw
-          call message(msg)
+              fp%vx, fp%vy, chsum_fmw, frame_fmw)
+            write(msg,*)'read fire wind frame ',frame_fmw,' check sum ',chsum_fmw
+            call message(msg)
+            frame: if(frame_fmw.eq.itimestep)then
+              chsum1_fmw = get_chsum(   &
+                ifms,ifme, 1,1, jfms,jfme,                    &
+                ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,1, jfts,jfte,                    &
+                0,0,0,       &
+                fp%vx)
+              chsum1_fmw = ieor(chsum1_fmw,get_chsum(  &
+                ifms,ifme, 1,1, jfms,jfme,                    &
+                ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
+                ifts,ifte, 1,1, jfts,jfte,                    &
+                0,0,0,       &
+                fp%vy))
+              write(msg,*)' computed check sum',chsum_fmw
+              call message(msg)
+              chsum: if(chsum_fmw.eq.chsum1_fmw)then
+                go to 1
+              else chsum
+                call message('check sum does not agree')
+              endif chsum
+            else frame
+              call message('frame number does not agree')
+            endif frame
+            write(msg,*)'sleeping ',isleep,' sec'
+            call message(msg)
+            call sleep(isleep)
+            write(msg,*)'read fire wind try ',itry,' end'
+            call message(msg)
+          enddo try_read
+          call crash('Reading fire winds timed out')
+1         continue
+
+#ifdef READ_FMW
+            call  pnetcdf_read_fmw(                    &
+              ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
+              ifms,ifme, 1,nfmw, jfms,jfme,                    &
+              ifps,ifpe, 1,nfmw, jfps,jfpe,                    &
+              u_fmw,v_fmw,w_fmw,chsum1_fmw)
+            write(msg,*)'read *_fmw and check sum ',chsum1_fmw
+            call message(msg)
 
           ! get chsum from what we read
             chsum_fmw = get_chsum(  &
@@ -1173,7 +1211,8 @@ do ij=1,num_tiles
                 w_fmw))
           write(msg,*)' computed check sum',chsum_fmw
           call message(msg)
-        endif
+#endif
+        endif ! use_pnetcdf
 #endif
       endif ! ifmw_qes
  
@@ -2209,7 +2248,7 @@ subroutine pnetcdf_read_fire_wind(                    &
     ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, jfms,jfme,                    &
     ifps,ifpe, jfps,jfpe,                    &
-    uf, vf, chsum_fmw)
+    uf, vf, chsum_fmw, frame_fmw)
     implicit none
 
 !*** arguments
@@ -2217,7 +2256,7 @@ subroutine pnetcdf_read_fire_wind(                    &
     ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, jfms,jfme,                    &
     ifps,ifpe, jfps,jfpe                    
-    integer, intent(out)::chsum_fmw                                            ! xor chsum                    
+    integer, intent(out)::chsum_fmw,frame_fmw                       ! xor chsum         
     real,intent(out),dimension(ifms:ifme,jfms:jfme)::uf, vf ! wind velocity (m/s) 
 !*** local
     integer::comm,ncid,varid,dims(4)
@@ -2242,6 +2281,7 @@ subroutine pnetcdf_read_fire_wind(                    &
         vf,"VF")      ! vf
     ! call message('calling pnetcdf_read_int')
     call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
+    call pnetcdf_read_int(ncid,frame_fmw,"FRAME_FMW")
     ! call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
     call message('calling nf90mpi_close')
     call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
