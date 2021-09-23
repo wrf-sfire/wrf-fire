@@ -15,6 +15,17 @@ use pnetcdf
 use mpi
 #endif
 
+implicit none
+
+#ifdef PNETCDF
+type pnetcdf_type
+	character(len=128)::filename
+	integer::state=0  ! 0=not open, 1=read only 2=write
+	integer::ncid
+end type pnetcdf_type
+type(pnetcdf_type)::pnetcdf_file
+#endif
+
 ! various method selection parameters
 ! 1. add the parameter and its static default here
 ! optional:
@@ -28,7 +39,6 @@ use mpi
 !use module_domain, only: domain
 !use module_model_constants, only: reradius,    & ! 1/earth radiusw
 !                                  pi2            ! 2*pi
-implicit none
 
 integer,save::          &
  fire_print_msg=1,      &  ! print SFIRE progress 
@@ -1814,6 +1824,56 @@ enddo
 end subroutine sfire_debug_hook
 
 #ifdef PNETCDF
+
+subroutine pnetcdf_open(filename,ncid,write)
+implicit none
+!*** arguments
+character(LEN=*),intent(in)::filename
+logical, intent(in),optional::write
+integer, intent(out)::ncid
+!*** local
+integer::comm
+character(len=256)::msg
+logical::rw=.true.
+!*** executable
+if(present(write))rw=write
+
+write(msg,*)'Opening pnetcdf file ',trim(filename),' write=',rw
+call message(trim(msg))
+if(pnetcdf_file%state.ne.0)call crash('file already open')
+
+call wrf_get_dm_communicator(comm)
+if(rw)then
+    call check(nf90mpi_open(comm, trim(filename), nf90_write, &
+      MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    pnetcdf_file%state=2
+else
+    call check(nf90mpi_open(comm, trim(filename), nf90_nowrite, &
+      MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    pnetcdf_file%state=1
+endif
+pnetcdf_file%ncid=ncid
+write(msg,*)'pnetcdf file ',trim(filename),' ncid=',ncid
+call message(trim(msg))
+
+end subroutine pnetcdf_open
+
+subroutine pnetcdf_close(ncid)
+implicit none
+!*** arguments
+integer, intent(in)::ncid
+!*** local
+character(len=256)::msg
+!*** executable
+if(pnetcdf_file%ncid .ne. ncid)call crash('pnetcdf_close: ncid does not match')
+if(pnetcdf_file%state.eq.0)call crash('pnetcdf_close: file not open')
+write(msg,*)'closing pnetcdf file ncid=',ncid
+call message(trim(msg))
+if(pnetcdf_file%state.eq.2)call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(msg))
+call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(msg))
+pnetcdf_file%state=0
+pnetcdf_file%ncid=-1
+end subroutine pnetcdf_close
 
 subroutine pnetcdf_read_int(ncid,ia,varname)
 implicit none

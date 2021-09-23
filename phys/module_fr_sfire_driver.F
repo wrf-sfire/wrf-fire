@@ -65,12 +65,6 @@
 module module_fr_sfire_driver
 ! use this module for standalone call, you only need to provide some mock-up wrf modules  
 
-#ifdef PNETCDF
-use pnetcdf
-use mpi
-use IFPORT   ! intel Fortran only
-#endif
-
 
 use module_fr_sfire_model, only: sfire_model
 use module_fr_sfire_phys, only: fire_params, init_fuel_cats, fuel_moisture, &
@@ -96,8 +90,18 @@ USE module_domain, only: domain
 USE module_configure, only: grid_config_rec_type
 use module_model_constants, only: reradius,    & ! 1/earth radiusw
                                   pi2            ! 2*pi
+#ifdef PNETCDF
+use pnetcdf
+use mpi
+use IFPORT   ! intel Fortran only
+#endif
 
 implicit none
+
+#ifdef PNETCDF
+character(len=128)::filename = "wrf.nc"
+#endif
+
 
 
 private
@@ -1098,7 +1102,7 @@ do ij=1,num_tiles
             enddo
           endif
         enddo
-! TESTING: get chsum0_fmw in wrfout in any case
+! TESTING: get chsum0_fmw in wrfout if ifmw_qes is on even without pnetcdf, for testing
         if(config_flags%ifmw_qes > 0 .or. use_pnetcdf)then 
         !print *,"*** debug only ***"
         !u0_fmw(ifts,1,jfts)=itimestep
@@ -2205,13 +2209,10 @@ subroutine pnetcdf_write_fmw(                    &
 !*** local
     integer::comm,ncid,varid,dims(4)
     character(len=nf90_max_name):: name
-    character(LEN=256):: filename, msg
+    character(LEN=256):: msg
 
 !*** executable
-    call wrf_get_dm_communicator(comm)
-    filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), nf90_write, &
-                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    call pnetcdf_open(filename,ncid,write=.true.)
     !call pnetcdf_var_info(ncid,"U",dims,varid)
     !call pnetcdf_var_info(ncid,"V",dims,varid)
     !call pnetcdf_var_info(ncid,"PH",dims,varid)
@@ -2238,9 +2239,7 @@ subroutine pnetcdf_write_fmw(                    &
     call pnetcdf_write_int(ncid,0,"CHSUM_FMW")
     call pnetcdf_write_int(ncid,-1,"FRAME_FMW")
     ! paranoid close file
-    call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
-    call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
-    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call pnetcdf_close(ncid)
 
 end subroutine pnetcdf_write_fmw
 
@@ -2261,13 +2260,10 @@ subroutine pnetcdf_read_fire_wind(                    &
 !*** local
     integer::comm,ncid,varid,dims(4)
     character(len=nf90_max_name):: name
-    character(LEN=256):: filename, msg
+    character(LEN=256):: msg
 
 !*** executable
-    call wrf_get_dm_communicator(comm)
-    filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), nf90_nowrite, &
-                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
+    call pnetcdf_open(filename,ncid,write=.false.)
     call message('pnetcdf_read_fire_wind calling pnetcdf_read_2d')
     call  pnetcdf_read_2d(ncid,                &
         ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
@@ -2279,12 +2275,9 @@ subroutine pnetcdf_read_fire_wind(                    &
         ifms,ifme, jfms,jfme,                    &
         ifps,ifpe, jfps,jfpe,                    &
         vf,"VF")      ! vf
-    ! call message('calling pnetcdf_read_int')
     call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
     call pnetcdf_read_int(ncid,frame_fmw,"FRAME_FMW")
-    ! call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
-    call message('calling nf90mpi_close')
-    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call pnetcdf_close(ncid)
     call message('exiting pnetcdf_read_fire_wind')
 
 end subroutine pnetcdf_read_fire_wind
@@ -2306,17 +2299,10 @@ subroutine pnetcdf_read_fmw(                    &
 !*** local
     integer::comm,ncid,varid,dims(4)
     character(len=nf90_max_name):: name
-    character(LEN=256):: filename, msg
+    character(LEN=256):: msg
 
 !*** executable
-    call wrf_get_dm_communicator(comm)
-    filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), nf90_nowrite, &
-                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
-    !call pnetcdf_var_info(ncid,"U",dims,varid)
-    !call pnetcdf_var_info(ncid,"V",dims,varid)
-    !call pnetcdf_var_info(ncid,"PH",dims,varid)
-    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    call pnetcdf_open(filename,ncid,write=.false.)
     call  pnetcdf_read_arr(ncid,                &
         ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
@@ -2334,9 +2320,7 @@ subroutine pnetcdf_read_fmw(                    &
         w_fmw,"W_FMW")
     ! call message('calling pnetcdf_read_int')
     call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
-    ! call check(nf90mpi_flush(ncid),"nf90mpi_flush:"//trim(filename))
-    call message('calling nf90mpi_close')
-    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call pnetcdf_close(ncid)
     call message('exiting pnetcdf_read_fmw')
 
 end subroutine pnetcdf_read_fmw
@@ -2361,11 +2345,7 @@ subroutine pnetcdf_write_wind(                    &
     character(LEN=256):: filename, msg
 
 !*** executable
-    call wrf_get_dm_communicator(comm)
-    filename = "wrf.nc"
-    call check(nf90mpi_open(comm, trim(filename), nf90_write, &
-                           MPI_INFO_NULL, ncid),"nf90mpi_open:"//trim(filename))
-    !call pnetcdf_var_info(ncid,"U",dims,varid)
+    call pnetcdf_open(filename,ncid,write=.true.)
     !call pnetcdf_var_info(ncid,"V",dims,varid)
     !call pnetcdf_var_info(ncid,"PH",dims,varid)
     !call pnetcdf_var_info(ncid,"PHB",dims,varid)
@@ -2385,7 +2365,7 @@ subroutine pnetcdf_write_wind(                    &
         ips,ipe, kps,kpe, jps,jpe,                    &
         ph,"PH")
     ! PHB is constant
-    call check(nf90mpi_close(ncid),"nf90mpi_close:"//trim(filename))
+    call pnetcdf_close(ncid)
 
 end subroutine pnetcdf_write_wind
 
