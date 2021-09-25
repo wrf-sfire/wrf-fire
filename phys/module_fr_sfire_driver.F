@@ -1151,22 +1151,25 @@ do ij=1,num_tiles
               ifms,ifme, jfms,jfme,                    &
               ifps,ifpe, jfps,jfpe,                    &
               fp%vx, fp%vy, chsum_fmw, frame_fmw)
+            print *,"fp%vx",fp%vx(1:5,1:5)
             write(msg,*)'read fire wind frame ',frame_fmw,' check sum ',chsum_fmw
             call message(msg)
             frame: if(frame_fmw.eq.itimestep)then
+              print *,"shape fp%vx",shape(fp%vx),' bounds',lbound(fp%vx),ubound(fp%vx)
               chsum1_fmw = get_chsum(   &
                 ifms,ifme, 1,1, jfms,jfme,                    &
                 ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
                 ifts,ifte, 1,1, jfts,jfte,                    &
-                0,0,0,       &
-                fp%vx)
+                0,0,0, fp%vx ,a2d=fp%vx)
+              write(msg,*)' computed check sum',chsum1_fmw
+              call message(msg)
+              print *,"shape fp%vy",shape(fp%vy),lbound(fp%vy),ubound(fp%vy)
               chsum1_fmw = ieor(chsum1_fmw,get_chsum(  &
                 ifms,ifme, 1,1, jfms,jfme,                    &
                 ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
                 ifts,ifte, 1,1, jfts,jfte,                    &
-                0,0,0,       &
-                fp%vy))
-              write(msg,*)' computed check sum',chsum_fmw1
+                0,0,0, fp%vy ,a2d=fp%vy))
+              write(msg,*)' computed check sum',chsum1_fmw
               call message(msg)
               chsum: if(chsum_fmw.eq.chsum1_fmw)then
                 go to 1

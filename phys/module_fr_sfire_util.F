@@ -1595,7 +1595,7 @@ integer function get_chsum( &
     ids,ide,kds,kde,jds,jde, &                ! domain dims
     ips,ipe,kps,kpe,jps,jpe, &                ! patch or tile dims
     istag,kstag,jstag,       &
-    a)                      
+    a,a2d)                      
 
 #ifdef DM_PARALLEL
     USE module_dm , only : wrf_dm_bxor_integer
@@ -1607,6 +1607,7 @@ integer, intent(in)::  &
     ips,ipe,kps,kpe,jps,jpe, &                ! patch dims
     istag,kstag,jstag
 real, intent(in),dimension(ims:ime,kms:kme,jms:jme)::a
+real, intent(in),dimension(ims:ime,jms:jme),optional::a2d
 
 !$ external, logical:: omp_in_parallel
 !$ external, integer:: omp_get_thread_num
@@ -1619,28 +1620,39 @@ real::rel
 equivalence(rel,iel)
 logical::debug
 
+print *,kms,kme
+print *,'a',a(1:5,kms:kme,1:5)
 
 ipe1=ifval(ipe.eq.ide.and.istag.ne.0,ipe+1,ipe)
-kpe1=ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe)
 jpe1=ifval(jpe.eq.jde.and.jstag.ne.0,jpe+1,jpe)
 !is=ifval(istag.ne.0,1,0)
 !ks=ifval(kstag.ne.0,1,0)
 !js=ifval(jstag.ne.0,1,0)
 
 lsum=0
-debug = a(ips,kps,jps).eq.20.0
-print *,"get_chsum: corner=",a(ips,kps,jps)," debug=",debug
-if(debug)print *,"get_chsum: given bounds ",ips,kps,jps,ipe,kpe,jpe
-if(debug)print *,"get_chsum: loop bounds  ",ips,kps,jps,ipe1,kpe1-1,jpe1
-do j=jps,jpe1
-  do k=kps,kpe1-1
+if(present(a2d))then
+  print *,'loop bounds',ips,jps,ipe1,jpe1
+  print *,'shape a2d',shape(a2d),' bounds ',lbound(a2d),ubound(a2d)
+  do j=jps,jpe1
     do i=ips,ipe1
-      rel=a(i,k,j)
+      rel=a2d(i,j)
       lsum=ieor(lsum,iel)
-      if(debug)print *,i,k,j,rel,iel,lsum
     enddo
   enddo
-enddo
+else
+  kpe1=ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe)
+  print *,'loop bounds',ipe1,kpe1-1,jpe1
+  do j=jps,jpe1
+    do k=kps,kpe1-1
+      do i=ips,ipe1
+        rel=a(i,k,j)
+        lsum=ieor(lsum,iel)
+        if(debug)print *,i,k,j,rel,iel,lsum
+      enddo
+    enddo
+  enddo
+endif
+print *,'lsum=',lsum
 
 ! get process sum over all threads
 thread=0
