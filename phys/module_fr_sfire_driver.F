@@ -1166,7 +1166,7 @@ do ij=1,num_tiles
                 ifts,ifte, 1,1, jfts,jfte,                    &
                 0,0,0,       &
                 fp%vy))
-              write(msg,*)' computed check sum',chsum_fmw
+              write(msg,*)' computed check sum',chsum_fmw1
               call message(msg)
               chsum: if(chsum_fmw.eq.chsum1_fmw)then
                 go to 1
