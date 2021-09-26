@@ -2178,10 +2178,10 @@ subroutine pnetcdf_write_fmw(                    &
 
 !*** executable
     call pnetcdf_open(filename,ncid,write=.true.)
-    !call pnetcdf_var_info(ncid,"U",dims,varid)
-    !call pnetcdf_var_info(ncid,"V",dims,varid)
-    !call pnetcdf_var_info(ncid,"PH",dims,varid)
-    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    !call pnetcdf_var_info(ncid,"U",dims,varid,1)
+    !call pnetcdf_var_info(ncid,"V",dims,varid,1)
+    !call pnetcdf_var_info(ncid,"PH",dims,varid,1)
+    !call pnetcdf_var_info(ncid,"PHB",dims,varid,1)
     call  pnetcdf_write_arr(ncid,                &
         ifds,ifde, kfds,kfde, jfds,jfde,                    & ! atm grid dimensions
         ifms,ifme, kfms,kfme, jfms,jfme,                    &
@@ -2226,7 +2226,7 @@ use IFPORT   ! intel Fortran only
     integer, intent(in)::itimestep  !  wait until we get this frame
     real,intent(out),dimension(ifms:ifme,jfms:jfme)::uf, vf ! wind velocity (m/s) 
 !*** local
-    integer::comm,ncid,varid,chsum_fmw,itry,maxtry=100,frame_fmw,chsum1_fmw
+    integer::comm,ncid,varid,chsum_fmw,itry,maxtry=200,frame_fmw,chsum1_fmw
     integer(4)::isleep=1
     character(LEN=256):: msg
     real, dimension(1,1,1)::dummy
@@ -2245,15 +2245,15 @@ use IFPORT   ! intel Fortran only
                 ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
                 ifps,ifpe, jfps,jfpe,                    &
                 uf,"UF")      ! uf
-            print *,uf(ifps:ifps+4,jfps:jfps+4)
-            print *,"shape uf",shape(uf),' bounds',lbound(uf),ubound(uf)
+            ! print *,uf(ifps:ifps+4,jfps:jfps+4)
+            ! print *,"shape uf",shape(uf),' bounds',lbound(uf),ubound(uf)
             call  pnetcdf_read_2d(ncid,                &
                 ifms,ifme, jfms,jfme,                    &
                 ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
                 ifps,ifpe, jfps,jfpe,                    &
                 vf,"VF")      ! vf
-            print *,vf(ifps:ifps+4,jfps:jfps+4)
-            print *,"shape vf",shape(vf),' bounds',lbound(vf),ubound(vf)
+            ! print *,vf(ifps:ifps+4,jfps:jfps+4)
+            ! print *,"shape vf",shape(vf),' bounds',lbound(vf),ubound(vf)
             call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
             write(msg,*)'read check sum',chsum_fmw
             call message(msg)
@@ -2271,6 +2271,8 @@ use IFPORT   ! intel Fortran only
             write(msg,*)' computed check sum',chsum1_fmw
             call message(msg)
             if(chsum_fmw.eq.chsum1_fmw)then
+                write(msg,*)'success check sum match for time step ',frame_fmw
+                call message(msg)
                 call pnetcdf_close(ncid)
                 return
             else
@@ -2351,9 +2353,9 @@ subroutine pnetcdf_write_wind(                    &
 
 !*** executable
     call pnetcdf_open(filename,ncid,write=.true.)
-    !call pnetcdf_var_info(ncid,"V",dims,varid)
-    !call pnetcdf_var_info(ncid,"PH",dims,varid)
-    !call pnetcdf_var_info(ncid,"PHB",dims,varid)
+    !call pnetcdf_var_info(ncid,"V",dims,varid,1)
+    !call pnetcdf_var_info(ncid,"PH",dims,varid,1)
+    !call pnetcdf_var_info(ncid,"PHB",dims,varid,1)
     call  pnetcdf_write_arr(ncid,                &
         ids,ide, kds,kde, jds,jde,                    & ! atm grid dimensions
         ims,ime, kms,kme, jms,jme,                    &

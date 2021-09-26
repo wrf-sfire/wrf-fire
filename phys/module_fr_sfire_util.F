@@ -1628,14 +1628,14 @@ jpe1=ifval(jpe.eq.jde.and.jstag.ne.0,jpe+1,jpe)
 
 lsum=0
 if(present(a2d))then
-  print *,'loop bounds',ips,jps,ipe1,jpe1
-  print *,'shape a2d',shape(a2d),' bounds ',lbound(a2d),ubound(a2d)
-  print *,'loop bounds',ips,jps,ipe1,jpe1
+  ! print *,'loop bounds',ips,jps,ipe1,jpe1
+  ! print *,'shape a2d',shape(a2d),' bounds ',lbound(a2d),ubound(a2d)
+  ! print *,'loop bounds',ips,jps,ipe1,jpe1
   do j=jps,jpe1
     do i=ips,ipe1
       rel=a2d(i,j)
       lsum=ieor(lsum,iel)
-      print *,i,j,a2d(i,j),lsum
+      ! print *,i,j,a2d(i,j),lsum
     enddo
   enddo
 else
@@ -1646,7 +1646,7 @@ else
       do i=ips,ipe1
         rel=a(i,k,j)
         lsum=ieor(lsum,iel)
-        if(debug)print *,i,k,j,rel,iel,lsum
+        ! if(debug)print *,i,k,j,rel,iel,lsum
       enddo
     enddo
   enddo
@@ -1961,7 +1961,7 @@ subroutine pnetcdf_write_arr(ncid,                &
     character(len=256) msg
 
     ! get idx
-    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    call pnetcdf_var_info(ncid,name,dims,varid)
     star   = (/ips,jps,kps,1/)
     ends   = (/ipe,jpe,kpe,1/)
     ends   = min(ends,dims)
@@ -2013,7 +2013,7 @@ subroutine pnetcdf_read_arr(ncid,                &
     character(len=256) msg
 
     ! get idx
-    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    call pnetcdf_var_info(ncid,name,dims,varid)
     star   = (/ips,jps,kps,1/)
     ends   = (/ipe,jpe,kpe,1/)
     ends   = min(ends,dims)
@@ -2067,7 +2067,7 @@ subroutine pnetcdf_read_2d(ncid,                &
     real, dimension(:,:),allocatable::at
 
     ! get idx
-    call pnetcdf_var_info(ncid,name,dims,varid,1)
+    call pnetcdf_var_info(ncid,name,dims,varid)
     star   = (/ips,jps,1/)
     ends   = (/ipe,jpe,1/)
     ends   = min(ends,dims)
@@ -2105,7 +2105,7 @@ subroutine pnetcdf_var_info(ncid,varname,dims,varid,prints)
     real:: values_real(mdims)
     character(len=mdims):: values_char
     character(LEN=256):: filename, msg
-    logical::verbose=.true.
+    logical::verbose=.false.
 
     if(present(prints)) verbose = prints>0
      
