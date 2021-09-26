@@ -93,7 +93,6 @@ use module_model_constants, only: reradius,    & ! 1/earth radiusw
 #ifdef PNETCDF
 use pnetcdf
 use mpi
-use IFPORT   ! intel Fortran only
 #endif
 
 implicit none
@@ -791,8 +790,7 @@ integer :: its,ite,jts,jte,kts,kte, &            ! tile
 character(len=128)::msg
 character(len=3)::kk
 real, parameter::zero=0.
-integer::chsum1_fmw,chsum_fmw,frame_fmw,itry
-integer(4)::isleep=1
+integer::chsum1_fmw,chsum_fmw,frame_fmw
 
 ! femwind variables - should move all this to subrouitine and declare temporaries on a tile?
 real, dimension(ifms:ifme,jfms:jfme)::u0_tmp, v0_tmp, w0_tmp  !
@@ -1135,6 +1133,7 @@ do ij=1,num_tiles
 
 #ifdef PNETCDF
         if(use_pnetcdf)then
+          ! write initial wind
           call pnetcdf_write_fmw(                    &
           ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
           ifms,ifme, 1,nfmw, jfms,jfme,                    &
@@ -1143,52 +1142,15 @@ do ij=1,num_tiles
           write(msg,*)'writing *0_fmw, check sum ',chsum0_fmw,' frame ',itimestep
           call message(msg)
 
-          try_read: do itry=1,100
-            write(msg,*)'read fire wind try ',itry,' start'
-            call message(msg)
-            call pnetcdf_read_fire_wind(               &
+          ! wait for computed fire wind 
+           call pnetcdf_read_fire_wind(               &
               ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
               ifms,ifme, jfms,jfme,                    &
               ifps,ifpe, jfps,jfpe,                    &
-              fp%vx, fp%vy, chsum_fmw, frame_fmw)
-            print *,"fp%vx",fp%vx(1:5,1:5)
-            write(msg,*)'read fire wind frame ',frame_fmw,' check sum ',chsum_fmw
-            call message(msg)
-            frame: if(frame_fmw.eq.itimestep)then
-              print *,"shape fp%vx",shape(fp%vx),' bounds',lbound(fp%vx),ubound(fp%vx)
-              chsum1_fmw = get_chsum(   &
-                ifms,ifme, 1,1, jfms,jfme,                    &
-                ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
-                ifts,ifte, 1,1, jfts,jfte,                    &
-                0,0,0, fp%vx ,a2d=fp%vx)
-              write(msg,*)' computed check sum',chsum1_fmw
-              call message(msg)
-              print *,"shape fp%vy",shape(fp%vy),lbound(fp%vy),ubound(fp%vy)
-              chsum1_fmw = ieor(chsum1_fmw,get_chsum(  &
-                ifms,ifme, 1,1, jfms,jfme,                    &
-                ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
-                ifts,ifte, 1,1, jfts,jfte,                    &
-                0,0,0, fp%vy ,a2d=fp%vy))
-              write(msg,*)' computed check sum',chsum1_fmw
-              call message(msg)
-              chsum: if(chsum_fmw.eq.chsum1_fmw)then
-                go to 1
-              else chsum
-                call message('check sum does not agree')
-              endif chsum
-            else frame
-              call message('frame number does not agree')
-            endif frame
-            write(msg,*)'sleeping ',isleep,' sec'
-            call message(msg)
-            call sleep(isleep)
-            write(msg,*)'read fire wind try ',itry,' end'
-            call message(msg)
-          enddo try_read
-          call crash('Reading fire winds timed out')
-1         continue
+              fp%vx, fp%vy, itimestep)
 
 #ifdef READ_FMW
+! DEADBEEF
             call  pnetcdf_read_fmw(                    &
               ifds,ifde, 1,nfmw, jfds,jfde,                    & ! atm grid dimensions
               ifms,ifme, 1,nfmw, jfms,jfme,                    &
@@ -2250,7 +2212,10 @@ subroutine pnetcdf_read_fire_wind(                    &
     ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, jfms,jfme,                    &
     ifps,ifpe, jfps,jfpe,                    &
-    uf, vf, chsum_fmw, frame_fmw)
+    uf, vf, itimestep)
+!*** purpose: read uv,vf, wait for correct frame and checksum, crash if timeout
+!*** global
+use IFPORT   ! intel Fortran only
     implicit none
 
 !*** arguments
@@ -2258,31 +2223,68 @@ subroutine pnetcdf_read_fire_wind(                    &
     ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
     ifms,ifme, jfms,jfme,                    &
     ifps,ifpe, jfps,jfpe                    
-    integer, intent(out)::chsum_fmw,frame_fmw                       ! xor chsum         
+    integer, intent(in)::itimestep  !  wait until we get this frame
     real,intent(out),dimension(ifms:ifme,jfms:jfme)::uf, vf ! wind velocity (m/s) 
 !*** local
-    integer::comm,ncid,varid,dims(4)
-    character(len=nf90_max_name):: name
+    integer::comm,ncid,varid,chsum_fmw,itry,maxtry=100,frame_fmw,chsum1_fmw
+    integer(4)::isleep=1
     character(LEN=256):: msg
+    real, dimension(1,1,1)::dummy
 
 !*** executable
-    call pnetcdf_open(filename,ncid,write=.false.)
-    call message('pnetcdf_read_fire_wind calling pnetcdf_read_2d')
-    call  pnetcdf_read_2d(ncid,                &
-        ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
-        ifms,ifme, jfms,jfme,                    &
-        ifps,ifpe, jfps,jfpe,                    &
-        uf,"UF")      ! uf
-    call  pnetcdf_read_2d(ncid,                &
-        ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
-        ifms,ifme, jfms,jfme,                    &
-        ifps,ifpe, jfps,jfpe,                    &
-        vf,"VF")      ! vf
-    call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
-    call pnetcdf_read_int(ncid,frame_fmw,"FRAME_FMW")
-    call pnetcdf_close(ncid)
-    call message('exiting pnetcdf_read_fire_wind')
-
+    do itry=1,maxtry
+        write(msg,*)'pnetcdf_read_fire_wind try',itry,' start'
+        call message(msg)
+        call pnetcdf_open(filename,ncid,write=.false.)
+        call pnetcdf_read_int(ncid,frame_fmw,"FRAME_FMW")
+        write(msg,*)'waiting for time step ',itimestep,' read ',frame_fmw
+        call message(msg)
+        if(frame_fmw.eq.itimestep)then
+            call  pnetcdf_read_2d(ncid,                &
+                ifms,ifme, jfms,jfme,                    &
+                ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+                ifps,ifpe, jfps,jfpe,                    &
+                uf,"UF")      ! uf
+            print *,uf(ifps:ifps+4,jfps:jfps+4)
+            print *,"shape uf",shape(uf),' bounds',lbound(uf),ubound(uf)
+            call  pnetcdf_read_2d(ncid,                &
+                ifms,ifme, jfms,jfme,                    &
+                ifds,ifde, jfds,jfde,                    & ! atm grid dimensions
+                ifps,ifpe, jfps,jfpe,                    &
+                vf,"VF")      ! vf
+            print *,vf(ifps:ifps+4,jfps:jfps+4)
+            print *,"shape vf",shape(vf),' bounds',lbound(vf),ubound(vf)
+            call pnetcdf_read_int(ncid,chsum_fmw,"CHSUM_FMW")
+            write(msg,*)'read check sum',chsum_fmw
+            call message(msg)
+            chsum1_fmw = ieor( &
+                get_chsum(                                        &
+                    ifms,ifme, 1,1, jfms,jfme,                    &
+                    ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
+                    ifps,ifpe, 1,1, jfps,jfpe,                    &
+                    0,0,0, dummy ,a2d=uf),                        &
+                get_chsum(                                        &
+                    ifms,ifme, 1,1, jfms,jfme,                    &
+                    ifds,ifde, 1,1, jfds,jfde,                    & ! atm grid dimensions
+                    ifps,ifpe, 1,1, jfps,jfpe,                    &
+                    0,0,0, dummy ,a2d=vf))
+            write(msg,*)' computed check sum',chsum1_fmw
+            call message(msg)
+            if(chsum_fmw.eq.chsum1_fmw)then
+                call pnetcdf_close(ncid)
+                return
+            else
+                call message('check sum does not agree')
+            endif 
+        else 
+            call message('time step does not agree')
+        endif 
+        call pnetcdf_close(ncid)
+        write(msg,*)'sleeping ',isleep,' sec'
+        call message(msg)
+        call sleep(isleep)
+    enddo 
+    call crash('Reading fire winds timed out')
 end subroutine pnetcdf_read_fire_wind
 
 subroutine pnetcdf_read_fmw(                    &

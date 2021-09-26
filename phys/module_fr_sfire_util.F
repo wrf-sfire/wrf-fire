@@ -1620,9 +1620,6 @@ real::rel
 equivalence(rel,iel)
 logical::debug
 
-print *,kms,kme
-print *,'a',a(1:5,kms:kme,1:5)
-
 ipe1=ifval(ipe.eq.ide.and.istag.ne.0,ipe+1,ipe)
 jpe1=ifval(jpe.eq.jde.and.jstag.ne.0,jpe+1,jpe)
 !is=ifval(istag.ne.0,1,0)
@@ -1633,15 +1630,17 @@ lsum=0
 if(present(a2d))then
   print *,'loop bounds',ips,jps,ipe1,jpe1
   print *,'shape a2d',shape(a2d),' bounds ',lbound(a2d),ubound(a2d)
+  print *,'loop bounds',ips,jps,ipe1,jpe1
   do j=jps,jpe1
     do i=ips,ipe1
       rel=a2d(i,j)
       lsum=ieor(lsum,iel)
+      print *,i,j,a2d(i,j),lsum
     enddo
   enddo
 else
   kpe1=ifval(kpe.eq.kde.and.kstag.ne.0,kpe+1,kpe)
-  print *,'loop bounds',ipe1,kpe1-1,jpe1
+  ! print *,'loop bounds',ipe1,kpe1-1,jpe1
   do j=jps,jpe1
     do k=kps,kpe1-1
       do i=ips,ipe1
@@ -2044,8 +2043,8 @@ subroutine pnetcdf_read_arr(ncid,                &
 end subroutine pnetcdf_read_arr
 
 subroutine pnetcdf_read_2d(ncid,                &
-    ids,ide, jds,jde,                    & ! atm grid dimensions
     ims,ime, jms,jme,                    &
+    ids,ide, jds,jde,                    & ! atm grid dimensions
     ips,ipe, jps,jpe,                    &
     a,name)
     implicit none
@@ -2055,8 +2054,8 @@ subroutine pnetcdf_read_2d(ncid,                &
 !*** arguments
     integer, intent(in)::                         &
     ncid,                                         & ! open pnetcdf file
-    ids,ide, jds,jde,                    & ! atm grid dimensions
     ims,ime, jms,jme,                    &
+    ids,ide, jds,jde,                    & ! atm grid dimensions
     ips,ipe, jps,jpe                     
     real,intent(out),dimension(ims:ime,jms:jme)::a  
     character(LEN=*),intent(in):: name
@@ -2065,6 +2064,7 @@ subroutine pnetcdf_read_2d(ncid,                &
     integer(kind=MPI_OFFSET_KIND),dimension(3)::star,cnts
     integer::i,j,k,varid,ends(3),dims(3)
     character(len=256) msg
+    real, dimension(:,:),allocatable::at
 
     ! get idx
     call pnetcdf_var_info(ncid,name,dims,varid,1)
@@ -2075,12 +2075,17 @@ subroutine pnetcdf_read_2d(ncid,                &
     if (ends(1).eq.dims(1)-1)ends(1)=dims(1) 
     if (ends(2).eq.dims(2)-1)ends(2)=dims(2)
     cnts = ends - star + 1
+    allocate(at(ips:ipe,jps:jpe))
 
     write(msg,*)"reading ",trim(name),star,ends
     call message(msg)
  
     ! read from file
-    call check(nf90mpi_get_var_all(ncid, varid, a, start = star, count = cnts),"nf90mpi_get_var:"//trim(name))
+    call check(nf90mpi_get_var_all(ncid, varid, at, start = star, count = cnts),"nf90mpi_get_var:"//trim(name))
+    a(ips:ipe,jps:jpe)=at
+    print *,'pnetcdf_read_2d:'
+    print *,a(ips:ips+4,jps:jps+4)
+    deallocate(at)
     
 end subroutine pnetcdf_read_2d
 
