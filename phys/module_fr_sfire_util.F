@@ -1887,6 +1887,7 @@ pnetcdf_file%ncid=-1
 end subroutine pnetcdf_close
 
 subroutine pnetcdf_read_int(ncid,ia,varname)
+use module_dm
 implicit none
 !*** arguments
     integer, intent(in)::ncid                      ! open pnetcdf file
@@ -1909,6 +1910,7 @@ implicit none
         call message(msg)
     endif
     call check(nf90mpi_end_indep_data(ncid),"pnetcdf_write_int/nf90mpi_end_indep_data")
+    call wrf_dm_bcast_integer(ia,1)
 end subroutine pnetcdf_read_int
 
 subroutine pnetcdf_write_int(ncid,ia,varname)
