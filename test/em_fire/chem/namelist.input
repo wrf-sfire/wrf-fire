@@ -68,6 +68,7 @@
  ifsnow                              = 0,
  icloud                              = 0,
  num_soil_layers                     = 5,
+ num_land_cat                        = 33,
  mp_zero_out                         = 0,
  /
 
@@ -95,7 +96,7 @@
  time_step_sound                     = 20,     20,     20,
  moist_adv_opt                       = 1,      1,      1,
  scalar_adv_opt                      = 1,      1,      1,
- tracer_opt                          = 1,
+ tracer_opt                          = 0,
  /
 
  &bdy_control
@@ -121,7 +122,7 @@
  /
 
  &fire ! be sure to set sr_x,sr_y in domains-namelist (to set refinement in x,y)
- ifire              = 2,    ! integer, = 0: no fire, 2=turn on fire model
+ ifire              = 1,    ! integer, = 0: no fire, 2=turn on fire model
  fire_fuel_read     = 0,    ! integer, -1: from WPS, 0= use fire_fuel_cat, 1= by altitude
  fire_fuel_cat      = 3,    ! integer, if specified which fuel category?
  sfc_full_init =.true.,
@@ -204,12 +205,13 @@
  kemit                               = 19,
  !chem_opt                            = 2,
  chem_opt                            = 300,
+ !chem_opt                            = 0,
  bioemdt                             = 1,
  photdt                              = 1,
  chemdt                              = .1,
  io_style_emissions                  = 0,  
  emiss_opt                           = 3,          3,
- chem_in_opt                         = 1,          0,
+ chem_in_opt                         = 0,          0,
  phot_opt                            = 0,          0,
  gas_drydep_opt                      = 0,          1, 
  aer_drydep_opt                      = 0,          1, 

@@ -121,7 +121,7 @@
  /
 
  &fire ! be sure to set sr_x,sr_y in domains-namelist (to set refinement in x,y)
- ifire              = 2,    ! integer, = 0: no fire, 2=turn on fire model
+ ifire              = 1,    ! integer, = 0: no fire, 1=turn on sfire model
  fire_fuel_read     = 0,    ! integer, -1: from WPS, 0= use fire_fuel_cat, 1= by altitude
  fire_fuel_cat      = 3,    ! integer, if specified which fuel category?
 ! ignition 
@@ -193,7 +193,7 @@
  fire_back_weight=0.5,          ! RK timestepping coefficient, 0=forward, 0.5=Heun
  fire_grows_only=1,             ! if >0 level set function cannot increase = fire can only grow
  fire_viscosity=0.4,              ! artificial viscosity in level set method (max 1, needed with fire_upwinding=0)
- fire_upwinding=3,              ! 0=none, 1=standard, 2=godunov, 3=eno, 4=sethian
+ sfire_upwinding=3,              ! 0=none, 1=standard, 2=godunov, 3=eno, 4=sethian
  fire_fuel_left_method=1,        ! for now, use 1 only
  fire_lfn_ext_up=1.0,           ! 0.=extend level set function at boundary by reflection, 1.=always up
  fire_advection=0,              ! 0 = cawfe, 1 = use abs speed/slope in spread rate, then project on normal to fireline

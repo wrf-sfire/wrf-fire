@@ -33,7 +33,7 @@ integer,save::          &
  fuel_left_jrl=2,       &  ! currently, 2 only supported
  boundary_guard=-1,     &  ! crash if fire gets this many cells to domain boundary, -1=off
  fire_grows_only=1,     &  ! fire can spread out only (level set functions may not increase)
- fire_upwinding=3,      &  ! upwind normal spread: 1=standard, 2=godunov, 3=eno, 4=sethian 
+ sfire_upwinding=3,      &  ! upwind normal spread: 1=standard, 2=godunov, 3=eno, 4=sethian 
  fire_test_steps=0,     &  ! 0=no fire, 1=normal, >1 = do specified number of steps and terminate (testing only)
  fire_topo_from_atm=1,  &  ! 0 = expect ZSF set correctly on entry, 1 = populate by interploating from atmosphere
  fire_advection=0,      &  ! 0 = fire spread from normal wind/slope (CAWFE), 1 = full speed projected
@@ -45,8 +45,8 @@ integer,save::          &
  fire_hfx_num_lines=1,  &     ! number of heatflux parameter sets defining the heaflux lines (must be 1) 
  fire_update_fuel_frac=1,& ! 1 normal, 2 burner
  fndwi_from_ndwi=1,     &  ! interpolate ndwi from atmosphere resolution
- kfmc_ndwi=0               ! if>0 , number of the fuel moisture class to update from ndwi
- 
+ kfmc_ndwi=0,           &   ! if>0 , number of the fuel moisture class to update from ndwi
+ fire_can_top_read=1        ! canopy top height : 0 from wrfinput, 1 from namelist.fire (CAN_TOP)
 
 real, save::            &
  fire_perimeter_time=0.,&  ! if >0, set lfn from tign until this time, and read tign_g in ideal
@@ -287,6 +287,7 @@ character(len=128):: msg
 character(len=1)::act
 integer::iounit,ierr
 logical::op
+CHARACTER (LEN=1024) :: entire_line
 
 !$  if (OMP_GET_THREAD_NUM() .ne. 0)then
 !$     call crash('open_input_text_file: called from parallel loop')
@@ -301,20 +302,49 @@ logical::op
     act=rw(1:1)
     select case (act)
         case ('r','R')
-            OPEN(iounit, FILE=filename,FORM='FORMATTED',STATUS='OLD',ACTION='READ',IOSTAT=ierr)
+            OPEN(iounit, FILE=TRIM(filename),FORM='FORMATTED',STATUS='OLD',ACTION='READ',IOSTAT=ierr)
+            if(ierr.ne.0)goto 998
+            ! try reading a line
+            READ ( UNIT = iounit , FMT = '(A)', IOSTAT=ierr ) entire_line
+            if(ierr.ne.0)then
+                call message('open_text_file: Cannot read from file '//TRIM(filename), level=0)
+                goto 999
+            endif
+            BACKSPACE ( UNIT = iounit )
         case ('w','W')
-            OPEN(iounit, FILE=filename,FORM='FORMATTED',STATUS='UNKNOWN',ACTION='WRITE',IOSTAT=ierr)
+            OPEN(iounit, FILE=TRIM(filename),FORM='FORMATTED',STATUS='UNKNOWN',ACTION='WRITE',IOSTAT=ierr)
+            if(ierr.ne.0)goto 998
         case default
             write(msg,*)'open_text_file: bad mode ',trim(rw),' for file ',trim(filename)
+            call crash(msg)
     end select
-    
-    if(ierr.ne.0)then 
-	write(msg,*)'open_text_file: Cannot open file ',filename
-        call crash(msg)
-    endif
     open_text_file=iounit
+    return
+    
+998 call message('open_text_file: Cannot open file '//TRIM(filename), level=0)
+999 write(msg,*)'unit ',iounit, ' error ',ierr
+    call crash(msg)
 
 end function open_text_file
+
+!
+!****************
+!
+subroutine error_namelist(nml_read_unit)
+! find error when reading namelist fails
+! adapted from frame/module_configure.f90 SUBROUTINE initial_config
+    integer,intent(in)::nml_read_unit
+    CHARACTER (LEN=1024) :: entire_line
+    CHARACTER (LEN=128) :: msg
+    BACKSPACE ( UNIT = nml_read_unit )
+    BACKSPACE ( UNIT = nml_read_unit )
+    READ ( UNIT = nml_read_unit , FMT = '(A)' ) entire_line
+    CALL message("Maybe here?: "//TRIM(entire_line),level=-1)
+    READ ( UNIT = nml_read_unit , FMT = '(A)' ) entire_line
+    CALL message("Maybe here?: "//TRIM(entire_line),level=-1)
+    write(msg,*)"Error in namelist, unit=", nml_read_unit
+    call crash(msg)
+end
 
 !
 !****************
@@ -1150,7 +1180,7 @@ character(len=*),intent(in)::name
 real,intent(in)::min_a,max_a,avg_a
 !*** local
 character(len=128)::msg
-character(len=24)::id
+character(len=35)::id
 !*** executable
 if(.not.avg_a.eq.avg_a)then
     msg='NaN detected in '//trim(name)
@@ -1159,7 +1189,7 @@ endif
 if(fire_print_msg.eq.0)return
 id=name
 !$OMP CRITICAL(SFIRE_UTIL_CRIT)
-write(msg,'(a,4i4,3g11.3)')id,ips,ipe,jps,jpe,min_a,max_a,avg_a
+write(msg,'(a,4i5,3g13.5)')id,ips,ipe,jps,jpe,min_a,max_a,avg_a
 !$OMP END CRITICAL(SFIRE_UTIL_CRIT)
 call message(msg,level=2)
 end subroutine print_stat_line
@@ -1538,7 +1568,7 @@ js=ifval(jstag.ne.0,1,0)
 
 lsum=0
 do j=jps,jpe1
-  do k=kps,kpe1
+  do k=kps,kpe1-1
     do i=ips,ipe1
       rel=a(i,k,j)
       lsum=ieor(lsum,iel)

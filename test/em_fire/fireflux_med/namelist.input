@@ -116,12 +116,12 @@
  /
 
  &namelist_quilt
- nio_tasks_per_group = 8,
- nio_groups = 1,
+! nio_tasks_per_group = 8,
+! nio_groups = 1,
  /
 
  &fire ! be sure to set sr_x,sr_y in domains-namelist (to set refinement in x,y)
- ifire              = 2,    ! integer, = 0: no fire, 2=turn on fire model
+ ifire              = 1,    ! integer, = 0: no fire, 2=turn on fire model
  fire_fuel_read     = 2,    ! integer, -1: from WPS, 0= use fire_fuel_cat, 1= by altitude
  fire_fuel_cat      = 3,    ! integer, if specified which fuel category?
 ! ignition 
@@ -144,7 +144,7 @@
  fire_ignition_end_time2 = 193,  ! sec for ignition from the start! end ignition for sfire
 !
 ! verbosity
- fire_print_msg     = 1,        ! 1 print fire debugging messages
+ fire_print_msg     = 2,        ! 1 print fire debugging messages
  fire_print_file    = 0,        ! 1 write files for matlab
 !
 ! experiments
