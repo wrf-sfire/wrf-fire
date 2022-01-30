@@ -1,7 +1,7 @@
 # fefines FC, FCFLAGS, FFREE
 include make.inc
 DEFS =
-WRF = ../wrfv2_fire
+WRF = ..
 FPFLAGS= -I$(NETCDF)/include -I.
 LDFLAGS = -L$(NETCDF)/lib -lnetcdff -lnetcdf
 #LDFLAGS = `$(NETCDF)/bin/nc-config --flibs`
