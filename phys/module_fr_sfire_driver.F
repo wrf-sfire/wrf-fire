@@ -175,7 +175,8 @@ subroutine sfire_driver_em ( grid , config_flags                    &
 ! copy configuration flags to sfire internal structures
     call set_flags(config_flags)
 
-    write(msg,'(a,i3)')' domain', grid%id
+    write(msg,'(a,i3)')' domain', grid%grid_id
+
     call message(msg,level=1)
 
 ! prevent memory errors because of variables missing in registry packages

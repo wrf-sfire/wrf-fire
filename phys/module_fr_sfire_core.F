@@ -448,7 +448,7 @@ end subroutine check_lfn_tign_ij
 
 
 ! called from the inside of a loop, inline if possible
-!DEC$ ATTRIBUTES FORCEINLINE
+!DEC$ ATTRIBUTES FORCEINLINE :: nearest
 SUBROUTINE nearest(d,t,ax,ay,sx,sy,st,ex,ey,et,cx2,cy2)
         implicit none
 !***    arguments
