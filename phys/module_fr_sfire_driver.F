@@ -2238,6 +2238,10 @@ use IFPORT   ! intel Fortran only
         call pnetcdf_open(filename,ncid,write=.false.)
         call pnetcdf_read_int(ncid,frame_fmw,"FRAME_FMW")
         write(msg,*)'waiting for time step ',itimestep,' read ',frame_fmw
+        if(frame_fmw < 0) then
+            call message('received STOP signal frame_fmw < 0')
+            stop
+        endif
         call message(msg)
         if(frame_fmw.eq.itimestep)then
             call  pnetcdf_read_2d(ncid,                &
