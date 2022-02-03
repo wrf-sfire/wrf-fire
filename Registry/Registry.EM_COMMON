@@ -110,6 +110,7 @@ state    real   cl_gc          igj      dyn_em      1        Z     i1  "SPECCLDL
 state    real   cf_gc          igj      dyn_em      1        Z     i1  "SPECCLDF"  "Cloud water content, frozen"    "kg kg-1"
 state    real   icefrac_gc     ij       dyn_em      1        -     i1  "ICEFRAC"  "Sea ice fraction"  "0 - 1 fraction"
 state    real   icepct         ij       dyn_em      1        -     i1  "ICEPCT"  "Sea ice percent"  "%"
+state    real   smoke_gc       igj      dyn_em      1        Z     i1  "SMOKEPM"  "Smoke concentration"   "kg kg-1"
 state    real   qr_gc          igj      dyn_em      1        Z     i1  "QR"    "rain water mixing ratio"   "kg kg-1"
 state    real   qc_gc          igj      dyn_em      1        Z     i1  "QC"    "cloud water mixing ratio"   "kg kg-1"
 state    real   qs_gc          igj      dyn_em      1        Z     i1  "QS"    "snow mixing ratio"   "kg kg-1"

@@ -2580,6 +2580,22 @@ integer::oops1,oops2
             END IF
             END IF
          END IF
+         WRITE (*,*) 'DEBUG!!! maximum smoke_gc value ', MAXVAL(grid%smoke_gc)
+         ! Set negative concentrations to 0
+         ! Vertical interpolation for HRRR-smoke field into tr17_1
+         CALL vert_interp ( grid%smoke_gc , grid%pd_gc, tracer(:,:,:,p_tr17_1) , grid%pb , &
+                   grid%hgtmaxw , grid%hgttrop , grid%pmaxw , grid%ptrop , &
+                   grid%pmaxwnn , grid%ptropnn , &
+                   0 , 0 , &
+                   config_flags%maxw_horiz_pres_diff, config_flags%trop_horiz_pres_diff , &
+                   config_flags%maxw_above_this_level , &
+                   num_metgrid_levels , 'Q' , &
+                   interp_type , linear_interp , extrap_type , &
+                   .false., use_levels_below_ground ,use_surface , &
+                   10. , force_sfc_in_vinterp , grid%id , &     ! RAR: I set zap_* option =10. for smoke interpolation
+                   ids , ide , jds , jde , kds , kde , &
+                   ims , ime , jms , jme , kms , kme , &
+                   its , ite , jts , jte , kts , kte )
 
 !=========================================================================================
 !    END OF OPTIONAL 3D DATA, USUALLY AEROSOLS

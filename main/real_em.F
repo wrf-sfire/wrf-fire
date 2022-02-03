@@ -705,6 +705,7 @@ character *24 :: temp24 , temp24b
    REAL , DIMENSION(:,:,:) , ALLOCATABLE , SAVE :: ubdy3dtemp2 , vbdy3dtemp2 , tbdy3dtemp2 , pbdy3dtemp2 , qbdy3dtemp2
    REAL , DIMENSION(:,:,:) , ALLOCATABLE , SAVE :: mbdy2dtemp2
    REAL , DIMENSION(:,:,:) , ALLOCATABLE , SAVE :: qn1bdy3dtemp1, qn1bdy3dtemp2, qn2bdy3dtemp1, qn2bdy3dtemp2
+   REAL , DIMENSION(:,:,:) , ALLOCATABLE , SAVE :: smkbdy3dtemp1, smkbdy3dtemp2
 real::t1,t2
 
    INTEGER                                :: open_status
@@ -806,6 +807,13 @@ real::t1,t2
             ALLOCATE ( qn2bdy3dtemp2(ims:ime,kms:kme,jms:jme) )
          END IF
 
+         !IF (config_flags%smoke_bc .eq. 1) THEN
+         IF ( ALLOCATED ( smkbdy3dtemp1 ) ) DEALLOCATE ( smkbdy3dtemp1 )
+         IF ( ALLOCATED ( smkbdy3dtemp2 ) ) DEALLOCATE ( smkbdy3dtemp2 )
+         ALLOCATE ( smkbdy3dtemp1(ims:ime,kms:kme,jms:jme) )
+         ALLOCATE ( smkbdy3dtemp2(ims:ime,kms:kme,jms:jme) )
+         !END IF
+
       END IF
 
       !  Open the wrfinput file.  From this program, this is an *output* file.
@@ -871,6 +879,12 @@ real::t1,t2
                        grid%c1h, grid%c2h, grid%c1h, grid%c2h, &
                        ids, ide, jds, jde, kds, kde, ims, ime, jms, jme, kms, kme, ips, ipe, jps, jpe, kps, kpe )
          END IF
+
+         !IF (config_flags%smoke_bc .eq. 1) THEN
+            CALL couple ( grid%mu_2, grid%mub, smkbdy3dtemp1, grid%tracer(:,:,:,p_tr17_1), 'c' , grid%msfty , &
+                        grid%c1h, grid%c2h, grid%c1h, grid%c2h, &
+                        ids, ide, jds, jde, kds, kde, ims, ime, jms, jme, kms, kme, ips, ipe, jps, jpe, kps, kpe )
+         !END IF
 
       END IF
 
@@ -952,6 +966,16 @@ real::t1,t2
                                                                     ims , ime , jms , jme , kms , kme , &
                                                                     ips , ipe , jps , jpe , kps , kpe )
          END IF
+
+         !IF (config_flags%smoke_bc .eq. 1) THEN
+         CALL stuff_bdy ( smkbdy3dtemp1, grid%tracer_bxs(:,:,:,p_tr17_1), grid%tracer_bxe(:,:,:,p_tr17_1),     &
+                                     grid%tracer_bys(:,:,:,p_tr17_1), grid%tracer_bye(:,:,:,p_tr17_1),                    &
+                                       'T' , spec_bdy_width,  &
+                                             ids , ide , jds , jde , kds , kde , &
+                                             ims , ime , jms , jme , kms , kme , &
+                                             ips , ipe , jps , jpe , kps , kpe )
+         !END IF
+
       END IF
 
 
@@ -1049,6 +1073,12 @@ real::t1,t2
                        grid%c1h, grid%c2h, grid%c1h, grid%c2h, &
                        ids, ide, jds, jde, kds, kde, ims, ime, jms, jme, kms, kme, ips, ipe, jps, jpe, kps, kpe )
          END IF
+
+         !IF (config_flags%smoke_bc .eq. 1) THEN
+            CALL couple ( grid%mu_2, grid%mub, smkbdy3dtemp2, grid%tracer(:,:,:,p_tr17_1), 'c' , grid%msfty , &
+                        grid%c1h, grid%c2h, grid%c1h, grid%c2h, &
+                        ids, ide, jds, jde, kds, kde, ims, ime, jms, jme, kms, kme, ips, ipe, jps, jpe, kps, kpe )
+         !END IF
 
       END IF
 
@@ -1151,6 +1181,16 @@ real::t1,t2
                                                                ims , ime , jms , jme , kms , kme , &
                                                                ips , ipe , jps , jpe , kps , kpe )
          END IF
+         !IF (config_flags%smoke_bc .eq. 1) THEN
+            CALL stuff_bdytend (smkbdy3dtemp2 , smkbdy3dtemp1 , REAL(interval_seconds) ,      &
+                                                              grid%tracer_btxs(:,:,:,p_tr17_1), grid%tracer_btxe(:,:,:,p_tr17_1), &
+                                                              grid%tracer_btys(:,:,:,p_tr17_1), grid%tracer_btye(:,:,:,p_tr17_1), &
+                                                              'T' , &
+                                                              spec_bdy_width      , &
+                                                              ids , ide , jds , jde , kds , kde , &
+                                                              ims , ime , jms , jme , kms , kme , &
+                                                              ips , ipe , jps , jpe , kps , kpe )
+         !END IF
       END IF
 
       !  Both pieces of the boundary data are now available to be written (initial time and tendency).
@@ -1271,7 +1311,17 @@ real::t1,t2
                   END DO
                END DO
             END IF
-
+            
+            !IF (config_flags%smoke_bc .eq. 1) THEN
+            DO j = jps , jpe
+               DO k = kps , kpe
+                  DO i = ips , ipe
+                     smkbdy3dtemp1(i,k,j) = smkbdy3dtemp2(i,k,j)
+                  END DO
+               END DO
+            END DO
+            !END IF
+       
          END IF
 
          IF(grid_fdda .GE. 1)THEN
@@ -1352,6 +1402,15 @@ real::t1,t2
                                                                        ims , ime , jms , jme , kms , kme , &
                                                                        ips , ipe , jps , jpe , kps , kpe )
             END IF
+
+            !IF (config_flags%smoke_bc .eq. 1) THEN
+            CALL stuff_bdy ( smkbdy3dtemp1, grid%tracer_bxs(:,:,:,p_tr17_1), grid%tracer_bxe(:,:,:,p_tr17_1),     &
+                                       grid%tracer_bys(:,:,:,p_tr17_1), grid%tracer_bye(:,:,:,p_tr17_1),                    &
+                                         'T' , spec_bdy_width,  &
+                                               ids , ide , jds , jde , kds , kde , &
+                                               ims , ime , jms , jme , kms , kme , &
+                                               ips , ipe , jps , jpe , kps , kpe )
+            !END IF
    
          END IF
 
